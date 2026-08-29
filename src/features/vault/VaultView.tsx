@@ -3,8 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 
 interface Entry {
+  id: string;
   name: string;
-  password: string;
+  password?: string | null;
 }
 
 export function VaultView() {
@@ -23,7 +24,14 @@ export function VaultView() {
 
   const handleSave = async () => {
     if (!name || !password) return;
-    await invoke("save_entry", { name, password });
+    await invoke("save_entry", {
+      name,
+      folder: null,
+      username: null,
+      password,
+      website: null,
+      notes: null,
+    });
     setName("");
     setPassword("");
     loadEntries();
@@ -46,8 +54,8 @@ export function VaultView() {
       />
       <Button onClick={handleSave}>Guardar</Button>
       <ul className="mt-4 space-y-2">
-        {entries.map((entry, i) => (
-          <li key={i} className="border rounded p-2">
+        {entries.map((entry) => (
+          <li key={entry.id} className="border rounded p-2">
             <strong>{entry.name}</strong>: {entry.password}
           </li>
         ))}
