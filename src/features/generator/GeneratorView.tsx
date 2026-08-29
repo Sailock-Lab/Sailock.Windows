@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy } from "lucide-react";
 
-// Genera un número aleatorio seguro (mejor que Math.random para contraseñas)
 function secureRandomInt(max: number): number {
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
@@ -16,6 +16,7 @@ const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const LOWER = "abcdefghijklmnopqrstuvwxyz";
 const NUMBERS = "0123456789";
 const SYMBOLS = "!@#$%^&*()-_=+[]{}<>?";
+const AMBIGUOUS = "l1I0O";
 
 function generatePassword(
   length: number,
@@ -45,60 +46,130 @@ function generatePassword(
   return result;
 }
 
+interface CriteriaRowProps {
+  icon: React.ReactNode;
+  label: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}
+
+function CriteriaRow({ icon, label, checked, onCheckedChange }: CriteriaRowProps) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <div className="flex items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-sm font-mono font-semibold">
+          {icon}
+        </div>
+        <span className="text-sm">{label}</span>
+      </div>
+      <Checkbox checked={checked} onCheckedChange={(v) => onCheckedChange(v === true)} />
+    </div>
+  );
+}
+
 export function GeneratorView() {
   const [length, setLength] = useState(16);
   const [uppercase, setUppercase] = useState(true);
   const [lowercase, setLowercase] = useState(true);
   const [numbers, setNumbers] = useState(true);
   const [symbols, setSymbols] = useState(true);
+  const [excludeSimilar, setExcludeSimilar] = useState(true);
   const [exclude, setExclude] = useState("");
   const [value, setValue] = useState("");
 
   const handleGenerate = () => {
-    setValue(generatePassword(length, uppercase, lowercase, numbers, symbols, exclude));
+    const finalExclude = exclude + (excludeSimilar ? AMBIGUOUS : "");
+    setValue(generatePassword(length, uppercase, lowercase, numbers, symbols, finalExclude));
   };
 
   return (
-    <div className="flex flex-col gap-4 max-w-md">
-      <h2 className="text-2xl font-bold">Generador</h2>
+    <div>
+      <h2 className="text-2xl font-bold mb-1">Generador</h2>
+      <p className="text-sm text-muted-foreground mb-6">
+        Crea contraseñas seguras y difíciles de adivinar.
+      </p>
 
-      <div className="flex items-center gap-4">
-        <label className="text-sm w-32">Longitud: {length}</label>
-        <Slider value={[length]} onValueChange={(v) => setLength(v[0])} min={4} max={64} step={1} />
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
+        <Card>
+          <CardHeader>
+            <CardTitle>Contraseña</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium">Longitud</label>
+                <div className="flex h-8 w-14 items-center justify-center rounded-md border bg-muted text-sm font-mono">
+                  {length}
+                </div>
+              </div>
+              <Slider
+                value={[length]}
+                onValueChange={(v) => setLength(Array.isArray(v) ? v[0] : v)}
+                min={8}
+                max={64}
+                step={1}
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>8</span>
+                <span>64</span>
+              </div>
+            </div>
 
-      <div className="flex items-center justify-between">
-        <label className="text-sm">Mayúsculas (A-Z)</label>
-        <Switch checked={uppercase} onCheckedChange={setUppercase} />
-      </div>
-      <div className="flex items-center justify-between">
-        <label className="text-sm">Minúsculas (a-z)</label>
-        <Switch checked={lowercase} onCheckedChange={setLowercase} />
-      </div>
-      <div className="flex items-center justify-between">
-        <label className="text-sm">Números (0-9)</label>
-        <Switch checked={numbers} onCheckedChange={setNumbers} />
-      </div>
-      <div className="flex items-center justify-between">
-        <label className="text-sm">Símbolos (!@#$...)</label>
-        <Switch checked={symbols} onCheckedChange={setSymbols} />
-      </div>
+            <div className="flex flex-col">
+              <CriteriaRow icon="A" label="Mayúsculas (A-Z)" checked={uppercase} onCheckedChange={setUppercase} />
+              <CriteriaRow icon="a" label="Minúsculas (a-z)" checked={lowercase} onCheckedChange={setLowercase} />
+              <CriteriaRow icon="1" label="Números (0-9)" checked={numbers} onCheckedChange={setNumbers} />
+              <CriteriaRow icon="#" label="Símbolos (!@#$...)" checked={symbols} onCheckedChange={setSymbols} />
+              <CriteriaRow
+                icon="∅"
+                label="Excluir caracteres similares (l 1 I 0 O)"
+                checked={excludeSimilar}
+                onCheckedChange={setExcludeSimilar}
+              />
+            </div>
 
-      <div>
-        <label className="text-sm block mb-1">Excluir caracteres</label>
-        <Input placeholder="ej: 0O1lI" value={exclude} onChange={(e) => setExclude(e.target.value)} />
-      </div>
+            <div>
+              <label className="text-sm block mb-1">Excluir otros caracteres</label>
+              <Input placeholder="ej: {}[]" value={exclude} onChange={(e) => setExclude(e.target.value)} />
+            </div>
 
-      <Button onClick={handleGenerate}>Generar contraseña</Button>
+            <Button onClick={handleGenerate}>Generar contraseña</Button>
 
-      {value && (
-        <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
-          <span>{value}</span>
-          <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)}>
-            <Copy className="h-4 w-4" />
-          </Button>
+            {value && (
+              <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
+                <span>{value}</span>
+                <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Sobre este generador</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CardDescription>
+                Crea contraseñas aleatorias y difíciles de adivinar para mantener tus cuentas seguras.
+              </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Recientes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Aún no has generado nada. (Esto lo conectamos de verdad en el paso del historial.)
+              </p>
+            </CardContent>
+          </Card>
         </div>
-      )}
+      </div>
     </div>
   );
 }
