@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Lock } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 interface UnlockScreenProps {
   onUnlock: () => void;
@@ -56,9 +56,9 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <Card className="w-full max-w-sm">
-        <CardHeader className="items-center text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground mb-2">
-            <Lock className="h-6 w-6" />
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-2">
+            <img src={logo} alt="Sailock" className="h-12 w-12" />
           </div>
           <CardTitle>{exists ? "Desbloquear Sailock" : "Crea tu contraseña maestra"}</CardTitle>
           <CardDescription>
