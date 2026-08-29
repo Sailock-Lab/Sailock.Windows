@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "sailock-desktop",
+  "productName": "Sailock",
   "version": "0.1.0",
   "identifier": "com.albaayala.sailock",
   "build": {
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "sailock-desktop",
-        "width": 800,
-        "height": 600
+        "title": "Sailock",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 900,
+        "minHeight": 600
       }
     ],
     "security": {
