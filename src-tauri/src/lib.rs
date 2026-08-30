@@ -179,6 +179,7 @@ fn save_entry(
     password: Option<String>,
     website: Option<String>,
     notes: Option<String>,
+    custom_fields: Vec<CustomField>,
 ) -> Result<(), String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
@@ -197,12 +198,85 @@ fn save_entry(
         password,
         website,
         notes,
-        custom_fields: Vec::new(),
+        custom_fields,
         favorite: false,
         trashed: false,
         created_at: now,
         updated_at: now,
     });
+
+    let (nonce, ciphertext) = encrypt_entries(&key, &entries);
+    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn update_entry(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+    name: String,
+    folder: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    website: Option<String>,
+    notes: Option<String>,
+    custom_fields: Vec<CustomField>,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    let now = now_millis();
+    let mut found = false;
+    for entry in entries.iter_mut() {
+        if entry.id == id {
+            entry.name = name.clone();
+            entry.folder = folder.clone();
+            entry.username = username.clone();
+            entry.password = password.clone();
+            entry.website = website.clone();
+            entry.notes = notes.clone();
+            entry.custom_fields = custom_fields.clone();
+            entry.updated_at = now;
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        return Err("No se encontró la entrada".into());
+    }
+
+    let (nonce, ciphertext) = encrypt_entries(&key, &entries);
+    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_entry(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    entries.retain(|e| e.id != id);
 
     let (nonce, ciphertext) = encrypt_entries(&key, &entries);
     let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
@@ -223,7 +297,9 @@ pub fn run() {
             unlock_vault,
             lock_vault,
             load_entries,
-            save_entry
+            save_entry,
+            update_entry,
+            delete_entry
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
