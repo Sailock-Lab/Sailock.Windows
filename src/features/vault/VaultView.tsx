@@ -1,9 +1,22 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff, Star, RotateCcw, Search } from "lucide-react";
 
 interface CustomFieldData {
   label: string;
@@ -19,14 +32,45 @@ interface Entry {
   website?: string | null;
   notes?: string | null;
   custom_fields?: CustomFieldData[];
+  favorite: boolean;
+  trashed: boolean;
 }
 
 type FormMode = "create" | "edit" | null;
+type Filter = "all" | "favorites" | "trash";
+type SearchCategory = "all" | "name" | "contact" | "website" | "custom";
+
+function matchesSearch(entry: Entry, term: string, category: SearchCategory): boolean {
+  if (!term) return true;
+  const t = term.toLowerCase();
+  const inName = entry.name.toLowerCase().includes(t);
+  const inContact = (entry.username ?? "").toLowerCase().includes(t);
+  const inWebsite = (entry.website ?? "").toLowerCase().includes(t);
+  const inCustom = (entry.custom_fields ?? []).some(
+    (f) => f.label.toLowerCase().includes(t) || f.value.toLowerCase().includes(t)
+  );
+  // La contraseña nunca se compara con el término de búsqueda, a propósito.
+  switch (category) {
+    case "name":
+      return inName;
+    case "contact":
+      return inContact;
+    case "website":
+      return inWebsite;
+    case "custom":
+      return inCustom;
+    default:
+      return inName || inContact || inWebsite || inCustom;
+  }
+}
 
 export function VaultView() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<FormMode>(null);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
+  const [searchCategory, setSearchCategory] = useState<SearchCategory>("all");
 
   const loadEntries = async () => {
     const result = await invoke<Entry[]>("load_entries");
@@ -37,13 +81,41 @@ export function VaultView() {
     loadEntries();
   }, []);
 
-  const selected = entries.find((e) => e.id === selectedId) ?? null;
+  const visible = entries.filter((e) => {
+    if (filter === "trash" && !e.trashed) return false;
+    if (filter === "favorites" && !(e.favorite && !e.trashed)) return false;
+    if (filter === "all" && e.trashed) return false;
+    return matchesSearch(e, search, searchCategory);
+  });
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("¿Eliminar este elemento? No se puede deshacer.")) return;
-    await invoke("delete_entry", { id });
+  const selected = entries.find((e) => e.id === selectedId) ?? null;
+  const panelOpen = formMode !== null || selectedId !== null;
+
+  const closePanel = () => {
     setSelectedId(null);
     setFormMode(null);
+  };
+
+  const handleToggleFavorite = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await invoke("toggle_favorite", { id });
+    loadEntries();
+  };
+
+  const handleTrash = async (id: string) => {
+    await invoke("trash_entry", { id });
+    closePanel();
+    loadEntries();
+  };
+
+  const handleRestore = async (id: string) => {
+    await invoke("restore_entry", { id });
+    loadEntries();
+  };
+
+  const handleDeletePermanently = async (id: string) => {
+    await invoke("delete_entry", { id });
+    closePanel();
     loadEntries();
   };
 
@@ -52,25 +124,69 @@ export function VaultView() {
       <h2 className="text-2xl font-bold mb-1">Vault</h2>
       <p className="text-sm text-muted-foreground mb-6">Todos tus registros, organizados y seguros.</p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 items-start">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Todos los elementos</CardTitle>
-            <Button
-              size="sm"
-              onClick={() => {
-                setFormMode("create");
-                setSelectedId(null);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-1" /> Nuevo
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>
+            {filter === "trash" ? "Papelera" : filter === "favorites" ? "Favoritos" : "Todos los elementos"}
+          </CardTitle>
+          <Button
+            size="sm"
+            onClick={() => {
+              setFormMode("create");
+              setSelectedId(null);
+            }}
+          >
+            <Plus className="h-4 w-4 mr-1" /> Nuevo
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 mb-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar en el vault..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <Select value={searchCategory} onValueChange={(v) => setSearchCategory(v as SearchCategory)}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los campos</SelectItem>
+                <SelectItem value="name">Nombre</SelectItem>
+                <SelectItem value="contact">Usuario o email</SelectItem>
+                <SelectItem value="website">Sitio web</SelectItem>
+                <SelectItem value="custom">Campos personalizados</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-1 mb-3">
+            <Button variant={filter === "all" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("all")}>
+              Todos
             </Button>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-1">
-            {entries.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4">Aún no tienes ningún registro.</p>
+            <Button
+              variant={filter === "favorites" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setFilter("favorites")}
+            >
+              <Star className="h-3.5 w-3.5 mr-1" /> Favoritos
+            </Button>
+            <Button variant={filter === "trash" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("trash")}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> Papelera
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            {visible.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4">
+                {search ? "Nada coincide con tu búsqueda." : "No hay nada aquí."}
+              </p>
             )}
-            {entries.map((entry) => (
+            {visible.map((entry) => (
               <button
                 key={entry.id}
                 onClick={() => {
@@ -84,44 +200,54 @@ export function VaultView() {
                 <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
                   <KeyRound className="h-4 w-4" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{entry.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {entry.username || entry.folder || "—"}
-                  </p>
+                  <p className="text-xs text-muted-foreground truncate">{entry.username || entry.folder || "—"}</p>
                 </div>
+                {!entry.trashed && (
+                  <span
+                    role="button"
+                    onClick={(e) => handleToggleFavorite(entry.id, e)}
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
+                  </span>
+                )}
               </button>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        <div>
-          {formMode === "create" && (
-            <EntryForm onSaved={() => { setFormMode(null); loadEntries(); }} onCancel={() => setFormMode(null)} />
-          )}
-          {formMode === "edit" && selected && (
-            <EntryForm
-              initial={selected}
-              onSaved={() => { setFormMode(null); loadEntries(); }}
-              onCancel={() => setFormMode(null)}
-            />
-          )}
-          {formMode === null && selected && (
-            <EntryDetail
-              entry={selected}
-              onEdit={() => setFormMode("edit")}
-              onDelete={() => handleDelete(selected.id)}
-            />
-          )}
-          {formMode === null && !selected && (
-            <Card>
-              <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                Selecciona un elemento o crea uno nuevo.
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
+      <AnimatePresence>
+        {panelOpen && (
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
+            className="fixed inset-y-0 right-0 w-full max-w-md z-50"
+          >
+            {formMode === "create" && (
+              <EntryForm onSaved={() => { setFormMode(null); loadEntries(); }} onClose={closePanel} />
+            )}
+            {formMode === "edit" && selected && (
+              <EntryForm initial={selected} onSaved={() => { setFormMode(null); loadEntries(); }} onClose={closePanel} />
+            )}
+            {formMode === null && selected && (
+              <EntryDetail
+                entry={selected}
+                onEdit={() => setFormMode("edit")}
+                onTrash={() => handleTrash(selected.id)}
+                onRestore={() => handleRestore(selected.id)}
+                onDeletePermanently={() => handleDeletePermanently(selected.id)}
+                onToggleFavorite={(e) => handleToggleFavorite(selected.id, e)}
+                onClose={closePanel}
+              />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -129,11 +255,11 @@ export function VaultView() {
 function EntryForm({
   initial,
   onSaved,
-  onCancel,
+  onClose,
 }: {
   initial?: Entry;
   onSaved: () => void;
-  onCancel: () => void;
+  onClose: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [username, setUsername] = useState(initial?.username ?? "");
@@ -169,11 +295,14 @@ function EntryForm({
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="h-full flex flex-col rounded-none border-l shadow-2xl">
+      <CardHeader className="flex flex-row items-center justify-between shrink-0">
         <CardTitle>{initial ? "Editar elemento" : "Nuevo elemento"}</CardTitle>
+        <Button variant="ghost" size="icon" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+      <CardContent className="flex-1 overflow-y-auto flex flex-col gap-3">
         <div>
           <label className="text-sm font-medium block mb-1">Nombre</label>
           <Input placeholder="ej: Gmail" value={name} onChange={(e) => setName(e.target.value)} />
@@ -241,9 +370,9 @@ function EntryForm({
           ))}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-2">
           <Button onClick={handleSave}>{initial ? "Guardar cambios" : "Guardar"}</Button>
-          <Button variant="ghost" onClick={onCancel}>
+          <Button variant="ghost" onClick={onClose}>
             Cancelar
           </Button>
         </div>
@@ -255,28 +384,69 @@ function EntryForm({
 function EntryDetail({
   entry,
   onEdit,
-  onDelete,
+  onTrash,
+  onRestore,
+  onDeletePermanently,
+  onToggleFavorite,
+  onClose,
 }: {
   entry: Entry;
   onEdit: () => void;
-  onDelete: () => void;
+  onTrash: () => void;
+  onRestore: () => void;
+  onDeletePermanently: () => void;
+  onToggleFavorite: (e: React.MouseEvent) => void;
+  onClose: () => void;
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="h-full flex flex-col rounded-none border-l shadow-2xl">
+      <CardHeader className="flex flex-row items-center justify-between shrink-0">
         <CardTitle>{entry.name}</CardTitle>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" onClick={onEdit}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="h-4 w-4" />
+          {entry.trashed ? (
+            <>
+              <Button variant="ghost" size="icon" onClick={onRestore} title="Restaurar">
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger render={<Button variant="ghost" size="icon" title="Eliminar definitivamente" />}>
+                  <Trash2 className="h-4 w-4" />
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar "{entry.name}" para siempre?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. El elemento se borrará por completo, no quedará en la papelera.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={onDeletePermanently}>Eliminar para siempre</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="icon" onClick={onToggleFavorite} title="Favorito">
+                <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={onEdit} title="Editar">
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={onTrash} title="Mover a papelera">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <Button variant="ghost" size="icon" onClick={onClose} title="Cerrar">
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3 text-sm">
+      <CardContent className="flex-1 overflow-y-auto flex flex-col gap-3 text-sm">
         {entry.username && (
           <div>
             <p className="text-muted-foreground text-xs mb-1">Usuario o email</p>
