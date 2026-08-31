@@ -286,6 +286,96 @@ fn delete_entry(
     Ok(())
 }
 
+#[tauri::command]
+fn toggle_favorite(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    for entry in entries.iter_mut() {
+        if entry.id == id {
+            entry.favorite = !entry.favorite;
+            entry.updated_at = now_millis();
+            break;
+        }
+    }
+
+    let (nonce, ciphertext) = encrypt_entries(&key, &entries);
+    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn trash_entry(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    for entry in entries.iter_mut() {
+        if entry.id == id {
+            entry.trashed = true;
+            entry.updated_at = now_millis();
+            break;
+        }
+    }
+
+    let (nonce, ciphertext) = encrypt_entries(&key, &entries);
+    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn restore_entry(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    for entry in entries.iter_mut() {
+        if entry.id == id {
+            entry.trashed = false;
+            entry.updated_at = now_millis();
+            break;
+        }
+    }
+
+    let (nonce, ciphertext) = encrypt_entries(&key, &entries);
+    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -299,7 +389,10 @@ pub fn run() {
             load_entries,
             save_entry,
             update_entry,
-            delete_entry
+            delete_entry,
+            toggle_favorite,
+            trash_entry,
+            restore_entry
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
