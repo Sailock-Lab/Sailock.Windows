@@ -20,10 +20,10 @@ export function useVault() {
         count: batch.count,
         hasSeparator: batch.hasSeparator,
       });
-      return { success: true };
+      return { success: true, error: null };
     } catch (error) {
       console.error("Error saving backup batch:", error);
-      return { success: false, error };
+      return { success: false, error: String(error) };
     }
   };
 

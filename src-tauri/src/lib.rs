@@ -44,6 +44,19 @@ struct VaultFile {
     ciphertext: String,
 }
 
+// Estructura para guardar lote de códigos de respaldo
+#[derive(Serialize, Deserialize, Clone)]
+struct BackupCodeBatch {
+    id: String,
+    title: String,
+    codes: Vec<String>,
+    alphabet: String,
+    length: u32,
+    count: u32,
+    has_separator: bool,
+    created_at: u64,
+}
+
 // La clave derivada de tu contraseña maestra vive aquí, solo en memoria,
 // mientras el vault esté desbloqueado. Nunca se guarda en disco.
 struct VaultState {
@@ -51,7 +64,10 @@ struct VaultState {
 }
 
 fn now_millis() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64
 }
 
 fn vault_path(app_handle: &tauri::AppHandle) -> PathBuf {
@@ -86,7 +102,11 @@ fn encrypt_entries(key: &[u8; 32], entries: &[Entry]) -> (String, String) {
     (B64.encode(nonce_bytes), B64.encode(ciphertext))
 }
 
-fn decrypt_entries(key: &[u8; 32], nonce_b64: &str, ciphertext_b64: &str) -> Result<Vec<Entry>, String> {
+fn decrypt_entries(
+    key: &[u8; 32],
+    nonce_b64: &str,
+    ciphertext_b64: &str,
+) -> Result<Vec<Entry>, String> {
     let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
     let nonce_bytes = B64.decode(nonce_b64).map_err(|e| e.to_string())?;
     let nonce = Nonce::from_slice(&nonce_bytes);
@@ -159,7 +179,10 @@ fn lock_vault(state: tauri::State<VaultState>) {
 }
 
 #[tauri::command]
-fn load_entries(app_handle: tauri::AppHandle, state: tauri::State<VaultState>) -> Result<Vec<Entry>, String> {
+fn load_entries(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<Entry>, String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
 
@@ -206,7 +229,11 @@ fn save_entry(
     });
 
     let (nonce, ciphertext) = encrypt_entries(&key, &entries);
-    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let new_file = VaultFile {
+        salt: file.salt,
+        nonce,
+        ciphertext,
+    };
     let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
 
@@ -255,7 +282,11 @@ fn update_entry(
     }
 
     let (nonce, ciphertext) = encrypt_entries(&key, &entries);
-    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let new_file = VaultFile {
+        salt: file.salt,
+        nonce,
+        ciphertext,
+    };
     let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
 
@@ -279,7 +310,11 @@ fn delete_entry(
     entries.retain(|e| e.id != id);
 
     let (nonce, ciphertext) = encrypt_entries(&key, &entries);
-    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let new_file = VaultFile {
+        salt: file.salt,
+        nonce,
+        ciphertext,
+    };
     let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
 
@@ -309,7 +344,11 @@ fn toggle_favorite(
     }
 
     let (nonce, ciphertext) = encrypt_entries(&key, &entries);
-    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let new_file = VaultFile {
+        salt: file.salt,
+        nonce,
+        ciphertext,
+    };
     let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
 
@@ -339,7 +378,11 @@ fn trash_entry(
     }
 
     let (nonce, ciphertext) = encrypt_entries(&key, &entries);
-    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let new_file = VaultFile {
+        salt: file.salt,
+        nonce,
+        ciphertext,
+    };
     let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
 
@@ -369,18 +412,190 @@ fn restore_entry(
     }
 
     let (nonce, ciphertext) = encrypt_entries(&key, &entries);
-    let new_file = VaultFile { salt: file.salt, nonce, ciphertext };
+    let new_file = VaultFile {
+        salt: file.salt,
+        nonce,
+        ciphertext,
+    };
     let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
 
     Ok(())
 }
 
+#[tauri::command]
+fn save_backup_batch(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    title: String,
+    codes: Vec<String>,
+    alphabet: String,
+    length: u32,
+    count: u32,
+    has_separator: bool,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    let now = now_millis();
+    let batch = BackupCodeBatch {
+        id: now.to_string(),
+        title: title.clone(),
+        codes: codes.clone(),
+        alphabet: alphabet.clone(),
+        length,
+        count,
+        has_separator,
+        created_at: now,
+    };
+
+    // Guardar como una entrada con campos personalizados
+    entries.push(Entry {
+        id: batch.id.clone(),
+        name: title,
+        folder: Some("Códigos de respaldo".to_string()),
+        username: None,
+        password: None,
+        website: None,
+        notes: Some(format!(
+            "{} códigos de {} caracteres, alfabeto: {}\nCódigos:\n{}",
+            batch.count,
+            batch.length,
+            batch.alphabet,
+            batch.codes.join("\n")
+        )),
+        custom_fields: vec![
+            CustomField {
+                label: "Alfabeto".to_string(),
+                value: batch.alphabet,
+            },
+            CustomField {
+                label: "Longitud".to_string(),
+                value: batch.length.to_string(),
+            },
+            CustomField {
+                label: "Número de códigos".to_string(),
+                value: batch.count.to_string(),
+            },
+            CustomField {
+                label: "Códigos".to_string(),
+                value: batch.codes.join(", "),
+            },
+        ],
+        favorite: false,
+        trashed: false,
+        created_at: now,
+        updated_at: now,
+    });
+
+    let (nonce, ciphertext) = encrypt_entries(&key, &entries);
+    let new_file = VaultFile {
+        salt: file.salt,
+        nonce,
+        ciphertext,
+    };
+    let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+// ---------- Activity Log ----------
+
+#[derive(Serialize, Deserialize, Clone)]
+struct ActivityEntry {
+    id: String,
+    activity_type: String, // login, logout, create, edit, delete, restore, generate
+    description: String,
+    source: String, // vault, generator, settings, system
+    details: Option<String>,
+    timestamp: u64,
+}
+
+#[tauri::command]
+fn save_activity(
+    app_handle: tauri::AppHandle,
+    activity_type: String,
+    description: String,
+    source: String,
+    details: Option<String>,
+) -> Result<(), String> {
+    // Cargar actividades existentes
+    let path = activity_path(&app_handle);
+    let mut activities: Vec<ActivityEntry> = Vec::new();
+
+    if path.exists() {
+        let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        activities = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    }
+
+    // Crear nueva actividad
+    let now = now_millis();
+    let entry = ActivityEntry {
+        id: now.to_string(),
+        activity_type,
+        description,
+        source,
+        details,
+        timestamp: now,
+    };
+
+    activities.push(entry);
+
+    // Guardar (máximo 1000 entradas para no saturar)
+    if activities.len() > 1000 {
+        activities = activities.split_off(activities.len() - 1000);
+    }
+
+    let json = serde_json::to_string_pretty(&activities).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn load_activities(app_handle: tauri::AppHandle) -> Result<Vec<ActivityEntry>, String> {
+    let path = activity_path(&app_handle);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let activities: Vec<ActivityEntry> =
+        serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    Ok(activities)
+}
+
+#[tauri::command]
+fn clear_activities(app_handle: tauri::AppHandle) -> Result<(), String> {
+    let path = activity_path(&app_handle);
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn activity_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("activity.json")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(VaultState { key: Mutex::new(None) })
+        .manage(VaultState {
+            key: Mutex::new(None),
+        })
         .invoke_handler(tauri::generate_handler![
             vault_exists,
             create_vault,
@@ -392,7 +607,11 @@ pub fn run() {
             delete_entry,
             toggle_favorite,
             trash_entry,
-            restore_entry
+            restore_entry,
+            save_backup_batch,
+            save_activity,
+            load_activities,
+            clear_activities
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

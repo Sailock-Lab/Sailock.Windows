@@ -17,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff, Star, RotateCcw, Search } from "lucide-react";
+import { useActivity } from "@/hooks/useActivity";
 
 interface CustomFieldData {
   label: string;
@@ -71,6 +72,7 @@ export function VaultView() {
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [searchCategory, setSearchCategory] = useState<SearchCategory>("all");
+  const { saveActivity } = useActivity();
 
   const loadEntries = async () => {
     const result = await invoke<Entry[]>("load_entries");
@@ -98,23 +100,43 @@ export function VaultView() {
 
   const handleToggleFavorite = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const entry = entries.find((e) => e.id === id);
     await invoke("toggle_favorite", { id });
+    if (entry) {
+      await saveActivity(
+        "edit",
+        `${entry.favorite ? "Quitado de favoritos" : "Añadido a favoritos"}: ${entry.name}`,
+        "vault"
+      );
+    }
     loadEntries();
   };
 
   const handleTrash = async (id: string) => {
+    const entry = entries.find((e) => e.id === id);
     await invoke("trash_entry", { id });
+    if (entry) {
+      await saveActivity("delete", `Movido a papelera: ${entry.name}`, "vault");
+    }
     closePanel();
     loadEntries();
   };
 
   const handleRestore = async (id: string) => {
+    const entry = entries.find((e) => e.id === id);
     await invoke("restore_entry", { id });
+    if (entry) {
+      await saveActivity("restore", `Restaurada entrada: ${entry.name}`, "vault");
+    }
     loadEntries();
   };
 
   const handleDeletePermanently = async (id: string) => {
+    const entry = entries.find((e) => e.id === id);
     await invoke("delete_entry", { id });
+    if (entry) {
+      await saveActivity("delete", `Eliminada permanentemente: ${entry.name}`, "vault");
+    }
     closePanel();
     loadEntries();
   };
@@ -268,6 +290,7 @@ function EntryForm({
   const [website, setWebsite] = useState(initial?.website ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [customFields, setCustomFields] = useState<CustomFieldData[]>(initial?.custom_fields ?? []);
+  const { saveActivity } = useActivity();
 
   const addCustomField = () => setCustomFields([...customFields, { label: "", value: "" }]);
   const updateCustomField = (index: number, key: "label" | "value", val: string) => {
@@ -288,8 +311,10 @@ function EntryForm({
     };
     if (initial) {
       await invoke("update_entry", { id: initial.id, ...payload });
+      await saveActivity("edit", `Editada entrada: ${name}`, "vault", username || undefined);
     } else {
       await invoke("save_entry", payload);
+      await saveActivity("create", `Nueva entrada: ${name}`, "vault", username || undefined);
     }
     onSaved();
   };

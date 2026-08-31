@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Minus, Plus, RefreshCw, Save, Download, Trash2, Key, Hash, Type, Shield, ListOrdered, LayoutGrid } from "lucide-react";
+import { Copy, Minus, Plus, RefreshCw, Save, Download, Trash2, Key, Type, LayoutGrid } from "lucide-react";
 import { useVault } from "../../hooks/useVault";
 import { toast } from "sonner";
 
@@ -236,10 +236,10 @@ function BackupCodesGenerator() {
     });
 
     if (result.success) {
-      toast.success("Códigos guardados en el Vault");
+      toast.success(`"${title || "Códigos de respaldo"}" guardado en el Vault`);
       setCodes([]);
     } else {
-      toast.error("Error al guardar los códigos");
+      toast.error(`Error al guardar: ${result.error || "Error desconocido"}`);
     }
   };
 
@@ -252,14 +252,28 @@ function BackupCodesGenerator() {
   const copyAll = () => navigator.clipboard.writeText(codes.join("\n"));
 
   const downloadTxt = () => {
-    const content = codes.map((c, i) => (numberEach ? `${String(i + 1).padStart(2, "0")}. ${c}` : c)).join("\n");
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${title || "codigos"}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (codes.length === 0) {
+      toast.warning("No hay códigos para descargar");
+      return;
+    }
+
+    try {
+      const content = codes.map((c, i) => (numberEach ? `${String(i + 1).padStart(2, "0")}. ${c}` : c)).join("\n");
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title || "codigos"}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      
+      toast.success(`Archivo "${title || "codigos"}.txt" descargado correctamente`);
+    } catch (error) {
+      console.error("Error al descargar:", error);
+      toast.error("Error al descargar el archivo");
+    }
   };
 
   return (

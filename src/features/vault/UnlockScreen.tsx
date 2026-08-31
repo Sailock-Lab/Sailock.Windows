@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import logo from "@/assets/logo.png";
+import { useActivity } from "@/hooks/useActivity";
 
 interface UnlockScreenProps {
   onUnlock: () => void;
@@ -15,6 +16,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const { saveActivity } = useActivity();
 
   useEffect(() => {
     invoke<boolean>("vault_exists").then((result) => {
@@ -35,6 +37,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
     }
     try {
       await invoke("create_vault", { masterPassword: password });
+      await saveActivity("login", "Primer inicio de sesión - Vault creado", "system");
       onUnlock();
     } catch (e) {
       setError(String(e));
@@ -45,6 +48,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
     setError("");
     try {
       await invoke("unlock_vault", { masterPassword: password });
+      await saveActivity("login", "Inicio de sesión", "system");
       onUnlock();
     } catch {
       setError("Contraseña maestra incorrecta");
