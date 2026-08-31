@@ -6,8 +6,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Minus, Plus, RefreshCw, Save, Download, Trash2 } from "lucide-react";
-import { useVault } from "@/hooks/useVault";
+import { Copy, Minus, Plus, RefreshCw, Save, Download, Trash2, Key, Hash, Type, Shield, ListOrdered, LayoutGrid } from "lucide-react";
+import { useVault } from "../../hooks/useVault";
 import { toast } from "sonner";
 
 // Número aleatorio criptográficamente seguro (mejor que Math.random para generadores)
@@ -263,121 +263,158 @@ function BackupCodesGenerator() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 items-start">
-      <Card>
-        <CardContent className="flex flex-col gap-4 pt-6">
-          <div>
-            <label className="text-sm font-medium block mb-1">Título del lote</label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ej: Códigos de recuperación de Google" />
-            <p className="text-xs text-muted-foreground mt-1">
-              Ponle un nombre para identificarlo fácilmente si lo guardas en el vault.
-            </p>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium block mb-1">Preajuste</label>
-            <Select value={presetId} onValueChange={applyPreset}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PRESETS.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">{PRESETS.find((p) => p.id === presetId)?.description}</p>
-          </div>
-
-          <div className="border-t pt-4 flex flex-col gap-3">
-            <p className="text-sm font-semibold">Opciones del código</p>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm">Número de códigos</label>
-              <NumberStepper value={count} onChange={setCount} min={1} max={50} />
+    <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 h-full">
+      {/* Card izquierdo: configuración */}
+      <Card className="flex flex-col h-full">
+        <CardHeader className="shrink-0">
+          <CardTitle>Códigos de respaldo</CardTitle>
+          <CardDescription>
+            Genera códigos de recuperación de un solo uso
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex-1 overflow-y-auto">
+          <div className="flex flex-col gap-4 pb-4">
+            {/* Título del lote */}
+            <div>
+              <label className="text-sm font-medium block mb-1 flex items-center gap-2">
+                <Type className="h-4 w-4 text-muted-foreground" />
+                Título del lote
+              </label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="ej: Códigos de recuperación de Google"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Ponle un nombre para identificarlo fácilmente si lo guardas en el vault.
+              </p>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="text-sm">Caracteres por código</label>
-              <NumberStepper value={length} onChange={setLength} min={4} max={32} />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="text-sm">Alfabeto</label>
-              <Select value={alphabet} onValueChange={(v) => v && setAlphabet(v as typeof alphabet)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
+            {/* Preajuste */}
+            <div>
+              <label className="text-sm font-medium block mb-1 flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                Preajuste
+              </label>
+              <Select value={presetId} onValueChange={applyPreset}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecciona un preajuste" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="digits">Solo números</SelectItem>
-                  <SelectItem value="letters">Solo letras</SelectItem>
-                  <SelectItem value="alphanumeric">Alfanumérico</SelectItem>
+                <SelectContent className="min-w-[300px]">
+                  {PRESETS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{p.label}</span>
+                        <span className="text-xs text-muted-foreground">{p.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">{PRESETS.find((p) => p.id === presetId)?.description}</p>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm">Evitar caracteres parecidos</label>
-                <p className="text-xs text-muted-foreground">Quita 0, O, 1, I, 5, S, 2, Z</p>
+            {/* Opciones del código */}
+            <div className="border-t pt-4">
+              <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Key className="h-4 w-4 text-muted-foreground" />
+                Opciones del código
+              </p>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div className="flex items-center justify-between col-span-2">
+                  <label className="text-sm">Número de códigos</label>
+                  <NumberStepper value={count} onChange={setCount} min={1} max={50} />
+                </div>
+
+                <div className="flex items-center justify-between col-span-2">
+                  <label className="text-sm">Caracteres por código</label>
+                  <NumberStepper value={length} onChange={setLength} min={4} max={32} />
+                </div>
+
+                <div className="flex items-center justify-between col-span-2">
+                  <label className="text-sm">Alfabeto</label>
+                  <Select value={alphabet} onValueChange={(v) => v && setAlphabet(v as typeof alphabet)}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="digits">Solo números</SelectItem>
+                      <SelectItem value="letters">Solo letras</SelectItem>
+                      <SelectItem value="alphanumeric">Alfanumérico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between col-span-2">
+                  <div>
+                    <label className="text-sm">Evitar caracteres parecidos</label>
+                    <p className="text-xs text-muted-foreground">Quita 0, O, 1, I, 5, S, 2, Z</p>
+                  </div>
+                  <Switch checked={avoidLookalikes} onCheckedChange={setAvoidLookalikes} />
+                </div>
+
+                <div className="flex items-center justify-between col-span-2">
+                  <div>
+                    <label className="text-sm">Numerar cada código</label>
+                    <p className="text-xs text-muted-foreground">Añade 01., 02., 03. a cada uno</p>
+                  </div>
+                  <Switch checked={numberEach} onCheckedChange={setNumberEach} />
+                </div>
               </div>
-              <Switch checked={avoidLookalikes} onCheckedChange={setAvoidLookalikes} />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-sm">Numerar cada código</label>
-                <p className="text-xs text-muted-foreground">Añade 01., 02., 03. a cada uno</p>
+            {/* Formato */}
+            <div className="border-t pt-4">
+              <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                Formato
+              </p>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <div className="flex items-center justify-between col-span-2">
+                  <label className="text-sm">Separador de grupos</label>
+                  <Select value={separator} onValueChange={(v) => v && setSeparator(v as typeof separator)}>
+                    <SelectTrigger className="w-36">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dash">Guion (-)</SelectItem>
+                      <SelectItem value="space">Espacio</SelectItem>
+                      <SelectItem value="none">Ninguno</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between col-span-2">
+                  <label className="text-sm">Tamaño de grupo</label>
+                  <NumberStepper value={groupSize} onChange={setGroupSize} min={2} max={16} />
+                </div>
               </div>
-              <Switch checked={numberEach} onCheckedChange={setNumberEach} />
             </div>
-          </div>
 
-          <div className="border-t pt-4 flex flex-col gap-3">
-            <p className="text-sm font-semibold">Formato</p>
-            <div className="flex items-center justify-between">
-              <label className="text-sm">Separador de grupos</label>
-              <Select value={separator} onValueChange={(v) => v && setSeparator(v as typeof separator)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dash">Guion (-)</SelectItem>
-                  <SelectItem value="space">Espacio</SelectItem>
-                  <SelectItem value="none">Ninguno</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="text-sm">Tamaño de grupo</label>
-              <NumberStepper value={groupSize} onChange={setGroupSize} min={2} max={16} />
-            </div>
+            <Button onClick={handleGenerate} className="shrink-0 mt-2">
+              <RefreshCw className="h-4 w-4 mr-2" /> Generar lote nuevo
+            </Button>
           </div>
-
-          <Button onClick={handleGenerate}>
-            <RefreshCw className="h-4 w-4 mr-2" /> Generar lote nuevo
-          </Button>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Códigos generados</CardTitle>
+      {/* Card derecho: códigos generados */}
+      <Card className="flex flex-col h-full">
+        <CardHeader className="flex flex-row items-center justify-between shrink-0">
+          <CardTitle className="text-base">Códigos generados</CardTitle>
           {codes.length > 0 && (
             <Button variant="outline" size="sm" onClick={copyAll}>
               <Copy className="h-3.5 w-3.5 mr-1" /> Copiar todo
             </Button>
           )}
         </CardHeader>
-        <CardContent>
-          {codes.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              Configura las opciones y pulsa "Generar lote nuevo".
-            </p>
-          ) : (
-            <>
+
+        <div className="flex-1 flex flex-col min-h-0 px-6 pb-6">
+          {/* Info fija */}
+          {codes.length > 0 && (
+            <div className="shrink-0">
               <div className="flex items-center gap-3 mb-1">
                 <span className={`flex items-center gap-1 text-sm font-medium ${strength.color}`}>
                   <span className="h-2 w-2 rounded-full bg-current inline-block" /> {strength.label}
@@ -387,8 +424,19 @@ function BackupCodesGenerator() {
               <p className="text-xs text-muted-foreground mb-4">
                 Cada código es de un solo uso. Guarda la lista en un sitio seguro.
               </p>
+            </div>
+          )}
 
-              <div className="flex flex-col divide-y max-h-96 overflow-y-auto">
+          {/* Scroll de códigos */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {codes.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-sm text-muted-foreground text-center">
+                  Configura las opciones y pulsa "Generar lote nuevo".
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col divide-y">
                 {codes.map((code, i) => (
                   <div key={i} className="flex items-center justify-between py-2">
                     <span className="font-mono text-sm">
@@ -401,8 +449,13 @@ function BackupCodesGenerator() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
 
-              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t">
+          {/* Botones fijos */}
+          {codes.length > 0 && (
+            <div className="shrink-0 pt-4 border-t mt-4">
+              <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={copyAll}>
                   <Copy className="h-3.5 w-3.5 mr-1" /> Copiar todo
                 </Button>
@@ -416,9 +469,9 @@ function BackupCodesGenerator() {
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
-            </>
+            </div>
           )}
-        </CardContent>
+        </div>
       </Card>
     </div>
   );
@@ -447,64 +500,68 @@ export function GeneratorView() {
   const [tab, setTab] = useState<GeneratorTab>("password");
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-1">Generador</h2>
-      <p className="text-sm text-muted-foreground mb-6">Crea contraseñas, usuarios, códigos y más.</p>
+    <div className="flex flex-col h-full">
+      <div className="shrink-0">
+        <h2 className="text-2xl font-bold mb-1">Generador</h2>
+        <p className="text-sm text-muted-foreground mb-6">Crea contraseñas, usuarios, códigos y más.</p>
 
-      <div className="flex gap-1 mb-6 border-b">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-              tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        <div className="flex gap-1 mb-6 border-b">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+                tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {tab === "code" ? (
-        <BackupCodesGenerator />
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
-          <Card>
-            <CardHeader>
-              <CardTitle>{TABS.find((t) => t.id === tab)?.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {tab === "password" && <PasswordGenerator />}
-              {tab === "username" && <UsernameGenerator />}
-              {(tab === "passphrase" || tab === "totp") && (
-                <p className="text-sm text-muted-foreground py-6 text-center">Próximamente.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="flex flex-col gap-4">
+      <div className="flex-1 min-h-0">
+        {tab === "code" ? (
+          <BackupCodesGenerator />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Sobre este generador</CardTitle>
+                <CardTitle>{TABS.find((t) => t.id === tab)?.label}</CardTitle>
               </CardHeader>
               <CardContent>
-                <CardDescription>{DESCRIPTIONS[tab]}</CardDescription>
+                {tab === "password" && <PasswordGenerator />}
+                {tab === "username" && <UsernameGenerator />}
+                {(tab === "passphrase" || tab === "totp") && (
+                  <p className="text-sm text-muted-foreground py-6 text-center">Próximamente.</p>
+                )}
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Recientes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Aún no has generado nada. (Esto lo conectamos de verdad en el paso del historial.)
-                </p>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Sobre este generador</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{DESCRIPTIONS[tab]}</CardDescription>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Recientes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Aún no has generado nada. (Esto lo conectamos de verdad en el paso del historial.)
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
