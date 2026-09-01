@@ -14,14 +14,14 @@ export interface ActivityEntry {
 
 export function useActivity() {
   const saveActivity = async (
-    activity_type: ActivityType,
+    activityType: ActivityType,
     description: string,
     source: ActivitySource,
     details?: string
   ) => {
     try {
       await invoke("save_activity", {
-        activity_type,
+        activityType,
         description,
         source,
         details: details || null,
