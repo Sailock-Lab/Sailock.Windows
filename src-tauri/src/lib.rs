@@ -505,6 +505,52 @@ fn save_backup_batch(
     Ok(())
 }
 
+#[tauri::command]
+fn verify_master_password(
+    app_handle: tauri::AppHandle,
+    master_password: String,
+) -> Result<bool, String> {
+    let path = vault_path(&app_handle);
+    if !path.exists() {
+        return Err("No existe ningún vault".into());
+    }
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let salt_bytes = B64.decode(&file.salt).map_err(|e| e.to_string())?;
+    let key = derive_key(&master_password, &salt_bytes);
+    Ok(decrypt_entries(&key, &file.nonce, &file.ciphertext).is_ok())
+}
+
+#[tauri::command]
+fn delete_vault(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    master_password: String,
+) -> Result<(), String> {
+    let path = vault_path(&app_handle);
+    if !path.exists() {
+        return Err("No existe ningún vault".into());
+    }
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let salt_bytes = B64.decode(&file.salt).map_err(|e| e.to_string())?;
+    let key = derive_key(&master_password, &salt_bytes);
+
+    // Verifica la contraseña otra vez aquí, aunque el frontend ya la comprobó antes —
+    // nunca te fíes solo de lo que el frontend dice que verificó.
+    decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    fs::remove_file(&path).map_err(|e| e.to_string())?;
+
+    let activity = activity_path(&app_handle);
+    if activity.exists() {
+        let _ = fs::remove_file(&activity);
+    }
+
+    *state.key.lock().unwrap() = None;
+    Ok(())
+}
+
 // ---------- Activity Log ----------
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -609,6 +655,8 @@ pub fn run() {
             trash_entry,
             restore_entry,
             save_backup_batch,
+            verify_master_password,
+            delete_vault,
             save_activity,
             load_activities,
             clear_activities
