@@ -17,7 +17,12 @@ function App() {
   const { saveActivity } = useActivity();
 
   useEffect(() => {
-    // Desactivar teclas de desarrollador y recarga
+    // Solo en producción: no aporta seguridad real (Tauri ya excluye las
+    // DevTools del binario de producción), es solo una molestia extra
+    // simbólica. En desarrollo (pnpm tauri dev) la dejamos desactivada
+    // para no estorbarnos a nosotros mismos.
+    if (import.meta.env.DEV) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F12") {
         e.preventDefault();
@@ -61,6 +66,11 @@ function App() {
     setUnlocked(false);
   };
 
+  const handleVaultDeleted = () => {
+    setUnlocked(false);
+    setActive("vault");
+  };
+
   if (!unlocked) {
     return <UnlockScreen onUnlock={() => setUnlocked(true)} />;
   }
@@ -74,7 +84,7 @@ function App() {
       case "activity":
         return <ActivityView />;
       case "settings":
-        return <SettingsView />;
+        return <SettingsView onVaultDeleted={handleVaultDeleted} />;
     }
   };
 
