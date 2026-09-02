@@ -29,6 +29,7 @@ const TYPE_LABELS: Record<ActivityType, string> = {
   delete: "Eliminación",
   restore: "Restauración",
   generate: "Generación",
+  download: "Descarga",
 };
 
 const SOURCE_LABELS: Record<ActivitySource, string> = {
@@ -60,6 +61,7 @@ const TYPE_COLORS: Record<ActivityType, string> = {
   delete: "bg-red-600",
   restore: "bg-purple-500",
   generate: "bg-cyan-500",
+  download: "bg-indigo-500",
 };
 
 function formatTimestamp(timestamp: number): string {

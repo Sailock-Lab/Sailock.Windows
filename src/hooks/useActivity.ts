@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type ActivityType = "login" | "logout" | "create" | "edit" | "delete" | "restore" | "generate";
+export type ActivityType = "login" | "logout" | "create" | "edit" | "delete" | "restore" | "generate" | "download";
 export type ActivitySource = "vault" | "generator" | "settings" | "system";
 
 export interface ActivityEntry {
