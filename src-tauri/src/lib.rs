@@ -551,8 +551,153 @@ fn delete_vault(
     Ok(())
 }
 
-// ---------- Activity Log ----------
+const MAX_GENERATOR_HISTORY_PER_TYPE: usize = 5;
 
+#[derive(Serialize, Deserialize, Clone)]
+struct GeneratorHistoryEntry {
+    id: String,
+    generator_type: String,
+    value: String,
+    created_at: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct GeneratorHistoryFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn generator_history_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("generator_history.json")
+}
+
+fn read_generator_history(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+) -> Vec<GeneratorHistoryEntry> {
+    let path = generator_history_path(app_handle);
+    if !path.exists() {
+        return Vec::new();
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let file: GeneratorHistoryFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return Vec::new(),
+    };
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let nonce_bytes = match B64.decode(&file.nonce) {
+        Ok(n) => n,
+        Err(_) => return Vec::new(),
+    };
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = match B64.decode(&file.ciphertext) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    match cipher.decrypt(nonce, ciphertext.as_ref()) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn write_generator_history(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+    entries: &[GeneratorHistoryEntry],
+) {
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let plaintext = match serde_json::to_vec(entries) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let ciphertext = match cipher.encrypt(nonce, plaintext.as_ref()) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let file = GeneratorHistoryFile {
+        nonce: B64.encode(nonce_bytes),
+        ciphertext: B64.encode(ciphertext),
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&file) {
+        let path = generator_history_path(app_handle);
+        let _ = fs::write(&path, json);
+    }
+}
+
+#[tauri::command]
+fn add_generator_history_entry(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    generator_type: String,
+    value: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let now = now_millis();
+    let mut entries = read_generator_history(&app_handle, &key);
+    entries.push(GeneratorHistoryEntry {
+        id: now.to_string(),
+        generator_type: generator_type.clone(),
+        value,
+        created_at: now,
+    });
+
+    let (mut same_type, other_types): (Vec<GeneratorHistoryEntry>, Vec<GeneratorHistoryEntry>) =
+        entries
+            .into_iter()
+            .partition(|e| e.generator_type == generator_type);
+    same_type.sort_by_key(|e| e.created_at);
+    if same_type.len() > MAX_GENERATOR_HISTORY_PER_TYPE {
+        same_type = same_type.split_off(same_type.len() - MAX_GENERATOR_HISTORY_PER_TYPE);
+    }
+    let mut final_entries = other_types;
+    final_entries.extend(same_type);
+    final_entries.sort_by_key(|e| e.created_at);
+
+    write_generator_history(&app_handle, &key, &final_entries);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_generator_history(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<GeneratorHistoryEntry>, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(read_generator_history(&app_handle, &key))
+}
+
+#[tauri::command]
+fn clear_generator_history(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    write_generator_history(&app_handle, &key, &[]);
+    Ok(())
+}
+
+// ---------- Activity Log ----------
 #[derive(Serialize, Deserialize, Clone)]
 struct ActivityEntry {
     id: String,
@@ -659,7 +804,10 @@ pub fn run() {
             delete_vault,
             save_activity,
             load_activities,
-            clear_activities
+            clear_activities,
+            add_generator_history_entry,
+            get_generator_history,
+            clear_generator_history
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
