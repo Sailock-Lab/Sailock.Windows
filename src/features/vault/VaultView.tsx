@@ -50,7 +50,6 @@ function matchesSearch(entry: Entry, term: string, category: SearchCategory): bo
   const inCustom = (entry.custom_fields ?? []).some(
     (f) => f.label.toLowerCase().includes(t) || f.value.toLowerCase().includes(t)
   );
-  // La contraseña nunca se compara con el término de búsqueda, a propósito.
   switch (category) {
     case "name":
       return inName;
@@ -65,10 +64,16 @@ function matchesSearch(entry: Entry, term: string, category: SearchCategory): bo
   }
 }
 
-export function VaultView() {
+interface VaultViewProps {
+  prefillPassword?: string | null;
+  onPrefillConsumed?: () => void;
+}
+
+export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<FormMode>(null);
+  const [pendingPassword, setPendingPassword] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [searchCategory, setSearchCategory] = useState<SearchCategory>("all");
@@ -83,6 +88,16 @@ export function VaultView() {
     loadEntries();
   }, []);
 
+  // Si llega una contraseña desde el Generador, abre directamente el formulario de "Nuevo" con ella rellenada
+  useEffect(() => {
+    if (prefillPassword) {
+      setPendingPassword(prefillPassword);
+      setFormMode("create");
+      setSelectedId(null);
+      onPrefillConsumed?.();
+    }
+  }, [prefillPassword, onPrefillConsumed]);
+
   const visible = entries.filter((e) => {
     if (filter === "trash" && !e.trashed) return false;
     if (filter === "favorites" && !(e.favorite && !e.trashed)) return false;
@@ -96,6 +111,7 @@ export function VaultView() {
   const closePanel = () => {
     setSelectedId(null);
     setFormMode(null);
+    setPendingPassword(null);
   };
 
   const handleToggleFavorite = async (id: string, e: React.MouseEvent) => {
@@ -172,7 +188,7 @@ export function VaultView() {
                 className="pl-8"
               />
             </div>
-            <Select value={searchCategory} onValueChange={(v) => setSearchCategory(v as SearchCategory)}>
+            <Select value={searchCategory} onValueChange={(v) => v && setSearchCategory(v as SearchCategory)}>
               <SelectTrigger className="w-44">
                 <SelectValue />
               </SelectTrigger>
@@ -251,7 +267,11 @@ export function VaultView() {
             className="fixed inset-y-0 right-0 w-full max-w-md z-50"
           >
             {formMode === "create" && (
-              <EntryForm onSaved={() => { setFormMode(null); loadEntries(); }} onClose={closePanel} />
+              <EntryForm
+                initialPassword={pendingPassword ?? undefined}
+                onSaved={() => { setFormMode(null); setPendingPassword(null); loadEntries(); }}
+                onClose={closePanel}
+              />
             )}
             {formMode === "edit" && selected && (
               <EntryForm initial={selected} onSaved={() => { setFormMode(null); loadEntries(); }} onClose={closePanel} />
@@ -276,16 +296,18 @@ export function VaultView() {
 
 function EntryForm({
   initial,
+  initialPassword,
   onSaved,
   onClose,
 }: {
   initial?: Entry;
+  initialPassword?: string;
   onSaved: () => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [username, setUsername] = useState(initial?.username ?? "");
-  const [password, setPassword] = useState(initial?.password ?? "");
+  const [password, setPassword] = useState(initial?.password ?? initialPassword ?? "");
   const [showPassword, setShowPassword] = useState(false);
   const [website, setWebsite] = useState(initial?.website ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
@@ -328,9 +350,14 @@ function EntryForm({
         </Button>
       </CardHeader>
       <CardContent className="flex-1 overflow-y-auto flex flex-col gap-3">
+        {initialPassword && !initial && (
+          <p className="text-xs text-muted-foreground bg-muted rounded p-2">
+            Contraseña rellenada desde el Generador — ponle un nombre para guardarla.
+          </p>
+        )}
         <div>
           <label className="text-sm font-medium block mb-1">Nombre</label>
-          <Input placeholder="ej: Gmail" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input placeholder="ej: Gmail" value={name} onChange={(e) => setName(e.target.value)} autoFocus={!!initialPassword} />
         </div>
 
         <div>
