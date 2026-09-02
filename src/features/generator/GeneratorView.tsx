@@ -8,9 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Copy, Minus, Plus, RefreshCw, Save, Download, Trash2, Key, Type, LayoutGrid } from "lucide-react";
 import { useVault } from "../../hooks/useVault";
+import { useActivity } from "@/hooks/useActivity";
+import { useGeneratorHistory, GeneratorHistoryEntry } from "@/hooks/useGeneratorHistory";
 import { toast } from "sonner";
 
-// Número aleatorio criptográficamente seguro (mejor que Math.random para generadores)
 function secureRandomInt(max: number): number {
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
@@ -77,6 +78,47 @@ function CriteriaRow({ icon, label, checked, onCheckedChange }: CriteriaRowProps
   );
 }
 
+// Tarjeta compartida de "Recientes" — el botón de añadir al vault es opcional
+// (solo se lo pasamos a Contraseña, no a Usuario)
+function RecentHistoryCard({
+  history,
+  onAddToVault,
+}: {
+  history: GeneratorHistoryEntry[];
+  onAddToVault?: (value: string) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Recientes</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aún no has generado nada.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {history.map((entry) => (
+              <li key={entry.id} className="flex items-center justify-between gap-2 border rounded p-2">
+                <span className="font-mono text-xs truncate">{entry.value}</span>
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(entry.value)} title="Copiar">
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  {onAddToVault && (
+                    <Button variant="ghost" size="icon" onClick={() => onAddToVault(entry.value)} title="Añadir al Vault">
+                      <Save className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---------- Códigos de respaldo ----------
 
 const ALPHABETS: Record<string, string> = {
@@ -85,7 +127,6 @@ const ALPHABETS: Record<string, string> = {
   alphanumeric: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
 };
 
-// Caracteres que se confunden fácilmente entre sí al leerlos o escribirlos a mano
 const AMBIGUOUS_CHARS = new Set(["0", "O", "1", "I", "5", "S", "2", "Z"]);
 
 const SEPARATORS: Record<string, string> = { dash: "-", space: " ", none: "" };
@@ -105,7 +146,6 @@ interface BackupPreset {
   };
 }
 
-// "Estilo Google/GitHub" son solo nombres orientativos por el formato típico, no una copia exacta de sus códigos reales
 const PRESETS: BackupPreset[] = [
   {
     id: "google",
@@ -197,6 +237,7 @@ function BackupCodesGenerator() {
   const [codes, setCodes] = useState<string[]>([]);
 
   const { saveBackupBatch } = useVault();
+  const { saveActivity } = useActivity();
 
   const applyPreset = (id: string | null) => {
     if (!id) return;
@@ -218,6 +259,15 @@ function BackupCodesGenerator() {
       result.push(generateBackupCode(length, ALPHABETS[alphabet], avoidLookalikes, SEPARATORS[separator], groupSize));
     }
     setCodes(result);
+
+    if (result.length > 0 && result[0]) {
+      saveActivity(
+        "generate",
+        `Lote de códigos generado: ${title || "Códigos de respaldo"}`,
+        "generator",
+        `${count} códigos de ${length} caracteres`
+      );
+    }
   };
 
   const handleSaveToVault = async () => {
@@ -237,6 +287,7 @@ function BackupCodesGenerator() {
 
     if (result.success) {
       toast.success(`"${title || "Códigos de respaldo"}" guardado en el Vault`);
+      saveActivity("create", `Códigos guardados en el Vault: ${title || "Códigos de respaldo"}`, "generator");
       setCodes([]);
     } else {
       toast.error(`Error al guardar: ${result.error || "Error desconocido"}`);
@@ -268,8 +319,9 @@ function BackupCodesGenerator() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      
+
       toast.success(`Archivo "${title || "codigos"}.txt" descargado correctamente`);
+      saveActivity("download", `Códigos descargados: ${title || "codigos"}.txt`, "generator");
     } catch (error) {
       console.error("Error al descargar:", error);
       toast.error("Error al descargar el archivo");
@@ -278,17 +330,13 @@ function BackupCodesGenerator() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 h-full">
-      {/* Card izquierdo: configuración */}
       <Card className="flex flex-col h-full">
         <CardHeader className="shrink-0">
           <CardTitle>Códigos de respaldo</CardTitle>
-          <CardDescription>
-            Genera códigos de recuperación de un solo uso
-          </CardDescription>
+          <CardDescription>Genera códigos de recuperación de un solo uso</CardDescription>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto">
           <div className="flex flex-col gap-4 pb-4">
-            {/* Título del lote */}
             <div>
               <label className="text-sm font-medium block mb-1 flex items-center gap-2">
                 <Type className="h-4 w-4 text-muted-foreground" />
@@ -304,7 +352,6 @@ function BackupCodesGenerator() {
               </p>
             </div>
 
-            {/* Preajuste */}
             <div>
               <label className="text-sm font-medium block mb-1 flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4 text-muted-foreground" />
@@ -328,7 +375,6 @@ function BackupCodesGenerator() {
               <p className="text-xs text-muted-foreground mt-1">{PRESETS.find((p) => p.id === presetId)?.description}</p>
             </div>
 
-            {/* Opciones del código */}
             <div className="border-t pt-4">
               <p className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Key className="h-4 w-4 text-muted-foreground" />
@@ -378,7 +424,6 @@ function BackupCodesGenerator() {
               </div>
             </div>
 
-            {/* Formato */}
             <div className="border-t pt-4">
               <p className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4 text-muted-foreground" />
@@ -414,7 +459,6 @@ function BackupCodesGenerator() {
         </CardContent>
       </Card>
 
-      {/* Card derecho: códigos generados */}
       <Card className="flex flex-col h-full">
         <CardHeader className="flex flex-row items-center justify-between shrink-0">
           <CardTitle className="text-base">Códigos generados</CardTitle>
@@ -426,7 +470,6 @@ function BackupCodesGenerator() {
         </CardHeader>
 
         <div className="flex-1 flex flex-col min-h-0 px-6 pb-6">
-          {/* Info fija */}
           {codes.length > 0 && (
             <div className="shrink-0">
               <div className="flex items-center gap-3 mb-1">
@@ -441,7 +484,6 @@ function BackupCodesGenerator() {
             </div>
           )}
 
-          {/* Scroll de códigos */}
           <div className="flex-1 overflow-y-auto min-h-0">
             {codes.length === 0 ? (
               <div className="h-full flex items-center justify-center">
@@ -466,7 +508,6 @@ function BackupCodesGenerator() {
             )}
           </div>
 
-          {/* Botones fijos */}
           {codes.length > 0 && (
             <div className="shrink-0 pt-4 border-t mt-4">
               <div className="flex flex-wrap gap-2">
@@ -510,8 +551,14 @@ const DESCRIPTIONS: Partial<Record<GeneratorTab, string>> = {
   totp: "Próximamente: generación de códigos TOTP de verificación en dos pasos.",
 };
 
-export function GeneratorView() {
+interface GeneratorViewProps {
+  onAddToVault: (password: string) => void;
+}
+
+export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
   const [tab, setTab] = useState<GeneratorTab>("password");
+  const passwordHistory = useGeneratorHistory("password");
+  const usernameHistory = useGeneratorHistory("username");
 
   return (
     <div className="flex flex-col h-full">
@@ -544,8 +591,8 @@ export function GeneratorView() {
                 <CardTitle>{TABS.find((t) => t.id === tab)?.label}</CardTitle>
               </CardHeader>
               <CardContent>
-                {tab === "password" && <PasswordGenerator />}
-                {tab === "username" && <UsernameGenerator />}
+                {tab === "password" && <PasswordGenerator historyHook={passwordHistory} onAddToVault={onAddToVault} />}
+                {tab === "username" && <UsernameGenerator historyHook={usernameHistory} />}
                 {(tab === "passphrase" || tab === "totp") && (
                   <p className="text-sm text-muted-foreground py-6 text-center">Próximamente.</p>
                 )}
@@ -562,16 +609,10 @@ export function GeneratorView() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Recientes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Aún no has generado nada. (Esto lo conectamos de verdad en el paso del historial.)
-                  </p>
-                </CardContent>
-              </Card>
+              {tab === "password" && (
+                <RecentHistoryCard history={passwordHistory.history} onAddToVault={onAddToVault} />
+              )}
+              {tab === "username" && <RecentHistoryCard history={usernameHistory.history} />}
             </div>
           </div>
         )}
@@ -580,7 +621,13 @@ export function GeneratorView() {
   );
 }
 
-function PasswordGenerator() {
+function PasswordGenerator({
+  historyHook,
+  onAddToVault,
+}: {
+  historyHook: ReturnType<typeof useGeneratorHistory>;
+  onAddToVault: (password: string) => void;
+}) {
   const [length, setLength] = useState(16);
   const [uppercase, setUppercase] = useState(true);
   const [lowercase, setLowercase] = useState(true);
@@ -589,10 +636,16 @@ function PasswordGenerator() {
   const [excludeSimilar, setExcludeSimilar] = useState(true);
   const [exclude, setExclude] = useState("");
   const [value, setValue] = useState("");
+  const { saveActivity } = useActivity();
 
   const handleGenerate = () => {
     const finalExclude = exclude + (excludeSimilar ? AMBIGUOUS : "");
-    setValue(generatePassword(length, uppercase, lowercase, numbers, symbols, finalExclude));
+    const result = generatePassword(length, uppercase, lowercase, numbers, symbols, finalExclude);
+    setValue(result);
+    if (result) {
+      historyHook.addEntry(result);
+      saveActivity("generate", "Contraseña generada", "generator", `${length} caracteres`);
+    }
   };
 
   return (
@@ -634,18 +687,31 @@ function PasswordGenerator() {
       {value && (
         <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
           <span>{value}</span>
-          <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)}>
-            <Copy className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-1 shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)} title="Copiar">
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => onAddToVault(value)} title="Añadir al Vault">
+              <Save className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function UsernameGenerator() {
+function UsernameGenerator({ historyHook }: { historyHook: ReturnType<typeof useGeneratorHistory> }) {
   const [includeNumber, setIncludeNumber] = useState(true);
   const [value, setValue] = useState("");
+  const { saveActivity } = useActivity();
+
+  const handleGenerate = () => {
+    const result = generateUsername(includeNumber);
+    setValue(result);
+    historyHook.addEntry(result);
+    saveActivity("generate", "Usuario generado", "generator");
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -653,7 +719,7 @@ function UsernameGenerator() {
         <label className="text-sm">Añadir número al final</label>
         <Switch checked={includeNumber} onCheckedChange={setIncludeNumber} />
       </div>
-      <Button onClick={() => setValue(generateUsername(includeNumber))}>Generar usuario</Button>
+      <Button onClick={handleGenerate}>Generar usuario</Button>
       {value && (
         <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
           <span>{value}</span>
