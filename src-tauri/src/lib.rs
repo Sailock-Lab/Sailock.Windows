@@ -697,6 +697,225 @@ fn clear_generator_history(
     Ok(())
 }
 
+// ---------- TOTP (verificación en dos pasos) ----------
+
+use totp_rs::{Algorithm, Secret, TOTP};
+
+// Reconstruye el mismo objeto TOTP cada vez a partir del secreto guardado —
+// nunca guardamos el código en sí, solo el secreto, y lo recalculamos al vuelo.
+fn build_totp(secret_base32: &str, account_name: &str) -> Result<TOTP, String> {
+    let secret = Secret::Encoded(secret_base32.to_string());
+    TOTP::new(
+        Algorithm::SHA1,
+        6,
+        1,
+        30,
+        secret.to_bytes().map_err(|e| e.to_string())?,
+        Some("Sailock".to_string()),
+        account_name.to_string(),
+    )
+    .map_err(|e| e.to_string())
+}
+
+// Crea un secreto nuevo, aleatorio, de 160 bits — se usa una sola vez al configurar el 2FA
+#[tauri::command]
+fn generate_totp_secret() -> String {
+    Secret::generate_secret().to_encoded().to_string()
+}
+
+// Código QR (en base64) para escanear con Google Authenticator, Authy, etc.
+#[tauri::command]
+fn get_totp_qr(secret_base32: String, account_name: String) -> Result<String, String> {
+    let totp = build_totp(&secret_base32, &account_name)?;
+    totp.get_qr_base64()
+}
+
+// El código de 6 dígitos actual + segundos que quedan hasta que cambie
+#[tauri::command]
+fn get_totp_code(secret_base32: String, account_name: String) -> Result<(String, u64), String> {
+    let totp = build_totp(&secret_base32, &account_name)?;
+    let code = totp.generate_current().map_err(|e| e.to_string())?;
+    let ttl = totp.ttl().map_err(|e| e.to_string())?;
+    Ok((code, ttl))
+}
+
+// Comprueba que el código que escribió el usuario es correcto (con un pequeño margen
+// de tolerancia por si el reloj del móvil y el del PC no están exactamente sincronizados)
+#[tauri::command]
+fn verify_totp_code(
+    secret_base32: String,
+    account_name: String,
+    code: String,
+) -> Result<bool, String> {
+    let totp = build_totp(&secret_base32, &account_name)?;
+    totp.check_current(&code).map_err(|e| e.to_string())
+}
+
+// ---------- TOTP para el propio desbloqueo de Sailock (2FA) ----------
+
+const TOTP_ACCOUNT_NAME: &str = "Sailock";
+
+#[derive(Serialize, Deserialize, Default)]
+struct TotpSettings {
+    enabled: bool,
+    secret: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TotpFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn totp_settings_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("totp_settings.json")
+}
+
+fn read_totp_settings(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> TotpSettings {
+    let path = totp_settings_path(app_handle);
+    if !path.exists() {
+        return TotpSettings::default();
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return TotpSettings::default(),
+    };
+    let file: TotpFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return TotpSettings::default(),
+    };
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return TotpSettings::default(),
+    };
+    let nonce_bytes = match B64.decode(&file.nonce) {
+        Ok(n) => n,
+        Err(_) => return TotpSettings::default(),
+    };
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = match B64.decode(&file.ciphertext) {
+        Ok(c) => c,
+        Err(_) => return TotpSettings::default(),
+    };
+    match cipher.decrypt(nonce, ciphertext.as_ref()) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => TotpSettings::default(),
+    }
+}
+
+fn write_totp_settings(app_handle: &tauri::AppHandle, key: &[u8; 32], settings: &TotpSettings) {
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let plaintext = match serde_json::to_vec(settings) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let ciphertext = match cipher.encrypt(nonce, plaintext.as_ref()) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let file = TotpFile {
+        nonce: B64.encode(nonce_bytes),
+        ciphertext: B64.encode(ciphertext),
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&file) {
+        let path = totp_settings_path(app_handle);
+        let _ = fs::write(&path, json);
+    }
+}
+
+fn build_app_totp(secret_base32: &str) -> Result<TOTP, String> {
+    build_totp(secret_base32, TOTP_ACCOUNT_NAME)
+}
+
+#[tauri::command]
+fn totp_status(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<bool, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(read_totp_settings(&app_handle, &key).enabled)
+}
+
+#[tauri::command]
+fn totp_begin_setup(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<String, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let secret_base32 = Secret::generate_secret().to_encoded().to_string();
+    let settings = TotpSettings {
+        enabled: false,
+        secret: Some(secret_base32.clone()),
+    };
+    write_totp_settings(&app_handle, &key, &settings);
+
+    let totp = build_app_totp(&secret_base32)?;
+    totp.get_qr_base64()
+}
+
+#[tauri::command]
+fn totp_confirm_setup(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    code: String,
+) -> Result<bool, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut settings = read_totp_settings(&app_handle, &key);
+    let secret = settings
+        .secret
+        .clone()
+        .ok_or("No hay ninguna configuración de 2FA pendiente")?;
+    let totp = build_app_totp(&secret)?;
+    let ok = totp.check_current(&code).map_err(|e| e.to_string())?;
+    if ok {
+        settings.enabled = true;
+        write_totp_settings(&app_handle, &key, &settings);
+    }
+    Ok(ok)
+}
+
+#[tauri::command]
+fn totp_verify_unlock(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    code: String,
+) -> Result<bool, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let settings = read_totp_settings(&app_handle, &key);
+    let secret = settings.secret.ok_or("El 2FA no está configurado")?;
+    let totp = build_app_totp(&secret)?;
+    totp.check_current(&code).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn totp_disable(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    write_totp_settings(&app_handle, &key, &TotpSettings::default());
+    Ok(())
+}
+
 // ---------- Activity Log ----------
 #[derive(Serialize, Deserialize, Clone)]
 struct ActivityEntry {
@@ -805,6 +1024,15 @@ pub fn run() {
             save_activity,
             load_activities,
             clear_activities,
+            generate_totp_secret,
+            get_totp_qr,
+            get_totp_code,
+            verify_totp_code,
+            totp_status,
+            totp_begin_setup,
+            totp_confirm_setup,
+            totp_verify_unlock,
+            totp_disable,
             add_generator_history_entry,
             get_generator_history,
             clear_generator_history
