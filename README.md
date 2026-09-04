@@ -19,13 +19,13 @@
 
 ---
 
-## 🚀 What is Sailock?
+## What is Sailock?
 **Sailock** is a local-first password manager built for Windows. It prioritizes your privacy and security by keeping all your data offline — no cloud storage, no internet connection required.
 Built with **Rust** and **Tauri**, Sailock is fast, secure, and lightweight.
 
 ---
 
-## ✨ Features
+## Features
 - 🔐 **Local-first**: All data stays on your device. No cloud, no sync.
 - 📴 **Offline access**: Use it anywhere, even without internet.
 - ⚡ **Blazing fast**: Powered by Rust and Tauri for performance.
@@ -35,7 +35,7 @@ Built with **Rust** and **Tauri**, Sailock is fast, secure, and lightweight.
 
 ---
 
-## 🖥️ System Requirements
+## System Requirements
 - **OS**: Windows 10 or later (Windows 11 recommended)
 - **RAM**: 4 GB minimum (8 GB recommended)
 - **Storage**: 500 MB free space
@@ -43,7 +43,7 @@ Built with **Rust** and **Tauri**, Sailock is fast, secure, and lightweight.
 
 ---
 
-## 📥 Installation
+## Installation
 ### Download the installer
 Download the latest release from the [Releases page](https://github.com/Sailock-Lab/Sailock.Windows/releases).
 
@@ -69,7 +69,7 @@ The executable will be available in src-tauri/target/release/.
 
 --- 
 
-## 🏗️ Development
+## Development
 ### Run in development mode
 ```bash
 # Install dependencies
@@ -90,7 +90,7 @@ See [LICENSE](LICENSE) for full terms.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 We welcome contributions from the community! Here's how you can help:
 
 ### Ways to contribute
