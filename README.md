@@ -90,11 +90,6 @@ See [LICENSE](LICENSE) for full terms.
 
 ---
 
-## Author
-Developed by **Alba Ayala Vilanova** — [GitHub @Sailok25](https://github.com/Sailok25)
-
----
-
 ## 🤝 Contributing
 We welcome contributions from the community! Here's how you can help:
 
