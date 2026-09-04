@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://raw.githubusercontent.com/Sailock-Lab/Sailock.Windows/main/.github/logo.png" width="128" alt="Sailock Logo">
+  <img src="https://github.com/Sailock-Lab/Sailock.Windows/blob/main/src/assets/logo.png" width="128" alt="Sailock Logo">
   <br>
   Windows Desktop
 </h1>
