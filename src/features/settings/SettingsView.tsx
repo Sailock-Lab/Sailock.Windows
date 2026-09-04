@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,11 +41,11 @@ import {
   Lock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useActivity } from "@/hooks/useActivity";
+import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
+import { AutoLockDuration, getStoredBool, storeBool } from "@/lib/appSettings";
 
-// Tipos
-type Theme = "light" | "dark" | "system";
 type Language = "es" | "en" | "fr" | "de";
-type AutoLock = "never" | "15s" | "30s" | "1m" | "2m" | "5m";
 type DeleteStep = "confirm" | "password" | "confirmType" | "deleting";
 
 const THEME_ICONS: Record<Theme, React.ReactNode> = {
@@ -60,7 +67,7 @@ const LANGUAGE_LABELS: Record<Language, string> = {
   de: "Deutsch",
 };
 
-const AUTO_LOCK_LABELS: Record<AutoLock, string> = {
+const AUTO_LOCK_LABELS: Record<AutoLockDuration, string> = {
   never: "Nunca",
   "15s": "15 segundos",
   "30s": "30 segundos",
@@ -71,69 +78,188 @@ const AUTO_LOCK_LABELS: Record<AutoLock, string> = {
 
 const DELETE_CONFIRM_PHRASE = "ELIMINAR TODO";
 
-interface SettingsViewProps {
-  onVaultDeleted: () => void;
+function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"loading" | "scan" | "verifying">("loading");
+  const [qr, setQr] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const { saveActivity } = useActivity();
+
+  const startSetup = async () => {
+    setOpen(true);
+    setStep("loading");
+    setError("");
+    setCode("");
+    try {
+      const qrBase64 = await invoke<string>("totp_begin_setup");
+      setQr(qrBase64);
+      setStep("scan");
+    } catch (e) {
+      setError(String(e));
+      setStep("scan");
+    }
+  };
+
+  const confirm = async () => {
+    setStep("verifying");
+    setError("");
+    try {
+      const ok = await invoke<boolean>("totp_confirm_setup", { code });
+      if (ok) {
+        toast.success("Verificación en dos pasos activada");
+        saveActivity("edit", "Verificación en dos pasos (2FA) activada", "settings");
+        setOpen(false);
+        onEnabled();
+      } else {
+        setError("Código incorrecto, inténtalo de nuevo");
+        setStep("scan");
+      }
+    } catch (e) {
+      setError(String(e));
+      setStep("scan");
+    }
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={startSetup}>
+        <Smartphone className="h-4 w-4 mr-2" />
+        Configurar
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Configurar verificación en dos pasos</DialogTitle>
+            <DialogDescription>
+              Escanea este código con Google Authenticator, Authy o tu app de autenticación preferida.
+            </DialogDescription>
+          </DialogHeader>
+          {step === "loading" && (
+            <p className="text-sm text-muted-foreground py-6 text-center">Generando código...</p>
+          )}
+          {(step === "scan" || step === "verifying") && qr && (
+            <div className="flex flex-col gap-3 items-center">
+              <img src={`data:image/png;base64,${qr}`} alt="Código QR" className="w-48 h-48" />
+              <div className="w-full">
+                <Label>Código de la app</Label>
+                <Input
+                  placeholder="123456"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && confirm()}
+                  autoFocus
+                />
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button className="w-full" onClick={confirm} disabled={step === "verifying" || code.length < 6}>
+                {step === "verifying" ? "Verificando..." : "Confirmar"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
-// Componente principal
-export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
-  // Estados
-  const [theme, setTheme] = useState<Theme>("system");
+interface SettingsViewProps {
+  onVaultDeleted: () => void;
+  autoLockDuration: AutoLockDuration;
+  onAutoLockDurationChange: (value: AutoLockDuration) => void;
+  lockOnMinimize: boolean;
+  onLockOnMinimizeChange: (value: boolean) => void;
+}
+
+export function SettingsView({
+  onVaultDeleted,
+  autoLockDuration,
+  onAutoLockDurationChange,
+  lockOnMinimize,
+  onLockOnMinimizeChange,
+}: SettingsViewProps) {
+  const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const [language, setLanguage] = useState<Language>("es");
-  const [autoLock, setAutoLock] = useState<AutoLock>("never");
-  const [lockOnMinimize, setLockOnMinimize] = useState(false);
-  const [startWithWindows, setStartWithWindows] = useState(false);
-  const [minimizeToTray, setMinimizeToTray] = useState(false);
-  const [autoUpdate, setAutoUpdate] = useState(true);
+  const [startWithWindows, setStartWithWindows] = useState(() => getStoredBool("startWithWindows", false));
+  const [minimizeToTray, setMinimizeToTray] = useState(() => getStoredBool("minimizeToTray", false));
+  const [autoUpdate, setAutoUpdate] = useState(() => getStoredBool("autoUpdate", true));
   const [showBackupCodes, setShowBackupCodes] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [totpEnabled, setTotpEnabled] = useState(false);
+  const { saveActivity } = useActivity();
 
-  // Estado del borrado de datos
   const [deleteStep, setDeleteStep] = useState<DeleteStep>("confirm");
   const [masterPassword, setMasterPassword] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [verifyingPassword, setVerifyingPassword] = useState(false);
 
-  // Funciones
+  useEffect(() => {
+    invoke<boolean>("totp_status")
+      .then(setTotpEnabled)
+      .catch(() => {});
+  }, []);
+
+  const handleDisableTotp = async () => {
+    await invoke("totp_disable");
+    setTotpEnabled(false);
+    saveActivity("edit", "Verificación en dos pasos (2FA) desactivada", "settings");
+    toast.success("Verificación en dos pasos desactivada");
+  };
+
   const handleThemeChange = (value: Theme | null) => {
     if (!value) return;
     setTheme(value);
-    const root = document.documentElement;
-    if (value === "dark") {
-      root.classList.add("dark");
-    } else if (value === "light") {
-      root.classList.remove("dark");
-    } else {
-      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      if (isDark) {
-        root.classList.add("dark");
-      } else {
-        root.classList.remove("dark");
-      }
-    }
+    applyTheme(value);
+    storeTheme(value);
+    saveActivity("edit", `Tema cambiado a ${THEME_LABELS[value]}`, "settings");
     toast.success(`Tema cambiado a ${THEME_LABELS[value]}`);
   };
 
   const handleLanguageChange = (value: Language | null) => {
     if (!value) return;
     setLanguage(value);
+    saveActivity("edit", `Idioma cambiado a ${LANGUAGE_LABELS[value]}`, "settings");
     toast.success(`Idioma cambiado a ${LANGUAGE_LABELS[value]}`);
   };
 
-  const handleAutoLockChange = (value: AutoLock | null) => {
+  const handleAutoLockChange = (value: AutoLockDuration | null) => {
     if (!value) return;
-    setAutoLock(value);
+    onAutoLockDurationChange(value);
+    saveActivity("edit", `Auto-bloqueo configurado: ${AUTO_LOCK_LABELS[value]}`, "settings");
     toast.success(`Auto-bloqueo configurado: ${AUTO_LOCK_LABELS[value]}`);
+  };
+
+  const handleLockOnMinimizeChange = (value: boolean) => {
+    onLockOnMinimizeChange(value);
+    saveActivity("edit", `Bloquear al minimizar: ${value ? "activado" : "desactivado"}`, "settings");
+  };
+
+  const handleStartWithWindowsChange = (value: boolean) => {
+    setStartWithWindows(value);
+    storeBool("startWithWindows", value);
+    saveActivity("edit", `Iniciar con Windows: ${value ? "activado" : "desactivado"}`, "settings");
+  };
+
+  const handleMinimizeToTrayChange = (value: boolean) => {
+    setMinimizeToTray(value);
+    storeBool("minimizeToTray", value);
+    saveActivity("edit", `Minimizar a la bandeja: ${value ? "activado" : "desactivado"}`, "settings");
+  };
+
+  const handleAutoUpdateChange = (value: boolean) => {
+    setAutoUpdate(value);
+    storeBool("autoUpdate", value);
+    saveActivity("edit", `Actualizaciones automáticas: ${value ? "activado" : "desactivado"}`, "settings");
   };
 
   const handleExport = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
       const data = {
         vault: { entries: [] },
-        settings: { theme, language, autoLock, lockOnMinimize, startWithWindows, minimizeToTray, autoUpdate },
+        settings: { theme, language, autoLockDuration, lockOnMinimize, startWithWindows, minimizeToTray, autoUpdate },
         exportedAt: new Date().toISOString(),
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -145,6 +271,7 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      saveActivity("download", "Copia de seguridad exportada (aún no incluye el vault real)", "settings");
       toast.success("Datos exportados correctamente");
     } catch (error) {
       toast.error("Error al exportar los datos");
@@ -164,7 +291,8 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
       if (!data.vault || !data.settings) {
         throw new Error("Formato de archivo inválido");
       }
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      saveActivity("edit", "Datos importados desde archivo (aún no aplica al vault real)", "settings");
       toast.success("Datos importados correctamente");
     } catch (error) {
       toast.error("Error al importar los datos: " + (error as Error).message);
@@ -231,9 +359,7 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold mb-1">Ajustes</h2>
-            <p className="text-sm text-muted-foreground">
-              Configura Sailock a tu gusto.
-            </p>
+            <p className="text-sm text-muted-foreground">Configura Sailock a tu gusto.</p>
           </div>
           <div className="text-right shrink-0">
             <p className="text-xs text-muted-foreground">Sailock Versión</p>
@@ -243,7 +369,6 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto pb-6 space-y-4 mt-4 px-2">
-        {/* Tema */}
         <Card className="p-5 rounded-xl">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -251,9 +376,7 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
                 <Monitor className="h-4 w-4 text-muted-foreground" />
                 Tema
               </CardTitle>
-              <CardDescription className="text-sm">
-                Elige la apariencia de la aplicación.
-              </CardDescription>
+              <CardDescription className="text-sm">Elige la apariencia de la aplicación.</CardDescription>
             </div>
             <Select value={theme} onValueChange={handleThemeChange}>
               <SelectTrigger className="w-full sm:w-[200px]">
@@ -273,7 +396,6 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
           </div>
         </Card>
 
-        {/* Idioma */}
         <Card className="p-5 rounded-xl">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -282,7 +404,7 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
                 Idioma
               </CardTitle>
               <CardDescription className="text-sm">
-                Selecciona el idioma de la interfaz.
+                Selecciona el idioma de la interfaz. (De momento solo guarda tu preferencia — la traducción completa la montamos aparte.)
               </CardDescription>
             </div>
             <Select value={language} onValueChange={handleLanguageChange}>
@@ -300,7 +422,6 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
           </div>
         </Card>
 
-        {/* Seguridad - 2FA */}
         <Card className="p-5 rounded-xl">
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
@@ -316,11 +437,7 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
                   <p className="text-sm font-medium">Códigos de respaldo</p>
                   <p className="text-xs text-muted-foreground">Códigos de un solo uso para recuperar tu cuenta</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBackupCodes(!showBackupCodes)}
-                >
+                <Button variant="outline" size="sm" onClick={() => setShowBackupCodes(!showBackupCodes)}>
                   {showBackupCodes ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
                   {showBackupCodes ? "Ocultar" : "Ver códigos"}
                 </Button>
@@ -335,18 +452,38 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
                   <p className="text-sm font-medium">Autenticador (TOTP)</p>
-                  <p className="text-xs text-muted-foreground">Códigos de verificación en tiempo real</p>
+                  <p className="text-xs text-muted-foreground">
+                    {totpEnabled
+                      ? "Activado — se pedirá un código al desbloquear"
+                      : "Pide un código de tu móvil además de la contraseña maestra"}
+                  </p>
                 </div>
-                <Button variant="outline" size="sm">
-                  <Smartphone className="h-4 w-4 mr-2" />
-                  Configurar
-                </Button>
+                {totpEnabled ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger render={<Button variant="outline" size="sm" />}>
+                      Desactivar
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Desactivar la verificación en dos pasos?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Volverás a poder desbloquear Sailock solo con tu contraseña maestra.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDisableTotp}>Desactivar</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <TotpSetupDialog onEnabled={() => setTotpEnabled(true)} />
+                )}
               </div>
             </div>
           </div>
         </Card>
 
-        {/* Auto-bloqueo - Mejorado */}
         <Card className="p-5 rounded-xl">
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
@@ -362,13 +499,13 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
                   <p className="text-sm font-medium">Tiempo de inactividad</p>
                   <p className="text-xs text-muted-foreground">Tiempo de espera antes de bloquear la sesión</p>
                 </div>
-                <Select value={autoLock} onValueChange={handleAutoLockChange}>
+                <Select value={autoLockDuration} onValueChange={handleAutoLockChange}>
                   <SelectTrigger className="w-[160px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {Object.entries(AUTO_LOCK_LABELS).map(([key, label]) => (
-                      <SelectItem key={key} value={key as AutoLock}>
+                      <SelectItem key={key} value={key as AutoLockDuration}>
                         {label}
                       </SelectItem>
                     ))}
@@ -380,13 +517,12 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
                   <p className="text-sm font-medium">Bloquear al minimizar</p>
                   <p className="text-xs text-muted-foreground">Bloquea la sesión cuando la ventana se minimiza</p>
                 </div>
-                <Switch checked={lockOnMinimize} onCheckedChange={setLockOnMinimize} />
+                <Switch checked={lockOnMinimize} onCheckedChange={handleLockOnMinimizeChange} />
               </div>
             </div>
           </div>
         </Card>
 
-        {/* Sistema */}
         <Card className="p-5 rounded-xl">
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-3">
@@ -397,29 +533,32 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Iniciar con Windows</p>
-                  <p className="text-xs text-muted-foreground">Inicia Sailock automáticamente al encender el PC</p>
+                  <p className="text-xs text-muted-foreground">
+                    Guarda la preferencia; falta la integración real con Windows
+                  </p>
                 </div>
-                <Switch checked={startWithWindows} onCheckedChange={setStartWithWindows} />
+                <Switch checked={startWithWindows} onCheckedChange={handleStartWithWindowsChange} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Minimizar a la bandeja</p>
-                  <p className="text-xs text-muted-foreground">Sailock se minimiza a la bandeja en lugar de cerrarse</p>
+                  <p className="text-xs text-muted-foreground">
+                    Guarda la preferencia; falta la integración real
+                  </p>
                 </div>
-                <Switch checked={minimizeToTray} onCheckedChange={setMinimizeToTray} />
+                <Switch checked={minimizeToTray} onCheckedChange={handleMinimizeToTrayChange} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Actualizaciones automáticas</p>
                   <p className="text-xs text-muted-foreground">Sailock buscará actualizaciones al iniciar</p>
                 </div>
-                <Switch checked={autoUpdate} onCheckedChange={setAutoUpdate} />
+                <Switch checked={autoUpdate} onCheckedChange={handleAutoUpdateChange} />
               </div>
             </div>
           </div>
         </Card>
 
-        {/* Importar / Exportar - Estilo Seguridad */}
         <Card className="p-5 rounded-xl">
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
@@ -427,7 +566,7 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
               Importar / Exportar datos
             </CardTitle>
             <CardDescription className="text-sm mb-4">
-              Exporta una copia de seguridad o restaura tus datos desde un archivo.
+              Exporta una copia de seguridad o restaura tus datos desde un archivo. (Aún no incluye el vault real.)
             </CardDescription>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -462,7 +601,6 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
           </div>
         </Card>
 
-        {/* Borrar todos los datos */}
         <Card className="border-destructive/50 p-5 rounded-xl">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -492,9 +630,7 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
                       <li>Historial de auditoría</li>
                       <li>Códigos de respaldo guardados</li>
                     </ul>
-                    <p className="font-medium text-destructive mt-2">
-                      Esta acción no se puede deshacer.
-                    </p>
+                    <p className="font-medium text-destructive mt-2">Esta acción no se puede deshacer.</p>
                   </AlertDialogDescription>
                 </AlertDialogHeader>
 
@@ -566,9 +702,7 @@ export function SettingsView({ onVaultDeleted }: SettingsViewProps) {
                 {deleteStep === "deleting" && (
                   <div className="flex flex-col items-center justify-center py-6">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-destructive border-t-transparent mb-4" />
-                    <p className="text-sm text-muted-foreground">
-                      Eliminando todos los datos...
-                    </p>
+                    <p className="text-sm text-muted-foreground">Eliminando todos los datos...</p>
                   </div>
                 )}
               </AlertDialogContent>
