@@ -11,30 +11,10 @@
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#building">Building</a> •
-  <a href="#roadmap">Roadmap</a> •
-  <a href="#license">License</a>
-</p>
-
-<p align="center">
   <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows">
   <img src="https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
   <img src="https://img.shields.io/badge/Tauri-24C8DB?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
-</p>
-
-<p align="center">
-  <a href="https://github.com/Sailock-Lab/Sailock.Windows/releases">
-    <img src="https://img.shields.io/github/v/release/Sailock-Lab/Sailock.Windows?style=flat-square&color=0078D6" alt="Latest Release">
-  </a>
-  <a href="https://github.com/Sailock-Lab/Sailock.Windows/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/Sailock-Lab/Sailock.Windows?style=flat-square&color=0078D6" alt="License">
-  </a>
-  <a href="https://github.com/Sailock-Lab/Sailock.Windows/issues">
-    <img src="https://img.shields.io/github/issues/Sailock-Lab/Sailock.Windows?style=flat-square&color=0078D6" alt="Issues">
-  </a>
 </p>
 
 ---
