@@ -10,17 +10,30 @@ import { SettingsView } from "@/features/settings/SettingsView";
 import { ActivityView } from "@/features/activity/ActivityView";
 import { UnlockScreen } from "@/features/vault/UnlockScreen";
 import { useActivity } from "@/hooks/useActivity";
+import { useAutoLock } from "@/hooks/useAutoLock";
+import { useLockOnMinimize } from "@/hooks/useLockOnMinimize";
+import { getStoredTheme, applyTheme } from "@/lib/theme";
+import {
+  AutoLockDuration,
+  getStoredAutoLockDuration,
+  storeAutoLockDuration,
+  getStoredBool,
+  storeBool,
+} from "@/lib/appSettings";
 
 function App() {
   const [unlocked, setUnlocked] = useState(false);
   const [active, setActive] = useState<View>("vault");
+  const [vaultPrefillPassword, setVaultPrefillPassword] = useState<string | null>(null);
+  const [autoLockDuration, setAutoLockDurationState] = useState<AutoLockDuration>(getStoredAutoLockDuration());
+  const [lockOnMinimize, setLockOnMinimizeState] = useState<boolean>(() => getStoredBool("lockOnMinimize", false));
   const { saveActivity } = useActivity();
 
   useEffect(() => {
-    // Solo en producción: no aporta seguridad real (Tauri ya excluye las
-    // DevTools del binario de producción), es solo una molestia extra
-    // simbólica. En desarrollo (pnpm tauri dev) la dejamos desactivada
-    // para no estorbarnos a nosotros mismos.
+    applyTheme(getStoredTheme());
+  }, []);
+
+  useEffect(() => {
     if (import.meta.env.DEV) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -60,15 +73,33 @@ function App() {
     };
   }, []);
 
-  const handleLock = async () => {
+  const handleLock = async (reason: string = "Cierre de sesión") => {
     await invoke("lock_vault");
-    await saveActivity("logout", "Cierre de sesión", "system");
+    await saveActivity("logout", reason, "system");
     setUnlocked(false);
   };
+
+  useAutoLock(autoLockDuration, unlocked, () => handleLock("Bloqueo automático por inactividad"));
+  useLockOnMinimize(unlocked && lockOnMinimize, () => handleLock("Bloqueo automático al minimizar la ventana"));
 
   const handleVaultDeleted = () => {
     setUnlocked(false);
     setActive("vault");
+  };
+
+  const handleAddToVault = (password: string) => {
+    setVaultPrefillPassword(password);
+    setActive("vault");
+  };
+
+  const handleAutoLockDurationChange = (value: AutoLockDuration) => {
+    setAutoLockDurationState(value);
+    storeAutoLockDuration(value);
+  };
+
+  const handleLockOnMinimizeChange = (value: boolean) => {
+    setLockOnMinimizeState(value);
+    storeBool("lockOnMinimize", value);
   };
 
   if (!unlocked) {
@@ -78,18 +109,31 @@ function App() {
   const renderView = () => {
     switch (active) {
       case "vault":
-        return <VaultView />;
+        return (
+          <VaultView
+            prefillPassword={vaultPrefillPassword}
+            onPrefillConsumed={() => setVaultPrefillPassword(null)}
+          />
+        );
       case "generator":
-        return <GeneratorView />;
+        return <GeneratorView onAddToVault={handleAddToVault} />;
       case "activity":
         return <ActivityView />;
       case "settings":
-        return <SettingsView onVaultDeleted={handleVaultDeleted} />;
+        return (
+          <SettingsView
+            onVaultDeleted={handleVaultDeleted}
+            autoLockDuration={autoLockDuration}
+            onAutoLockDurationChange={handleAutoLockDurationChange}
+            lockOnMinimize={lockOnMinimize}
+            onLockOnMinimizeChange={handleLockOnMinimizeChange}
+          />
+        );
     }
   };
 
   return (
-    <Layout active={active} onChange={setActive} onLock={handleLock}>
+    <Layout active={active} onChange={setActive} onLock={() => handleLock()}>
       <AnimatePresence mode="wait">
         <motion.div
           key={active}
