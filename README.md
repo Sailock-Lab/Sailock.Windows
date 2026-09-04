@@ -81,6 +81,20 @@ npm run tauri dev
 
 ---
 
+## License
+Copyright © 2026 Alba Ayala Vilanova. All rights reserved.
+
+This project is source-available for reading and contribution purposes only.
+Copying, reusing or distributing any part of this code without explicit written permission is not allowed.
+See [LICENSE](LICENSE) for full terms.
+
+---
+
+## Author
+Developed by **Alba Ayala Vilanova** — [GitHub @Sailok25](https://github.com/Sailok25)
+
+---
+
 ## 🤝 Contributing
 We welcome contributions from the community! Here's how you can help:
 
