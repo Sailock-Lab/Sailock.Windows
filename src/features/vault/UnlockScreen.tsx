@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Smartphone } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useActivity } from "@/hooks/useActivity";
 
@@ -16,6 +17,8 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [needsTotp, setNeedsTotp] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
   const { saveActivity } = useActivity();
 
   useEffect(() => {
@@ -48,14 +51,63 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
     setError("");
     try {
       await invoke("unlock_vault", { masterPassword: password });
-      await saveActivity("login", "Inicio de sesión", "system");
-      onUnlock();
+      const totpEnabled = await invoke<boolean>("totp_status");
+      if (totpEnabled) {
+        setNeedsTotp(true);
+      } else {
+        await saveActivity("login", "Inicio de sesión", "system");
+        onUnlock();
+      }
     } catch {
       setError("Contraseña maestra incorrecta");
     }
   };
 
+  const handleVerifyTotp = async () => {
+    setError("");
+    try {
+      const ok = await invoke<boolean>("totp_verify_unlock", { code: totpCode });
+      if (ok) {
+        await saveActivity("login", "Inicio de sesión (con verificación en dos pasos)", "system");
+        onUnlock();
+      } else {
+        setError("Código incorrecto");
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   if (checking) return null;
+
+  if (needsTotp) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-2">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Smartphone className="h-6 w-6" />
+              </div>
+            </div>
+            <CardTitle>Verificación en dos pasos</CardTitle>
+            <CardDescription>Introduce el código de tu app de autenticación.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Input
+              placeholder="123456"
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
+              autoFocus
+            />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button onClick={handleVerifyTotp}>Verificar</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen items-center justify-center bg-background">
