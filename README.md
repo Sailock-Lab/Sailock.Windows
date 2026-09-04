@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  <strong>🔐 Local-first password manager for Windows</strong>
+  <strong>Local-first password manager for Windows</strong>
   <br>
   <em>No cloud. No internet required. Just your data, securely offline.</em>
 </p>
