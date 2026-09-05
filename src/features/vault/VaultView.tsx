@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff, Star, RotateCcw, Search } from "lucide-react";
+import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff, Star, RotateCcw, Search, Copy } from "lucide-react";
 import { useActivity } from "@/hooks/useActivity";
 
 interface CustomFieldData {
@@ -33,6 +33,7 @@ interface Entry {
   website?: string | null;
   notes?: string | null;
   custom_fields?: CustomFieldData[];
+  totp_secret?: string | null;
   favorite: boolean;
   trashed: boolean;
 }
@@ -88,7 +89,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     loadEntries();
   }, []);
 
-  // Si llega una contraseña desde el Generador, abre directamente el formulario de "Nuevo" con ella rellenada
   useEffect(() => {
     if (prefillPassword) {
       setPendingPassword(prefillPassword);
@@ -294,6 +294,51 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   );
 }
 
+function TotpDisplay({ secret, accountName }: { secret: string; accountName: string }) {
+  const [code, setCode] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  const fetchCode = async () => {
+    try {
+      const [newCode, ttl] = await invoke<[string, number]>("get_totp_code", {
+        secretBase32: secret,
+        accountName,
+      });
+      setCode(newCode);
+      setSecondsLeft(ttl);
+    } catch {
+      setCode("");
+    }
+  };
+
+  useEffect(() => {
+    fetchCode();
+    const interval = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          fetchCode();
+          return 30;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secret, accountName]);
+
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="font-mono text-lg tracking-widest">{code || "------"}</p>
+        <p className="text-xs text-muted-foreground">Se renueva en {secondsLeft}s</p>
+      </div>
+      <Button variant="ghost" size="icon" onClick={() => code && navigator.clipboard.writeText(code)}>
+        <Copy className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
 function EntryForm({
   initial,
   initialPassword,
@@ -311,6 +356,7 @@ function EntryForm({
   const [showPassword, setShowPassword] = useState(false);
   const [website, setWebsite] = useState(initial?.website ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [totpSecret, setTotpSecret] = useState(initial?.totp_secret ?? "");
   const [customFields, setCustomFields] = useState<CustomFieldData[]>(initial?.custom_fields ?? []);
   const { saveActivity } = useActivity();
 
@@ -330,6 +376,7 @@ function EntryForm({
       website: website || null,
       notes: notes || null,
       customFields: customFields.filter((f) => f.label.trim() !== ""),
+      totpSecret: totpSecret.trim() || null,
     };
     if (initial) {
       await invoke("update_entry", { id: initial.id, ...payload });
@@ -388,6 +435,18 @@ function EntryForm({
         <div>
           <label className="text-sm font-medium block mb-1">Sitio web</label>
           <Input placeholder="Opcional" value={website} onChange={(e) => setWebsite(e.target.value)} />
+        </div>
+
+        <div>
+          <label className="text-sm font-medium block mb-1">Secreto TOTP (opcional)</label>
+          <Input
+            placeholder="El código secreto que te dio el sitio para el 2FA"
+            value={totpSecret}
+            onChange={(e) => setTotpSecret(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Pega aquí el código base32 (no la URL completa) — Sailock generará el código de verificación por ti.
+          </p>
         </div>
 
         <div>
@@ -514,6 +573,12 @@ function EntryDetail({
                 {showPassword ? "Ocultar" : "Mostrar"}
               </Button>
             </div>
+          </div>
+        )}
+        {entry.totp_secret && (
+          <div>
+            <p className="text-muted-foreground text-xs mb-1">Código de verificación (TOTP)</p>
+            <TotpDisplay secret={entry.totp_secret} accountName={entry.name} />
           </div>
         )}
         {entry.website && (
