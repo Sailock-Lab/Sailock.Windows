@@ -163,6 +163,80 @@ function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
   );
 }
 
+function ImportDialog({ onImported }: { onImported: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [password, setPassword] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState("");
+  const { saveActivity } = useActivity();
+
+  const handleImport = async () => {
+    if (!file) {
+      setError("Selecciona un archivo");
+      return;
+    }
+    setImporting(true);
+    setError("");
+    try {
+      const content = await file.text();
+      const count = await invoke<number>("import_vault", {
+        fileContent: content,
+        importPassword: password,
+      });
+      toast.success(`${count} elementos importados`);
+      saveActivity("create", `Importados ${count} elementos desde ${file.name}`, "settings");
+      setOpen(false);
+      setFile(null);
+      setPassword("");
+      onImported();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <Upload className="h-4 w-4 mr-2" /> Importar
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Importar datos</DialogTitle>
+            <DialogDescription>Se añadirán a tu vault actual, sin borrar lo que ya tienes.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div>
+              <Label>Archivo .slock</Label>
+              <Input type="file" accept=".slock,.json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </div>
+            <div>
+              <Label>Contraseña maestra de ese archivo</Label>
+              <Input
+                type="password"
+                placeholder="La contraseña con la que se exportó"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleImport()}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Si el archivo viene de este mismo PC, es tu contraseña habitual. Si viene de otro dispositivo, es la que se usaba allí.
+              </p>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button onClick={handleImport} disabled={importing}>
+              {importing ? "Importando..." : "Importar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 interface SettingsViewProps {
   onVaultDeleted: () => void;
   autoLockDuration: AutoLockDuration;
@@ -256,13 +330,8 @@ export function SettingsView({
   const handleExport = async () => {
     setIsLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const data = {
-        vault: { entries: [] },
-        settings: { theme, language, autoLockDuration, lockOnMinimize, startWithWindows, minimizeToTray, autoUpdate },
-        exportedAt: new Date().toISOString(),
-      };
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const content = await invoke<string>("export_vault");
+      const blob = new Blob([content], { type: "application/json;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -271,34 +340,12 @@ export function SettingsView({
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      saveActivity("download", "Copia de seguridad exportada (aún no incluye el vault real)", "settings");
-      toast.success("Datos exportados correctamente");
+      saveActivity("download", "Vault exportado", "settings");
+      toast.success("Vault exportado correctamente");
     } catch (error) {
       toast.error("Error al exportar los datos");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setIsLoading(true);
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      if (!data.vault || !data.settings) {
-        throw new Error("Formato de archivo inválido");
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      saveActivity("edit", "Datos importados desde archivo (aún no aplica al vault real)", "settings");
-      toast.success("Datos importados correctamente");
-    } catch (error) {
-      toast.error("Error al importar los datos: " + (error as Error).message);
-    } finally {
-      setIsLoading(false);
-      event.target.value = "";
     }
   };
 
@@ -566,13 +613,13 @@ export function SettingsView({
               Importar / Exportar datos
             </CardTitle>
             <CardDescription className="text-sm mb-4">
-              Exporta una copia de seguridad o restaura tus datos desde un archivo. (Aún no incluye el vault real.)
+              Exporta una copia cifrada de tu vault, o añade datos desde un archivo exportado antes.
             </CardDescription>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Exportar datos</p>
-                  <p className="text-xs text-muted-foreground">Crea un archivo de copia de seguridad (.slock)</p>
+                  <p className="text-xs text-muted-foreground">Descarga tu vault cifrado (.slock)</p>
                 </div>
                 <Button variant="outline" onClick={handleExport} disabled={isLoading} size="sm">
                   <Download className="h-4 w-4 mr-2" />
@@ -582,20 +629,9 @@ export function SettingsView({
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
                   <p className="text-sm font-medium">Importar datos</p>
-                  <p className="text-xs text-muted-foreground">Restaura tus datos desde un archivo .slock</p>
+                  <p className="text-xs text-muted-foreground">Añade entradas desde un archivo .slock</p>
                 </div>
-                <div className="relative">
-                  <Button variant="outline" disabled={isLoading} size="sm" className="relative">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Importar
-                    <Input
-                      type="file"
-                      accept=".slock,.json"
-                      onChange={handleImport}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                  </Button>
-                </div>
+                <ImportDialog onImported={() => {}} />
               </div>
             </div>
           </div>
