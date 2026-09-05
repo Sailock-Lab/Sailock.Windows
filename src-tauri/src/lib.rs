@@ -30,6 +30,8 @@ struct Entry {
     #[serde(default)]
     custom_fields: Vec<CustomField>,
     #[serde(default)]
+    totp_secret: Option<String>,
+    #[serde(default)]
     favorite: bool,
     #[serde(default)]
     trashed: bool,
@@ -203,6 +205,7 @@ fn save_entry(
     website: Option<String>,
     notes: Option<String>,
     custom_fields: Vec<CustomField>,
+    totp_secret: Option<String>,
 ) -> Result<(), String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
@@ -222,6 +225,7 @@ fn save_entry(
         website,
         notes,
         custom_fields,
+        totp_secret,
         favorite: false,
         trashed: false,
         created_at: now,
@@ -252,6 +256,7 @@ fn update_entry(
     website: Option<String>,
     notes: Option<String>,
     custom_fields: Vec<CustomField>,
+    totp_secret: Option<String>,
 ) -> Result<(), String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
@@ -272,6 +277,7 @@ fn update_entry(
             entry.website = website.clone();
             entry.notes = notes.clone();
             entry.custom_fields = custom_fields.clone();
+            entry.totp_secret = totp_secret.clone();
             entry.updated_at = now;
             found = true;
             break;
@@ -487,6 +493,7 @@ fn save_backup_batch(
                 value: batch.codes.join(", "),
             },
         ],
+        totp_secret: None,
         favorite: false,
         trashed: false,
         created_at: now,
@@ -549,6 +556,61 @@ fn delete_vault(
 
     *state.key.lock().unwrap() = None;
     Ok(())
+}
+
+#[tauri::command]
+fn export_vault(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let path = vault_path(&app_handle);
+    fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn import_vault(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    file_content: String,
+    import_password: String,
+) -> Result<usize, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let local_key = key_opt.ok_or("El vault está bloqueado")?;
+
+    // Descifra el archivo importado con SU propia contraseña — puede ser distinta a la local
+    let imported_file: VaultFile = serde_json::from_str(&file_content)
+        .map_err(|_| "El archivo no tiene un formato válido de Sailock".to_string())?;
+    let imported_salt = B64.decode(&imported_file.salt).map_err(|e| e.to_string())?;
+    let imported_key = derive_key(&import_password, &imported_salt);
+    let imported_entries = decrypt_entries(
+        &imported_key,
+        &imported_file.nonce,
+        &imported_file.ciphertext,
+    )
+    .map_err(|_| "Contraseña incorrecta para este archivo".to_string())?;
+
+    // Lee el vault local actual con la clave ya desbloqueada
+    let local_path = vault_path(&app_handle);
+    let local_content = fs::read_to_string(&local_path).map_err(|e| e.to_string())?;
+    let local_file: VaultFile = serde_json::from_str(&local_content).map_err(|e| e.to_string())?;
+    let mut local_entries = decrypt_entries(&local_key, &local_file.nonce, &local_file.ciphertext)?;
+
+    // Añade las entradas importadas con IDs nuevos, para evitar cualquier colisión
+    let base_time = now_millis();
+    let imported_count = imported_entries.len();
+    for (i, mut entry) in imported_entries.into_iter().enumerate() {
+        entry.id = format!("{}-{}", base_time, i);
+        local_entries.push(entry);
+    }
+
+    // Vuelve a cifrar y guardar, esta vez con la clave LOCAL
+    let (nonce, ciphertext) = encrypt_entries(&local_key, &local_entries);
+    let new_file = VaultFile {
+        salt: local_file.salt,
+        nonce,
+        ciphertext,
+    };
+    let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+    fs::write(&local_path, json).map_err(|e| e.to_string())?;
+
+    Ok(imported_count)
 }
 
 const MAX_GENERATOR_HISTORY_PER_TYPE: usize = 5;
@@ -1035,7 +1097,9 @@ pub fn run() {
             totp_disable,
             add_generator_history_entry,
             get_generator_history,
-            clear_generator_history
+            clear_generator_history,
+            export_vault,
+            import_vault,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
