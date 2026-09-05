@@ -57,6 +57,39 @@ function generateUsername(includeNumber: boolean) {
   return `${adjective}${noun}${number}`;
 }
 
+// Lista de palabras para la frase de contraseña
+const WORDLIST = [
+  "arbol", "rio", "luna", "sol", "mar", "monte", "nube", "piedra", "flor", "hoja",
+  "rama", "fuego", "agua", "tierra", "aire", "cielo", "estrella", "camino", "puente", "ciudad",
+  "pueblo", "calle", "plaza", "jardin", "bosque", "desierto", "valle", "colina", "isla", "playa",
+  "ola", "roca", "arena", "nieve", "hielo", "viento", "lluvia", "trueno", "rayo", "alba",
+  "ocaso", "sombra", "luz", "espejo", "puerta", "ventana", "techo", "muro", "escalera", "patio",
+  "balcon", "granja", "campo", "trigo", "maiz", "uva", "manzana", "naranja", "limon", "platano",
+  "pera", "cereza", "fresa", "aceituna", "aceite", "pan", "queso", "leche", "miel", "sal",
+  "azucar", "cafe", "te", "vino", "cerveza", "jugo", "sopa", "arroz", "pasta", "carne",
+  "pescado", "pollo", "huevo", "mantequilla", "harina", "canela", "pimienta", "ajo", "cebolla", "tomate",
+  "lechuga", "zanahoria", "papa", "calabaza", "pepino", "pimiento", "brocoli", "espinaca", "perejil", "romero",
+  "tomillo", "lobo", "halcon", "aguila", "tigre", "leon", "oso", "zorro", "ciervo", "conejo",
+  "tortuga", "delfin", "ballena", "tiburon", "pulpo", "cangrejo", "mariposa", "abeja", "hormiga", "arana",
+  "buho", "cuervo", "paloma", "gorrion", "pavo", "cisne", "pato", "gallo", "caballo", "vaca",
+  "cabra", "oveja", "cerdo", "perro", "gato", "raton", "elefante", "jirafa", "cebra", "mono",
+  "canguro", "koala", "panda", "pinguino", "foca", "nutria", "castor", "ardilla", "erizo", "tucan",
+];
+
+function generatePassphrase(numWords: number, separator: string, capitalize: boolean, includeNumber: boolean) {
+  const words: string[] = [];
+  for (let i = 0; i < numWords; i++) {
+    let word = WORDLIST[secureRandomInt(WORDLIST.length)];
+    if (capitalize) word = word.charAt(0).toUpperCase() + word.slice(1);
+    words.push(word);
+  }
+  if (includeNumber) {
+    const idx = secureRandomInt(words.length);
+    words[idx] = words[idx] + secureRandomInt(100);
+  }
+  return words.join(separator);
+}
+
 interface CriteriaRowProps {
   icon: React.ReactNode;
   label: string;
@@ -78,15 +111,7 @@ function CriteriaRow({ icon, label, checked, onCheckedChange }: CriteriaRowProps
   );
 }
 
-// Tarjeta compartida de "Recientes" — el botón de añadir al vault es opcional
-// (solo se lo pasamos a Contraseña, no a Usuario)
-function RecentHistoryCard({
-  history,
-  onAddToVault,
-}: {
-  history: GeneratorHistoryEntry[];
-  onAddToVault?: (value: string) => void;
-}) {
+function RecentHistoryCard({ history }: { history: GeneratorHistoryEntry[] }) {
   return (
     <Card>
       <CardHeader>
@@ -100,16 +125,9 @@ function RecentHistoryCard({
             {history.map((entry) => (
               <li key={entry.id} className="flex items-center justify-between gap-2 border rounded p-2">
                 <span className="font-mono text-xs truncate">{entry.value}</span>
-                <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(entry.value)} title="Copiar">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  {onAddToVault && (
-                    <Button variant="ghost" size="icon" onClick={() => onAddToVault(entry.value)} title="Añadir al Vault">
-                      <Save className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(entry.value)}>
+                  <Copy className="h-4 w-4" />
+                </Button>
               </li>
             ))}
           </ul>
@@ -532,23 +550,101 @@ function BackupCodesGenerator() {
   );
 }
 
+function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof useGeneratorHistory> }) {
+  const [numWords, setNumWords] = useState(5);
+  const [separator, setSeparator] = useState("-");
+  const [capitalize, setCapitalize] = useState(true);
+  const [includeNumber, setIncludeNumber] = useState(true);
+  const [value, setValue] = useState("");
+  const { saveActivity } = useActivity();
+
+  const bits = bitsPerCode(numWords, WORDLIST.length);
+  const strength = strengthInfo(bits);
+
+  const handleGenerate = () => {
+    const result = generatePassphrase(numWords, separator, capitalize, includeNumber);
+    setValue(result);
+    historyHook.addEntry(result);
+    saveActivity("generate", "Frase de contraseña generada", "generator", `${numWords} palabras`);
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-sm font-medium">Número de palabras</label>
+          <div className="flex h-8 w-14 items-center justify-center rounded-md border bg-muted text-sm font-mono">
+            {numWords}
+          </div>
+        </div>
+        <Slider value={[numWords]} onValueChange={(v) => setNumWords(Array.isArray(v) ? v[0] : v)} min={3} max={10} step={1} />
+        <div className="flex justify-between text-xs text-muted-foreground mt-1">
+          <span>3</span>
+          <span>10</span>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-sm block mb-1">Separador</label>
+        <Select value={separator} onValueChange={(v) => v && setSeparator(v)}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="-">Guion (-)</SelectItem>
+            <SelectItem value="_">Guion bajo (_)</SelectItem>
+            <SelectItem value=".">Punto (.)</SelectItem>
+            <SelectItem value=" ">Espacio</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <label className="text-sm">Capitalizar cada palabra</label>
+        <Switch checked={capitalize} onCheckedChange={setCapitalize} />
+      </div>
+      <div className="flex items-center justify-between">
+        <label className="text-sm">Añadir un número</label>
+        <Switch checked={includeNumber} onCheckedChange={setIncludeNumber} />
+      </div>
+
+      <Button onClick={handleGenerate}>Generar frase</Button>
+
+      {value && (
+        <>
+          <div className="flex items-center gap-3">
+            <span className={`flex items-center gap-1 text-sm font-medium ${strength.color}`}>
+              <span className="h-2 w-2 rounded-full bg-current inline-block" /> {strength.label}
+            </span>
+            <span className="text-xs text-muted-foreground">{bits} bits</span>
+          </div>
+          <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
+            <span>{value}</span>
+            <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)}>
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ---------- Vista principal ----------
 
-type GeneratorTab = "password" | "username" | "code" | "passphrase" | "totp";
+type GeneratorTab = "password" | "username" | "code" | "passphrase";
 
 const TABS: { id: GeneratorTab; label: string }[] = [
   { id: "password", label: "Contraseña" },
   { id: "username", label: "Usuario" },
   { id: "code", label: "Códigos de respaldo" },
   { id: "passphrase", label: "Frase" },
-  { id: "totp", label: "TOTP" },
 ];
 
 const DESCRIPTIONS: Partial<Record<GeneratorTab, string>> = {
   password: "Crea contraseñas aleatorias y difíciles de adivinar para mantener tus cuentas seguras.",
   username: "Genera nombres de usuario aleatorios, sin datos personales que te identifiquen.",
-  passphrase: "Próximamente: frases de varias palabras, fáciles de recordar y también seguras.",
-  totp: "Próximamente: generación de códigos TOTP de verificación en dos pasos.",
+  passphrase: "Combina varias palabras aleatorias en una frase — más fácil de recordar que una contraseña, y también segura si usas suficientes palabras.",
 };
 
 interface GeneratorViewProps {
@@ -559,6 +655,7 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
   const [tab, setTab] = useState<GeneratorTab>("password");
   const passwordHistory = useGeneratorHistory("password");
   const usernameHistory = useGeneratorHistory("username");
+  const passphraseHistory = useGeneratorHistory("passphrase");
 
   return (
     <div className="flex flex-col h-full">
@@ -593,9 +690,7 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
               <CardContent>
                 {tab === "password" && <PasswordGenerator historyHook={passwordHistory} onAddToVault={onAddToVault} />}
                 {tab === "username" && <UsernameGenerator historyHook={usernameHistory} />}
-                {(tab === "passphrase" || tab === "totp") && (
-                  <p className="text-sm text-muted-foreground py-6 text-center">Próximamente.</p>
-                )}
+                {tab === "passphrase" && <PassphraseGenerator historyHook={passphraseHistory} />}
               </CardContent>
             </Card>
 
@@ -610,9 +705,10 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
               </Card>
 
               {tab === "password" && (
-                <RecentHistoryCard history={passwordHistory.history} onAddToVault={onAddToVault} />
+                <RecentHistoryCard history={passwordHistory.history} />
               )}
               {tab === "username" && <RecentHistoryCard history={usernameHistory.history} />}
+              {tab === "passphrase" && <RecentHistoryCard history={passphraseHistory.history} />}
             </div>
           </div>
         )}
