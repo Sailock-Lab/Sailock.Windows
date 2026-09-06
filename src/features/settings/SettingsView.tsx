@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ import {
   Eye,
   EyeOff,
   Lock,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
@@ -163,37 +164,181 @@ function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
   );
 }
 
-function ImportDialog({ onImported }: { onImported: () => void }) {
+function ExportDialog() {
   const [open, setOpen] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
   const [password, setPassword] = useState("");
-  const [importing, setImporting] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
   const { saveActivity } = useActivity();
 
-  const handleImport = async () => {
+  const handleExport = async () => {
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden");
+      return;
+    }
+    setError("");
+    setExporting(true);
+    try {
+      const content = await invoke<string>("export_vault", { exportPassword: password });
+      const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sailock_backup_${new Date().toISOString().slice(0, 10)}.slock`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      saveActivity("download", "Vault exportado con contraseña propia", "settings");
+      toast.success("Vault exportado correctamente");
+      setOpen(false);
+      setPassword("");
+      setConfirmPassword("");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <Download className="h-4 w-4 mr-2" /> Exportar
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Exportar datos</DialogTitle>
+            <DialogDescription>
+              Elige una contraseña solo para este archivo — no tiene por qué ser tu contraseña maestra. Sin ella, nadie puede abrir el archivo exportado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div>
+              <Label>Contraseña del archivo</Label>
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <div>
+              <Label>Repite la contraseña</Label>
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleExport()}
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button onClick={handleExport} disabled={exporting}>
+              {exporting ? "Exportando..." : "Exportar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+type ImportMode = "add_duplicates" | "skip_duplicates" | "replace_all";
+type ImportStep = "form" | "confirm" | "totp" | "importing";
+
+function ImportDialog({ onImported }: { onImported: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<ImportStep>("form");
+  const [file, setFile] = useState<File | null>(null);
+  const [exportPassword, setExportPassword] = useState("");
+  const [mode, setMode] = useState<ImportMode>("add_duplicates");
+  const [confirmText, setConfirmText] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { saveActivity } = useActivity();
+
+  const modeLabels: Record<ImportMode, string> = {
+    add_duplicates: "Añadir todo (puede duplicar)",
+    skip_duplicates: "Añadir, omitiendo duplicados por nombre",
+    replace_all: "Reemplazar todo el vault",
+  };
+
+  const reset = () => {
+    setStep("form");
+    setFile(null);
+    setExportPassword("");
+    setMode("add_duplicates");
+    setConfirmText("");
+    setTotpCode("");
+    setError("");
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) reset();
+  };
+
+  const goToConfirm = () => {
     if (!file) {
       setError("Selecciona un archivo");
       return;
     }
-    setImporting(true);
+    if (!exportPassword) {
+      setError("Introduce la contraseña de ese archivo");
+      return;
+    }
+    setError("");
+    setStep("confirm");
+  };
+
+  const proceedFromConfirm = async () => {
+    if (mode === "replace_all" && confirmText.trim().toUpperCase() !== "REEMPLAZAR") {
+      setError('Escribe "REEMPLAZAR" para confirmar');
+      return;
+    }
+    setError("");
+    const totpEnabled = await invoke<boolean>("totp_status").catch(() => false);
+    if (totpEnabled) {
+      setStep("totp");
+    } else {
+      await doImport();
+    }
+  };
+
+  const verifyTotpAndImport = async () => {
+    setError("");
+    try {
+      const ok = await invoke<boolean>("totp_verify_unlock", { code: totpCode });
+      if (!ok) {
+        setError("Código incorrecto");
+        return;
+      }
+      await doImport();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const doImport = async () => {
+    if (!file) return;
+    setStep("importing");
     setError("");
     try {
       const content = await file.text();
       const count = await invoke<number>("import_vault", {
         fileContent: content,
-        importPassword: password,
+        exportPassword,
+        mode,
       });
       toast.success(`${count} elementos importados`);
-      saveActivity("create", `Importados ${count} elementos desde ${file.name}`, "settings");
-      setOpen(false);
-      setFile(null);
-      setPassword("");
+      saveActivity("create", `Importados ${count} elementos desde ${file.name} (modo: ${modeLabels[mode]})`, "settings");
+      handleOpenChange(false);
       onImported();
     } catch (e) {
       setError(String(e));
-    } finally {
-      setImporting(false);
+      setStep("confirm");
     }
   };
 
@@ -202,35 +347,123 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Upload className="h-4 w-4 mr-2" /> Importar
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Importar datos</DialogTitle>
-            <DialogDescription>Se añadirán a tu vault actual, sin borrar lo que ya tienes.</DialogDescription>
+            <DialogDescription>
+              {step === "form" && "Elige el archivo y la contraseña con la que se exportó."}
+              {step === "confirm" && "Revisa lo que va a pasar antes de continuar."}
+              {step === "totp" && "Introduce el código de tu app de autenticación."}
+              {step === "importing" && "Importando..."}
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <div>
-              <Label>Archivo .slock</Label>
-              <Input type="file" accept=".slock,.json" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+
+          {step === "form" && (
+            <div className="flex flex-col gap-3">
+              <div>
+                <Label>Archivo .slock</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    Elegir archivo
+                  </Button>
+                  {file ? (
+                    <span className="text-sm flex items-center gap-1 min-w-0">
+                      <span className="truncate">{file.name}</span>
+                      <button onClick={() => setFile(null)} title="Quitar archivo">
+                        <X className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Ningún archivo seleccionado</span>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".slock,.json"
+                    className="hidden"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Contraseña de ese archivo</Label>
+                <Input
+                  type="password"
+                  placeholder="La contraseña que se eligió al exportarlo"
+                  value={exportPassword}
+                  onChange={(e) => setExportPassword(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  No es tu contraseña maestra — es la contraseña específica que se creó al exportar ese archivo.
+                </p>
+              </div>
+              <div>
+                <Label>Qué hacer con las entradas</Label>
+                <Select value={mode} onValueChange={(v) => v && setMode(v as ImportMode)}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="add_duplicates">{modeLabels.add_duplicates}</SelectItem>
+                    <SelectItem value="skip_duplicates">{modeLabels.skip_duplicates}</SelectItem>
+                    <SelectItem value="replace_all">{modeLabels.replace_all}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button onClick={goToConfirm}>Continuar</Button>
             </div>
-            <div>
-              <Label>Contraseña maestra de ese archivo</Label>
-              <Input
-                type="password"
-                placeholder="La contraseña con la que se exportó"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleImport()}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Si el archivo viene de este mismo PC, es tu contraseña habitual. Si viene de otro dispositivo, es la que se usaba allí.
+          )}
+
+          {step === "confirm" && (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm">
+                Modo elegido: <span className="font-medium">{modeLabels[mode]}</span>
               </p>
+              {mode === "replace_all" ? (
+                <>
+                  <p className="text-sm text-destructive">
+                    Esto borrará permanentemente todas las entradas que tengas ahora mismo en este vault, y las sustituirá por las del archivo importado.
+                  </p>
+                  <div>
+                    <Label>Escribe "REEMPLAZAR" para confirmar</Label>
+                    <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="REEMPLAZAR" />
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Las entradas del archivo se añadirán a tu vault actual.</p>
+              )}
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <div className="flex gap-2">
+                <Button onClick={proceedFromConfirm}>Confirmar</Button>
+                <Button variant="ghost" onClick={() => setStep("form")}>
+                  Atrás
+                </Button>
+              </div>
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button onClick={handleImport} disabled={importing}>
-              {importing ? "Importando..." : "Importar"}
-            </Button>
-          </div>
+          )}
+
+          {step === "totp" && (
+            <div className="flex flex-col gap-3">
+              <Input
+                placeholder="123456"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && verifyTotpAndImport()}
+                autoFocus
+              />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button onClick={verifyTotpAndImport}>Verificar e importar</Button>
+            </div>
+          )}
+
+          {step === "importing" && (
+            <div className="flex flex-col items-center justify-center py-6">
+              <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent mb-3" />
+              <p className="text-sm text-muted-foreground">Importando...</p>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -258,7 +491,6 @@ export function SettingsView({
   const [minimizeToTray, setMinimizeToTray] = useState(() => getStoredBool("minimizeToTray", false));
   const [autoUpdate, setAutoUpdate] = useState(() => getStoredBool("autoUpdate", true));
   const [showBackupCodes, setShowBackupCodes] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
   const { saveActivity } = useActivity();
 
@@ -325,28 +557,6 @@ export function SettingsView({
     setAutoUpdate(value);
     storeBool("autoUpdate", value);
     saveActivity("edit", `Actualizaciones automáticas: ${value ? "activado" : "desactivado"}`, "settings");
-  };
-
-  const handleExport = async () => {
-    setIsLoading(true);
-    try {
-      const content = await invoke<string>("export_vault");
-      const blob = new Blob([content], { type: "application/json;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `sailock_backup_${new Date().toISOString().slice(0, 10)}.slock`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      saveActivity("download", "Vault exportado", "settings");
-      toast.success("Vault exportado correctamente");
-    } catch (error) {
-      toast.error("Error al exportar los datos");
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const resetDeleteDialog = () => {
@@ -619,17 +829,14 @@ export function SettingsView({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Exportar datos</p>
-                  <p className="text-xs text-muted-foreground">Descarga tu vault cifrado (.slock)</p>
+                  <p className="text-xs text-muted-foreground">Crea un archivo cifrado con una contraseña que tú eliges</p>
                 </div>
-                <Button variant="outline" onClick={handleExport} disabled={isLoading} size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar
-                </Button>
+                <ExportDialog />
               </div>
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
                   <p className="text-sm font-medium">Importar datos</p>
-                  <p className="text-xs text-muted-foreground">Añade entradas desde un archivo .slock</p>
+                  <p className="text-xs text-muted-foreground">Añade o reemplaza entradas desde un archivo .slock</p>
                 </div>
                 <ImportDialog onImported={() => {}} />
               </div>
