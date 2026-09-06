@@ -559,9 +559,31 @@ fn delete_vault(
 }
 
 #[tauri::command]
-fn export_vault(app_handle: tauri::AppHandle) -> Result<String, String> {
-    let path = vault_path(&app_handle);
-    fs::read_to_string(&path).map_err(|e| e.to_string())
+fn export_vault(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    export_password: String,
+) -> Result<String, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let local_key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let local_path = vault_path(&app_handle);
+    let local_content = fs::read_to_string(&local_path).map_err(|e| e.to_string())?;
+    let local_file: VaultFile = serde_json::from_str(&local_content).map_err(|e| e.to_string())?;
+    let entries = decrypt_entries(&local_key, &local_file.nonce, &local_file.ciphertext)?;
+
+    // Se cifra con una contraseña NUEVA, propia del archivo — nunca con la contraseña maestra real
+    let mut salt_bytes = [0u8; 16];
+    AeadOsRng.fill_bytes(&mut salt_bytes);
+    let export_key = derive_key(&export_password, &salt_bytes);
+
+    let (nonce, ciphertext) = encrypt_entries(&export_key, &entries);
+    let export_file = VaultFile {
+        salt: B64.encode(salt_bytes),
+        nonce,
+        ciphertext,
+    };
+    serde_json::to_string_pretty(&export_file).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -569,38 +591,50 @@ fn import_vault(
     app_handle: tauri::AppHandle,
     state: tauri::State<VaultState>,
     file_content: String,
-    import_password: String,
+    export_password: String,
+    mode: String, // "add_duplicates" | "skip_duplicates" | "replace_all"
 ) -> Result<usize, String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let local_key = key_opt.ok_or("El vault está bloqueado")?;
 
-    // Descifra el archivo importado con SU propia contraseña — puede ser distinta a la local
     let imported_file: VaultFile = serde_json::from_str(&file_content)
         .map_err(|_| "El archivo no tiene un formato válido de Sailock".to_string())?;
     let imported_salt = B64.decode(&imported_file.salt).map_err(|e| e.to_string())?;
-    let imported_key = derive_key(&import_password, &imported_salt);
-    let imported_entries = decrypt_entries(
-        &imported_key,
-        &imported_file.nonce,
-        &imported_file.ciphertext,
-    )
-    .map_err(|_| "Contraseña incorrecta para este archivo".to_string())?;
+    let imported_key = derive_key(&export_password, &imported_salt);
+    let imported_entries =
+        decrypt_entries(&imported_key, &imported_file.nonce, &imported_file.ciphertext)
+            .map_err(|_| "Contraseña incorrecta para este archivo".to_string())?;
 
-    // Lee el vault local actual con la clave ya desbloqueada
     let local_path = vault_path(&app_handle);
     let local_content = fs::read_to_string(&local_path).map_err(|e| e.to_string())?;
     let local_file: VaultFile = serde_json::from_str(&local_content).map_err(|e| e.to_string())?;
     let mut local_entries = decrypt_entries(&local_key, &local_file.nonce, &local_file.ciphertext)?;
 
-    // Añade las entradas importadas con IDs nuevos, para evitar cualquier colisión
+    let final_imported: Vec<Entry> = match mode.as_str() {
+        "replace_all" => imported_entries,
+        "skip_duplicates" => {
+            let existing_names: std::collections::HashSet<String> =
+                local_entries.iter().map(|e| e.name.to_lowercase()).collect();
+            imported_entries
+                .into_iter()
+                .filter(|e| !existing_names.contains(&e.name.to_lowercase()))
+                .collect()
+        }
+        _ => imported_entries, // "add_duplicates"
+    };
+
+    let imported_count = final_imported.len();
+
+    if mode == "replace_all" {
+        local_entries = Vec::new();
+    }
+
     let base_time = now_millis();
-    let imported_count = imported_entries.len();
-    for (i, mut entry) in imported_entries.into_iter().enumerate() {
+    for (i, mut entry) in final_imported.into_iter().enumerate() {
         entry.id = format!("{}-{}", base_time, i);
         local_entries.push(entry);
     }
 
-    // Vuelve a cifrar y guardar, esta vez con la clave LOCAL
     let (nonce, ciphertext) = encrypt_entries(&local_key, &local_entries);
     let new_file = VaultFile {
         salt: local_file.salt,
@@ -612,7 +646,6 @@ fn import_vault(
 
     Ok(imported_count)
 }
-
 const MAX_GENERATOR_HISTORY_PER_TYPE: usize = 5;
 
 #[derive(Serialize, Deserialize, Clone)]
