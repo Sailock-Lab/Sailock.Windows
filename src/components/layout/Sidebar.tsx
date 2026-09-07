@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { KeyRound, Wand2, Settings, LogOut, ChevronLeft, ChevronRight, History } from "lucide-react";
 import logo from "@/assets/logo.png";
@@ -11,15 +12,16 @@ interface SidebarProps {
   onLock: () => void;
 }
 
-const items: { id: View; label: string; icon: React.ElementType }[] = [
-  { id: "vault", label: "Vault", icon: KeyRound },
-  { id: "generator", label: "Generador", icon: Wand2 },
-  { id: "activity", label: "Auditoría", icon: History },
-  { id: "settings", label: "Ajustes", icon: Settings },
+const items: { id: View; icon: React.ElementType }[] = [
+  { id: "vault", icon: KeyRound },
+  { id: "generator", icon: Wand2 },
+  { id: "activity", icon: History },
+  { id: "settings", icon: Settings },
 ];
 
 export function Sidebar({ active, onChange, onLock }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const { t } = useTranslation("sidebar");
 
   return (
     <aside
@@ -34,46 +36,48 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
 
       <div className="border-t my-2" />
 
-      {items.map(({ id, label, icon: Icon }) => (
-        <Button
-          key={id}
-          variant={active === id ? "default" : "ghost"}
-          className={`gap-2 transition-all duration-200 ${
-            collapsed ? "justify-center px-0" : "justify-start"
-          } ${
-            active === id 
-              ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm" 
-              : "hover:bg-muted hover:text-foreground hover:scale-[1.02]"
-          }`}
-          onClick={() => onChange(id)}
-          title={collapsed ? label : undefined}
-        >
-          <Icon className="h-4 w-4 shrink-0" />
-          {!collapsed && label}
-        </Button>
-      ))}
+      {items.map(({ id, icon: Icon }) => {
+        const label = t(id);
+        return (
+          <Button
+            key={id}
+            variant={active === id ? "default" : "ghost"}
+            className={`gap-2 transition-all duration-200 ${
+              collapsed ? "justify-center px-0" : "justify-start"
+            } ${
+              active === id
+                ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                : "hover:bg-muted hover:text-foreground hover:scale-[1.02]"
+            }`}
+            onClick={() => onChange(id)}
+            title={collapsed ? label : undefined}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {!collapsed && label}
+          </Button>
+        );
+      })}
 
       <div className="border-t my-2" />
 
-      {/* Botón Cerrar Sesión */}
       <Button
         variant="outline"
         className={`gap-2 mt-auto transition-all duration-200 border-destructive/50 text-destructive hover:bg-destructive hover:text-white hover:border-destructive hover:scale-[1.02] ${
           collapsed ? "justify-center px-0" : "justify-center"
         }`}
         onClick={onLock}
-        title={collapsed ? "Cerrar Sesión" : undefined}
+        title={collapsed ? t("lock") : undefined}
       >
         <LogOut className="h-4 w-4 shrink-0" />
-        {!collapsed && "Cerrar Sesión"}
+        {!collapsed && t("lock")}
       </Button>
 
       <div className="border-t my-2" />
 
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        className="self-center hover:bg-muted hover:scale-105 transition-all duration-200" 
+      <Button
+        variant="ghost"
+        size="icon"
+        className="self-center hover:bg-muted hover:scale-105 transition-all duration-200"
         onClick={() => setCollapsed(!collapsed)}
       >
         {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
