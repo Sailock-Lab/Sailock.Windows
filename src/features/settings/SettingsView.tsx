@@ -6,47 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  Moon,
-  Sun,
-  Monitor,
-  Globe,
-  Download,
-  Upload,
-  Trash2,
-  Shield,
-  AlertTriangle,
-  Smartphone,
-  Power,
-  Eye,
-  EyeOff,
-  Lock,
-  X,
-} from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,} from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,} from "@/components/ui/alert-dialog";
+import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Eye, EyeOff, Lock, X,} from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
 import { AutoLockDuration, getStoredBool, storeBool } from "@/lib/appSettings";
+import i18n from "@/i18n";
 
-type Language = "es" | "en" | "fr" | "de";
 type DeleteStep = "confirm" | "password" | "confirmType" | "deleting";
 
 const THEME_ICONS: Record<Theme, React.ReactNode> = {
@@ -61,11 +29,19 @@ const THEME_LABELS: Record<Theme, string> = {
   system: "Sistema",
 };
 
-const LANGUAGE_LABELS: Record<Language, string> = {
-  es: "Español",
+const LANGUAGE_LABELS: Record<string, string> = {
   en: "English",
+  es: "Español",
   fr: "Français",
   de: "Deutsch",
+  it: "Italiano",
+  ja: "日本語",
+  ko: "한국어",
+  nl: "Nederlands",
+  pl: "Polski",
+  pt: "Português",
+  ru: "Русский",
+  zh: "中文",
 };
 
 const AUTO_LOCK_LABELS: Record<AutoLockDuration, string> = {
@@ -486,7 +462,7 @@ export function SettingsView({
   onLockOnMinimizeChange,
 }: SettingsViewProps) {
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
-  const [language, setLanguage] = useState<Language>("es");
+  const [language, setLanguage] = useState(i18n.language);
   const [startWithWindows, setStartWithWindows] = useState(() => getStoredBool("startWithWindows", false));
   const [minimizeToTray, setMinimizeToTray] = useState(() => getStoredBool("minimizeToTray", false));
   const [autoUpdate, setAutoUpdate] = useState(() => getStoredBool("autoUpdate", true));
@@ -522,9 +498,10 @@ export function SettingsView({
     toast.success(`Tema cambiado a ${THEME_LABELS[value]}`);
   };
 
-  const handleLanguageChange = (value: Language | null) => {
+  const handleLanguageChange = (value: string | null) => {
     if (!value) return;
     setLanguage(value);
+    i18n.changeLanguage(value);
     saveActivity("edit", `Idioma cambiado a ${LANGUAGE_LABELS[value]}`, "settings");
     toast.success(`Idioma cambiado a ${LANGUAGE_LABELS[value]}`);
   };
@@ -670,7 +647,7 @@ export function SettingsView({
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(LANGUAGE_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key as Language}>
+                  <SelectItem key={key} value={key}>
                     {label}
                   </SelectItem>
                 ))}
