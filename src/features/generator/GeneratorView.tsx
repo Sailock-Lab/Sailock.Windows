@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -57,7 +58,6 @@ function generateUsername(includeNumber: boolean) {
   return `${adjective}${noun}${number}`;
 }
 
-// Lista de palabras para la frase de contraseña
 const WORDLIST = [
   "arbol", "rio", "luna", "sol", "mar", "monte", "nube", "piedra", "flor", "hoja",
   "rama", "fuego", "agua", "tierra", "aire", "cielo", "estrella", "camino", "puente", "ciudad",
@@ -112,14 +112,15 @@ function CriteriaRow({ icon, label, checked, onCheckedChange }: CriteriaRowProps
 }
 
 function RecentHistoryCard({ history }: { history: GeneratorHistoryEntry[] }) {
+  const { t } = useTranslation("generator");
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Recientes</CardTitle>
+        <CardTitle className="text-base">{t("recentTitle")}</CardTitle>
       </CardHeader>
       <CardContent>
         {history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aún no has generado nada.</p>
+          <p className="text-sm text-muted-foreground">{t("recentEmpty")}</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {history.map((entry) => (
@@ -137,8 +138,6 @@ function RecentHistoryCard({ history }: { history: GeneratorHistoryEntry[] }) {
   );
 }
 
-// ---------- Códigos de respaldo ----------
-
 const ALPHABETS: Record<string, string> = {
   digits: "0123456789",
   letters: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
@@ -151,8 +150,6 @@ const SEPARATORS: Record<string, string> = { dash: "-", space: " ", none: "" };
 
 interface BackupPreset {
   id: string;
-  label: string;
-  description: string;
   settings: {
     count: number;
     length: number;
@@ -167,20 +164,14 @@ interface BackupPreset {
 const PRESETS: BackupPreset[] = [
   {
     id: "google",
-    label: "Estilo Google",
-    description: "10 códigos · 8 dígitos · Agrupado 4-4",
     settings: { count: 10, length: 8, alphabet: "digits", avoidLookalikes: true, numberEach: true, separator: "dash", groupSize: 4 },
   },
   {
     id: "github",
-    label: "Estilo GitHub",
-    description: "10 códigos · 10 caracteres · Agrupado 5-5",
     settings: { count: 10, length: 10, alphabet: "alphanumeric", avoidLookalikes: true, numberEach: true, separator: "dash", groupSize: 5 },
   },
   {
     id: "custom",
-    label: "Personalizado",
-    description: "Configura cada opción a tu gusto",
     settings: { count: 10, length: 8, alphabet: "alphanumeric", avoidLookalikes: true, numberEach: true, separator: "dash", groupSize: 4 },
   },
 ];
@@ -188,12 +179,6 @@ const PRESETS: BackupPreset[] = [
 function bitsPerCode(length: number, alphabetSize: number): number {
   if (alphabetSize <= 1) return 0;
   return Math.round(length * Math.log2(alphabetSize));
-}
-
-function strengthInfo(bits: number): { label: string; color: string } {
-  if (bits < 20) return { label: "Débil", color: "text-red-500" };
-  if (bits < 40) return { label: "Fuerte", color: "text-green-500" };
-  return { label: "Muy fuerte", color: "text-green-600" };
 }
 
 function generateBackupCode(length: number, alphabet: string, avoidLookalikes: boolean, separator: string, groupSize: number) {
@@ -243,7 +228,8 @@ function NumberStepper({
 }
 
 function BackupCodesGenerator() {
-  const [title, setTitle] = useState("Códigos de respaldo");
+  const { t } = useTranslation("generator");
+  const [title, setTitle] = useState("");
   const [presetId, setPresetId] = useState("google");
   const [count, setCount] = useState(10);
   const [length, setLength] = useState(8);
@@ -256,6 +242,17 @@ function BackupCodesGenerator() {
 
   const { saveBackupBatch } = useVault();
   const { saveActivity } = useActivity();
+
+  const presetLabels: Record<string, string> = {
+    google: t("presetGoogleLabel"),
+    github: t("presetGithubLabel"),
+    custom: t("presetCustomLabel"),
+  };
+  const presetDescriptions: Record<string, string> = {
+    google: t("presetGoogleDescription"),
+    github: t("presetGithubDescription"),
+    custom: t("presetCustomDescription"),
+  };
 
   const applyPreset = (id: string | null) => {
     if (!id) return;
@@ -271,6 +268,8 @@ function BackupCodesGenerator() {
     setGroupSize(preset.settings.groupSize);
   };
 
+  const effectiveTitle = title || t("backupTitle");
+
   const handleGenerate = () => {
     const result: string[] = [];
     for (let i = 0; i < count; i++) {
@@ -279,12 +278,7 @@ function BackupCodesGenerator() {
     setCodes(result);
 
     if (result.length > 0 && result[0]) {
-      saveActivity(
-        "generate",
-        `Lote de códigos generado: ${title || "Códigos de respaldo"}`,
-        "generator",
-        `${count} códigos de ${length} caracteres`
-      );
+      saveActivity("generate", `Lote de códigos generado: ${effectiveTitle}`, "generator", `${count} códigos de ${length} caracteres`);
     }
   };
 
@@ -295,7 +289,7 @@ function BackupCodesGenerator() {
     }
 
     const result = await saveBackupBatch({
-      title: title || "Códigos de respaldo",
+      title: effectiveTitle,
       codes,
       alphabet,
       length,
@@ -304,8 +298,8 @@ function BackupCodesGenerator() {
     });
 
     if (result.success) {
-      toast.success(`"${title || "Códigos de respaldo"}" guardado en el Vault`);
-      saveActivity("create", `Códigos guardados en el Vault: ${title || "Códigos de respaldo"}`, "generator");
+      toast.success(`"${effectiveTitle}" guardado en el Vault`);
+      saveActivity("create", `Códigos guardados en el Vault: ${effectiveTitle}`, "generator");
       setCodes([]);
     } else {
       toast.error(`Error al guardar: ${result.error || "Error desconocido"}`);
@@ -316,7 +310,12 @@ function BackupCodesGenerator() {
     ? ALPHABETS[alphabet].split("").filter((c) => !AMBIGUOUS_CHARS.has(c)).length
     : ALPHABETS[alphabet].length;
   const bits = bitsPerCode(length, effectiveAlphabetSize);
-  const strength = strengthInfo(bits);
+  const strength =
+    bits < 20
+      ? { label: t("strengthWeak"), color: "text-red-500" }
+      : bits < 40
+      ? { label: t("strengthStrong"), color: "text-green-500" }
+      : { label: t("strengthVeryStrong"), color: "text-green-600" };
 
   const copyAll = () => navigator.clipboard.writeText(codes.join("\n"));
 
@@ -332,14 +331,14 @@ function BackupCodesGenerator() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${title || "codigos"}.txt`;
+      a.download = `${effectiveTitle}.txt`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-      toast.success(`Archivo "${title || "codigos"}.txt" descargado correctamente`);
-      saveActivity("download", `Códigos descargados: ${title || "codigos"}.txt`, "generator");
+      toast.success(`Archivo "${effectiveTitle}.txt" descargado correctamente`);
+      saveActivity("download", `Códigos descargados: ${effectiveTitle}.txt`, "generator");
     } catch (error) {
       console.error("Error al descargar:", error);
       toast.error("Error al descargar el archivo");
@@ -350,92 +349,86 @@ function BackupCodesGenerator() {
     <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-6 h-full">
       <Card className="flex flex-col h-full">
         <CardHeader className="shrink-0">
-          <CardTitle>Códigos de respaldo</CardTitle>
-          <CardDescription>Genera códigos de recuperación de un solo uso</CardDescription>
+          <CardTitle>{t("backupTitle")}</CardTitle>
+          <CardDescription>{t("backupDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto">
           <div className="flex flex-col gap-4 pb-4">
             <div>
               <label className="text-sm font-medium block mb-1 flex items-center gap-2">
                 <Type className="h-4 w-4 text-muted-foreground" />
-                Título del lote
+                {t("batchTitleLabel")}
               </label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="ej: Códigos de recuperación de Google"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Ponle un nombre para identificarlo fácilmente si lo guardas en el vault.
-              </p>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("batchTitlePlaceholder")} />
+              <p className="text-xs text-muted-foreground mt-1">{t("batchTitleHint")}</p>
             </div>
 
             <div>
               <label className="text-sm font-medium block mb-1 flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-                Preajuste
+                {t("presetLabel")}
               </label>
               <Select value={presetId} onValueChange={applyPreset}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecciona un preajuste" />
+                  <SelectValue placeholder={t("presetPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent className="min-w-[300px]">
                   {PRESETS.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       <div className="flex flex-col">
-                        <span className="font-medium">{p.label}</span>
-                        <span className="text-xs text-muted-foreground">{p.description}</span>
+                        <span className="font-medium">{presetLabels[p.id]}</span>
+                        <span className="text-xs text-muted-foreground">{presetDescriptions[p.id]}</span>
                       </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">{PRESETS.find((p) => p.id === presetId)?.description}</p>
+              <p className="text-xs text-muted-foreground mt-1">{presetDescriptions[presetId]}</p>
             </div>
 
             <div className="border-t pt-4">
               <p className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <Key className="h-4 w-4 text-muted-foreground" />
-                Opciones del código
+                {t("codeOptionsTitle")}
               </p>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div className="flex items-center justify-between col-span-2">
-                  <label className="text-sm">Número de códigos</label>
+                  <label className="text-sm">{t("numCodesLabel")}</label>
                   <NumberStepper value={count} onChange={setCount} min={1} max={50} />
                 </div>
 
                 <div className="flex items-center justify-between col-span-2">
-                  <label className="text-sm">Caracteres por código</label>
+                  <label className="text-sm">{t("charsPerCodeLabel")}</label>
                   <NumberStepper value={length} onChange={setLength} min={4} max={32} />
                 </div>
 
                 <div className="flex items-center justify-between col-span-2">
-                  <label className="text-sm">Alfabeto</label>
+                  <label className="text-sm">{t("alphabetLabel")}</label>
                   <Select value={alphabet} onValueChange={(v) => v && setAlphabet(v as typeof alphabet)}>
                     <SelectTrigger className="w-36">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="digits">Solo números</SelectItem>
-                      <SelectItem value="letters">Solo letras</SelectItem>
-                      <SelectItem value="alphanumeric">Alfanumérico</SelectItem>
+                      <SelectItem value="digits">{t("alphabetDigits")}</SelectItem>
+                      <SelectItem value="letters">{t("alphabetLetters")}</SelectItem>
+                      <SelectItem value="alphanumeric">{t("alphabetAlphanumeric")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="flex items-center justify-between col-span-2">
                   <div>
-                    <label className="text-sm">Evitar caracteres parecidos</label>
-                    <p className="text-xs text-muted-foreground">Quita 0, O, 1, I, 5, S, 2, Z</p>
+                    <label className="text-sm">{t("avoidLookalikesLabel")}</label>
+                    <p className="text-xs text-muted-foreground">{t("avoidLookalikesHint")}</p>
                   </div>
                   <Switch checked={avoidLookalikes} onCheckedChange={setAvoidLookalikes} />
                 </div>
 
                 <div className="flex items-center justify-between col-span-2">
                   <div>
-                    <label className="text-sm">Numerar cada código</label>
-                    <p className="text-xs text-muted-foreground">Añade 01., 02., 03. a cada uno</p>
+                    <label className="text-sm">{t("numberEachLabel")}</label>
+                    <p className="text-xs text-muted-foreground">{t("numberEachHint")}</p>
                   </div>
                   <Switch checked={numberEach} onCheckedChange={setNumberEach} />
                 </div>
@@ -445,33 +438,33 @@ function BackupCodesGenerator() {
             <div className="border-t pt-4">
               <p className="text-sm font-semibold mb-3 flex items-center gap-2">
                 <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-                Formato
+                {t("formatTitle")}
               </p>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div className="flex items-center justify-between col-span-2">
-                  <label className="text-sm">Separador de grupos</label>
+                  <label className="text-sm">{t("groupSeparatorLabel")}</label>
                   <Select value={separator} onValueChange={(v) => v && setSeparator(v as typeof separator)}>
                     <SelectTrigger className="w-36">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="dash">Guion (-)</SelectItem>
-                      <SelectItem value="space">Espacio</SelectItem>
-                      <SelectItem value="none">Ninguno</SelectItem>
+                      <SelectItem value="dash">{t("groupSeparatorDash")}</SelectItem>
+                      <SelectItem value="space">{t("groupSeparatorSpace")}</SelectItem>
+                      <SelectItem value="none">{t("groupSeparatorNone")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="flex items-center justify-between col-span-2">
-                  <label className="text-sm">Tamaño de grupo</label>
+                  <label className="text-sm">{t("groupSizeLabel")}</label>
                   <NumberStepper value={groupSize} onChange={setGroupSize} min={2} max={16} />
                 </div>
               </div>
             </div>
 
             <Button onClick={handleGenerate} className="shrink-0 mt-2">
-              <RefreshCw className="h-4 w-4 mr-2" /> Generar lote nuevo
+              <RefreshCw className="h-4 w-4 mr-2" /> {t("generateBatchButton")}
             </Button>
           </div>
         </CardContent>
@@ -479,10 +472,10 @@ function BackupCodesGenerator() {
 
       <Card className="flex flex-col h-full">
         <CardHeader className="flex flex-row items-center justify-between shrink-0">
-          <CardTitle className="text-base">Códigos generados</CardTitle>
+          <CardTitle className="text-base">{t("generatedCodesTitle")}</CardTitle>
           {codes.length > 0 && (
             <Button variant="outline" size="sm" onClick={copyAll}>
-              <Copy className="h-3.5 w-3.5 mr-1" /> Copiar todo
+              <Copy className="h-3.5 w-3.5 mr-1" /> {t("copyAllButton")}
             </Button>
           )}
         </CardHeader>
@@ -494,20 +487,16 @@ function BackupCodesGenerator() {
                 <span className={`flex items-center gap-1 text-sm font-medium ${strength.color}`}>
                   <span className="h-2 w-2 rounded-full bg-current inline-block" /> {strength.label}
                 </span>
-                <span className="text-xs text-muted-foreground">{bits} bits por código</span>
+                <span className="text-xs text-muted-foreground">{bits} {t("bitsPerCodeLabel")}</span>
               </div>
-              <p className="text-xs text-muted-foreground mb-4">
-                Cada código es de un solo uso. Guarda la lista en un sitio seguro.
-              </p>
+              <p className="text-xs text-muted-foreground mb-4">{t("singleUseNotice")}</p>
             </div>
           )}
 
           <div className="flex-1 overflow-y-auto min-h-0">
             {codes.length === 0 ? (
               <div className="h-full flex items-center justify-center">
-                <p className="text-sm text-muted-foreground text-center">
-                  Configura las opciones y pulsa "Generar lote nuevo".
-                </p>
+                <p className="text-sm text-muted-foreground text-center">{t("emptyStateHint")}</p>
               </div>
             ) : (
               <div className="flex flex-col divide-y">
@@ -530,15 +519,15 @@ function BackupCodesGenerator() {
             <div className="shrink-0 pt-4 border-t mt-4">
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={copyAll}>
-                  <Copy className="h-3.5 w-3.5 mr-1" /> Copiar todo
+                  <Copy className="h-3.5 w-3.5 mr-1" /> {t("copyAllButton")}
                 </Button>
                 <Button variant="outline" size="sm" onClick={handleSaveToVault}>
-                  <Save className="h-3.5 w-3.5 mr-1" /> Guardar en el Vault
+                  <Save className="h-3.5 w-3.5 mr-1" /> {t("saveToVaultButton")}
                 </Button>
                 <Button variant="outline" size="sm" onClick={downloadTxt}>
-                  <Download className="h-3.5 w-3.5 mr-1" /> Descargar .txt
+                  <Download className="h-3.5 w-3.5 mr-1" /> {t("downloadTxtButton")}
                 </Button>
-                <Button variant="outline" size="icon" onClick={() => setCodes([])} title="Borrar lote">
+                <Button variant="outline" size="icon" onClick={() => setCodes([])} title={t("deleteBatchTooltip")}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
@@ -551,6 +540,7 @@ function BackupCodesGenerator() {
 }
 
 function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof useGeneratorHistory> }) {
+  const { t } = useTranslation("generator");
   const [numWords, setNumWords] = useState(5);
   const [separator, setSeparator] = useState("-");
   const [capitalize, setCapitalize] = useState(true);
@@ -559,7 +549,12 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
   const { saveActivity } = useActivity();
 
   const bits = bitsPerCode(numWords, WORDLIST.length);
-  const strength = strengthInfo(bits);
+  const strength =
+    bits < 20
+      ? { label: t("strengthWeak"), color: "text-red-500" }
+      : bits < 40
+      ? { label: t("strengthStrong"), color: "text-green-500" }
+      : { label: t("strengthVeryStrong"), color: "text-green-600" };
 
   const handleGenerate = () => {
     const result = generatePassphrase(numWords, separator, capitalize, includeNumber);
@@ -572,7 +567,7 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
     <div className="flex flex-col gap-4">
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium">Número de palabras</label>
+          <label className="text-sm font-medium">{t("numWordsLabel")}</label>
           <div className="flex h-8 w-14 items-center justify-center rounded-md border bg-muted text-sm font-mono">
             {numWords}
           </div>
@@ -585,30 +580,30 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
       </div>
 
       <div>
-        <label className="text-sm block mb-1">Separador</label>
+        <label className="text-sm block mb-1">{t("separatorLabel")}</label>
         <Select value={separator} onValueChange={(v) => v && setSeparator(v)}>
           <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="-">Guion (-)</SelectItem>
-            <SelectItem value="_">Guion bajo (_)</SelectItem>
-            <SelectItem value=".">Punto (.)</SelectItem>
-            <SelectItem value=" ">Espacio</SelectItem>
+            <SelectItem value="-">{t("separatorDash")}</SelectItem>
+            <SelectItem value="_">{t("separatorUnderscore")}</SelectItem>
+            <SelectItem value=".">{t("separatorDot")}</SelectItem>
+            <SelectItem value=" ">{t("separatorSpace")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="flex items-center justify-between">
-        <label className="text-sm">Capitalizar cada palabra</label>
+        <label className="text-sm">{t("capitalizeLabel")}</label>
         <Switch checked={capitalize} onCheckedChange={setCapitalize} />
       </div>
       <div className="flex items-center justify-between">
-        <label className="text-sm">Añadir un número</label>
+        <label className="text-sm">{t("addNumberPassphraseLabel")}</label>
         <Switch checked={includeNumber} onCheckedChange={setIncludeNumber} />
       </div>
 
-      <Button onClick={handleGenerate}>Generar frase</Button>
+      <Button onClick={handleGenerate}>{t("generatePassphraseButton")}</Button>
 
       {value && (
         <>
@@ -616,7 +611,7 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
             <span className={`flex items-center gap-1 text-sm font-medium ${strength.color}`}>
               <span className="h-2 w-2 rounded-full bg-current inline-block" /> {strength.label}
             </span>
-            <span className="text-xs text-muted-foreground">{bits} bits</span>
+            <span className="text-xs text-muted-foreground">{bits} {t("bitsPerCodeLabel").replace(" por código", "").replace("每个代码的", "").trim()}</span>
           </div>
           <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
             <span>{value}</span>
@@ -630,49 +625,48 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
   );
 }
 
-// ---------- Vista principal ----------
-
 type GeneratorTab = "password" | "username" | "code" | "passphrase";
-
-const TABS: { id: GeneratorTab; label: string }[] = [
-  { id: "password", label: "Contraseña" },
-  { id: "username", label: "Usuario" },
-  { id: "code", label: "Códigos de respaldo" },
-  { id: "passphrase", label: "Frase" },
-];
-
-const DESCRIPTIONS: Partial<Record<GeneratorTab, string>> = {
-  password: "Crea contraseñas aleatorias y difíciles de adivinar para mantener tus cuentas seguras.",
-  username: "Genera nombres de usuario aleatorios, sin datos personales que te identifiquen.",
-  passphrase: "Combina varias palabras aleatorias en una frase — más fácil de recordar que una contraseña, y también segura si usas suficientes palabras.",
-};
 
 interface GeneratorViewProps {
   onAddToVault: (password: string) => void;
 }
 
 export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
+  const { t } = useTranslation("generator");
   const [tab, setTab] = useState<GeneratorTab>("password");
   const passwordHistory = useGeneratorHistory("password");
   const usernameHistory = useGeneratorHistory("username");
   const passphraseHistory = useGeneratorHistory("passphrase");
 
+  const TABS: { id: GeneratorTab; label: string }[] = [
+    { id: "password", label: t("tabPassword") },
+    { id: "username", label: t("tabUsername") },
+    { id: "code", label: t("tabCode") },
+    { id: "passphrase", label: t("tabPassphrase") },
+  ];
+
+  const DESCRIPTIONS: Partial<Record<GeneratorTab, string>> = {
+    password: t("descPassword"),
+    username: t("descUsername"),
+    passphrase: t("descPassphrase"),
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0">
-        <h2 className="text-2xl font-bold mb-1">Generador</h2>
-        <p className="text-sm text-muted-foreground mb-6">Crea contraseñas, usuarios, códigos y más.</p>
+        <h2 className="text-2xl font-bold mb-1">{t("pageTitle")}</h2>
+        <p className="text-sm text-muted-foreground mb-6">{t("pageSubtitle")}</p>
 
         <div className="flex gap-1 mb-6 border-b">
-          {TABS.map((t) => (
+          {TABS.map((tItem) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tItem.id}
+              onClick={() => setTab(tItem.id)}
               className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
+                tab === tItem.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
               }`}
             >
-              {t.label}
+              {tItem.label}
             </button>
           ))}
         </div>
@@ -685,7 +679,7 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
             <Card>
               <CardHeader>
-                <CardTitle>{TABS.find((t) => t.id === tab)?.label}</CardTitle>
+                <CardTitle>{TABS.find((tItem) => tItem.id === tab)?.label}</CardTitle>
               </CardHeader>
               <CardContent>
                 {tab === "password" && <PasswordGenerator historyHook={passwordHistory} onAddToVault={onAddToVault} />}
@@ -697,16 +691,14 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
             <div className="flex flex-col gap-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Sobre este generador</CardTitle>
+                  <CardTitle className="text-base">{t("aboutTitle")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <CardDescription>{DESCRIPTIONS[tab]}</CardDescription>
                 </CardContent>
               </Card>
 
-              {tab === "password" && (
-                <RecentHistoryCard history={passwordHistory.history} />
-              )}
+              {tab === "password" && <RecentHistoryCard history={passwordHistory.history} />}
               {tab === "username" && <RecentHistoryCard history={usernameHistory.history} />}
               {tab === "passphrase" && <RecentHistoryCard history={passphraseHistory.history} />}
             </div>
@@ -724,6 +716,7 @@ function PasswordGenerator({
   historyHook: ReturnType<typeof useGeneratorHistory>;
   onAddToVault: (password: string) => void;
 }) {
+  const { t } = useTranslation("generator");
   const [length, setLength] = useState(16);
   const [uppercase, setUppercase] = useState(true);
   const [lowercase, setLowercase] = useState(true);
@@ -748,7 +741,7 @@ function PasswordGenerator({
     <div className="flex flex-col gap-4">
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium">Longitud</label>
+          <label className="text-sm font-medium">{t("lengthLabel")}</label>
           <div className="flex h-8 w-14 items-center justify-center rounded-md border bg-muted text-sm font-mono">
             {length}
           </div>
@@ -761,33 +754,28 @@ function PasswordGenerator({
       </div>
 
       <div className="flex flex-col">
-        <CriteriaRow icon="A" label="Mayúsculas (A-Z)" checked={uppercase} onCheckedChange={setUppercase} />
-        <CriteriaRow icon="a" label="Minúsculas (a-z)" checked={lowercase} onCheckedChange={setLowercase} />
-        <CriteriaRow icon="1" label="Números (0-9)" checked={numbers} onCheckedChange={setNumbers} />
-        <CriteriaRow icon="#" label="Símbolos (!@#$...)" checked={symbols} onCheckedChange={setSymbols} />
-        <CriteriaRow
-          icon="∅"
-          label="Excluir caracteres similares (l 1 I 0 O)"
-          checked={excludeSimilar}
-          onCheckedChange={setExcludeSimilar}
-        />
+        <CriteriaRow icon="A" label={t("criteriaUppercase")} checked={uppercase} onCheckedChange={setUppercase} />
+        <CriteriaRow icon="a" label={t("criteriaLowercase")} checked={lowercase} onCheckedChange={setLowercase} />
+        <CriteriaRow icon="1" label={t("criteriaNumbers")} checked={numbers} onCheckedChange={setNumbers} />
+        <CriteriaRow icon="#" label={t("criteriaSymbols")} checked={symbols} onCheckedChange={setSymbols} />
+        <CriteriaRow icon="∅" label={t("criteriaExcludeSimilar")} checked={excludeSimilar} onCheckedChange={setExcludeSimilar} />
       </div>
 
       <div>
-        <label className="text-sm block mb-1">Excluir otros caracteres</label>
-        <Input placeholder="ej: {}[]" value={exclude} onChange={(e) => setExclude(e.target.value)} />
+        <label className="text-sm block mb-1">{t("excludeOtherLabel")}</label>
+        <Input placeholder={t("excludeOtherPlaceholder")} value={exclude} onChange={(e) => setExclude(e.target.value)} />
       </div>
 
-      <Button onClick={handleGenerate}>Generar contraseña</Button>
+      <Button onClick={handleGenerate}>{t("generatePasswordButton")}</Button>
 
       {value && (
         <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
           <span>{value}</span>
           <div className="flex gap-1 shrink-0">
-            <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)} title="Copiar">
+            <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)} title={t("copyTooltip")}>
               <Copy className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => onAddToVault(value)} title="Añadir al Vault">
+            <Button variant="ghost" size="icon" onClick={() => onAddToVault(value)} title={t("addToVaultTooltip")}>
               <Save className="h-4 w-4" />
             </Button>
           </div>
@@ -798,6 +786,7 @@ function PasswordGenerator({
 }
 
 function UsernameGenerator({ historyHook }: { historyHook: ReturnType<typeof useGeneratorHistory> }) {
+  const { t } = useTranslation("generator");
   const [includeNumber, setIncludeNumber] = useState(true);
   const [value, setValue] = useState("");
   const { saveActivity } = useActivity();
@@ -812,10 +801,10 @@ function UsernameGenerator({ historyHook }: { historyHook: ReturnType<typeof use
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <label className="text-sm">Añadir número al final</label>
+        <label className="text-sm">{t("addNumberLabel")}</label>
         <Switch checked={includeNumber} onCheckedChange={setIncludeNumber} />
       </div>
-      <Button onClick={handleGenerate}>Generar usuario</Button>
+      <Button onClick={handleGenerate}>{t("generateUsernameButton")}</Button>
       {value && (
         <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
           <span>{value}</span>
