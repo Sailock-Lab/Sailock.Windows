@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,26 +19,9 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useActivity, ActivityEntry, ActivityType, ActivitySource } from "@/hooks/useActivity";
+import type { TFunction } from "i18next";
 
 const ITEMS_PER_PAGE = 15;
-
-const TYPE_LABELS: Record<ActivityType, string> = {
-  login: "Inicio sesión",
-  logout: "Cierre sesión",
-  create: "Creación",
-  edit: "Edición",
-  delete: "Eliminación",
-  restore: "Restauración",
-  generate: "Generación",
-  download: "Descarga",
-};
-
-const SOURCE_LABELS: Record<ActivitySource, string> = {
-  vault: "Vault",
-  generator: "Generador",
-  settings: "Ajustes",
-  system: "Sistema",
-};
 
 const SOURCE_ICONS: Record<ActivitySource, React.ReactNode> = {
   vault: <Key className="h-3 w-3" />,
@@ -64,21 +48,21 @@ const TYPE_COLORS: Record<ActivityType, string> = {
   download: "bg-indigo-500",
 };
 
-function formatTimestamp(timestamp: number): string {
-  const date = new Date(timestamp);
+function formatTimestamp(timestamp: number, t: TFunction): string {
   const now = new Date();
   const diff = now.getTime() - timestamp;
-  
+
   if (diff < 60000) {
-    return "Hace unos segundos";
+    return t("justNow");
   } else if (diff < 3600000) {
     const mins = Math.floor(diff / 60000);
-    return `Hace ${mins} ${mins === 1 ? "minuto" : "minutos"}`;
+    return t("minutesAgo", { count: mins });
   } else if (diff < 86400000) {
     const hours = Math.floor(diff / 3600000);
-    return `Hace ${hours} ${hours === 1 ? "hora" : "horas"}`;
+    return t("hoursAgo", { count: hours });
   } else {
-    return date.toLocaleDateString("es-ES", {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString(undefined, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -89,6 +73,7 @@ function formatTimestamp(timestamp: number): string {
 }
 
 export function ActivityView() {
+  const { t } = useTranslation("activity");
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ActivityType | "all">("all");
@@ -96,6 +81,24 @@ export function ActivityView() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const { loadActivities, clearActivities } = useActivity();
+
+  const TYPE_LABELS: Record<ActivityType, string> = {
+    login: t("typeLogin"),
+    logout: t("typeLogout"),
+    create: t("typeCreate"),
+    edit: t("typeEdit"),
+    delete: t("typeDelete"),
+    restore: t("typeRestore"),
+    generate: t("typeGenerate"),
+    download: t("typeDownload"),
+  };
+
+  const SOURCE_LABELS: Record<ActivitySource, string> = {
+    vault: t("sourceVault"),
+    generator: t("sourceGenerator"),
+    settings: t("sourceSettings"),
+    system: t("sourceSystem"),
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -128,34 +131,34 @@ export function ActivityView() {
 
   const handleClearAll = async () => {
     if (activities.length === 0) {
-      toast.info("No hay actividades para limpiar");
+      toast.info(t("clearNothingToast"));
       return;
     }
-    
-    if (confirm("¿Estás seguro de que quieres eliminar todo el historial de actividades?")) {
+
+    if (confirm(t("clearConfirm"))) {
       const success = await clearActivities();
       if (success) {
         setActivities([]);
-        toast.success("Historial de actividades limpiado");
+        toast.success(t("clearSuccessToast"));
       } else {
-        toast.error("Error al limpiar el historial");
+        toast.error(t("clearErrorToast"));
       }
     }
   };
 
   const handleRefresh = () => {
     loadData();
-    toast.info("Historial actualizado");
+    toast.info(t("refreshedToast"));
   };
 
   const handleExport = () => {
     if (activities.length === 0) {
-      toast.warning("No hay actividades para exportar");
+      toast.warning(t("exportNothingToast"));
       return;
     }
 
     const content = activities.map((a) => {
-      const date = new Date(a.timestamp).toLocaleString("es-ES");
+      const date = new Date(a.timestamp).toLocaleString();
       const source = SOURCE_LABELS[a.source];
       return `[${date}] [${source}] ${a.activity_type.toUpperCase()} - ${a.description}${a.details ? ` (${a.details})` : ""}`;
     }).join("\n");
@@ -165,16 +168,16 @@ export function ActivityView() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `auditoria_${new Date().toISOString().slice(0, 10)}.txt`;
+      a.download = `audit_${new Date().toISOString().slice(0, 10)}.txt`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      
-      toast.success(`Exportados ${activities.length} eventos de auditoría`);
+
+      toast.success(t("exportSuccessToast", { count: activities.length }));
     } catch (error) {
       console.error("Error al exportar:", error);
-      toast.error("Error al exportar el historial");
+      toast.error(t("exportErrorToast"));
     }
   };
 
@@ -183,14 +186,14 @@ export function ActivityView() {
       <div className="shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold mb-1">Auditoría</h2>
+            <h2 className="text-2xl font-bold mb-1">{t("pageTitle")}</h2>
             <p className="text-sm text-muted-foreground">
-              Historial de todas las acciones realizadas en Sailock.
+              {t("pageSubtitle")}
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-            Actualizar
+            {t("refreshButton")}
           </Button>
         </div>
       </div>
@@ -199,19 +202,19 @@ export function ActivityView() {
         <CardHeader className="shrink-0 pb-2">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">
-              Registro de actividades
+              {t("logTitle")}
               {activities.length > 0 && (
                 <span className="text-sm font-normal text-muted-foreground ml-2">
-                  ({activities.length} eventos)
+                  {t("eventsCount", { count: activities.length })}
                 </span>
               )}
             </CardTitle>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={handleExport}>
-                <Download className="h-3.5 w-3.5 mr-1" /> Exportar
+                <Download className="h-3.5 w-3.5 mr-1" /> {t("exportButton")}
               </Button>
               <Button variant="outline" size="sm" onClick={handleClearAll}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> Limpiar
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("clearButton")}
               </Button>
             </div>
           </div>
@@ -222,13 +225,13 @@ export function ActivityView() {
             <div className="flex flex-wrap gap-2">
               <Select value={filter} onValueChange={(v) => v && setFilter(v as ActivityType | "all")}>
                 <SelectTrigger className="w-[160px] h-9">
-                  <SelectValue placeholder="Filtrar por tipo" />
+                  <SelectValue placeholder={t("filterTypePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-gray-400" />
-                      Todos
+                      {t("filterAllLabel")}
                     </div>
                   </SelectItem>
                   {Object.entries(TYPE_LABELS).map(([key, label]) => (
@@ -246,7 +249,7 @@ export function ActivityView() {
             <div className="relative flex-1 sm:max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Buscar en auditoría..."
+                placeholder={t("searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-9"
@@ -260,7 +263,7 @@ export function ActivityView() {
               <div className="h-full flex items-center justify-center">
                 <div className="text-center">
                   <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
-                  <p className="text-sm text-muted-foreground">Cargando historial...</p>
+                  <p className="text-sm text-muted-foreground">{t("loadingLabel")}</p>
                 </div>
               </div>
             ) : paginatedActivities.length === 0 ? (
@@ -269,8 +272,8 @@ export function ActivityView() {
                   <HistoryIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
                   <p className="text-sm text-muted-foreground">
                     {search || filter !== "all" 
-                      ? "No hay actividades que coincidan con los filtros"
-                      : "No hay actividades registradas aún"}
+                      ? t("emptyFiltered")
+                      : t("emptyNone")}
                   </p>
                 </div>
               </div>
@@ -296,7 +299,7 @@ export function ActivityView() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-2">
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatTimestamp(activity.timestamp)}
+                        {formatTimestamp(activity.timestamp, t)}
                       </span>
                     </div>
                   </div>
@@ -309,7 +312,11 @@ export function ActivityView() {
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t shrink-0 mt-3">
               <p className="text-xs text-muted-foreground">
-                Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredActivities.length)} de {filteredActivities.length}
+                {t("showingRange", {
+                  from: (currentPage - 1) * ITEMS_PER_PAGE + 1,
+                  to: Math.min(currentPage * ITEMS_PER_PAGE, filteredActivities.length),
+                  total: filteredActivities.length,
+                })}
               </p>
               <div className="flex gap-1">
                 <Button
