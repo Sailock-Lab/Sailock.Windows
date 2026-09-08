@@ -4,12 +4,41 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Smartphone } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Smartphone, Globe } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useActivity } from "@/hooks/useActivity";
+import i18n from "@/i18n";
+import { LANGUAGE_LABELS } from "@/i18n/languages";
 
 interface UnlockScreenProps {
   onUnlock: () => void;
+}
+
+function LanguageSwitcher() {
+  const [language, setLanguage] = useState(i18n.language);
+
+  return (
+    <Select
+      value={language}
+      onValueChange={(v) => {
+        if (!v) return;
+        setLanguage(v);
+        i18n.changeLanguage(v);
+      }}
+    >
+      <SelectTrigger className="w-9 h-9 p-0 justify-center rounded-full border-none bg-muted/50 hover:bg-muted [&_svg:not(:first-child)]:hidden">
+        <Globe className="h-4 w-4" />
+      </SelectTrigger>
+      <SelectContent align="end">
+        {Object.entries(LANGUAGE_LABELS).map(([key, label]) => (
+          <SelectItem key={key} value={key}>
+            {label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 }
 
 export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
@@ -84,7 +113,10 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
 
   if (needsTotp) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
+      <div className="relative flex h-screen items-center justify-center bg-background">
+        <div className="absolute top-4 right-4">
+          <LanguageSwitcher />
+        </div>
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-2">
@@ -112,7 +144,10 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-background">
+    <div className="relative flex h-screen items-center justify-center bg-background">
+      <div className="absolute top-4 right-4">
+        <LanguageSwitcher />
+      </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">

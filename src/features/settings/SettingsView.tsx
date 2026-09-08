@@ -25,6 +25,7 @@ import { useActivity } from "@/hooks/useActivity";
 import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
 import { AutoLockDuration, getStoredBool, storeBool } from "@/lib/appSettings";
 import i18n from "@/i18n";
+import { LANGUAGE_LABELS } from "@/i18n/languages";
 
 type DeleteStep = "confirm" | "password" | "confirmType" | "deleting";
 
@@ -32,22 +33,6 @@ const THEME_ICONS: Record<Theme, React.ReactNode> = {
   light: <Sun className="h-4 w-4" />,
   dark: <Moon className="h-4 w-4" />,
   system: <Monitor className="h-4 w-4" />,
-};
-
-// Los nombres de idioma se muestran siempre en su propio idioma, nunca se traducen
-const LANGUAGE_LABELS: Record<string, string> = {
-  en: "English",
-  es: "Español",
-  fr: "Français",
-  de: "Deutsch",
-  it: "Italiano",
-  ja: "日本語",
-  ko: "한국어",
-  nl: "Nederlands",
-  pl: "Polski",
-  pt: "Português",
-  ru: "Русский",
-  zh: "中文",
 };
 
 function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
