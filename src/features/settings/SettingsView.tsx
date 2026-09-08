@@ -1,14 +1,25 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useTranslation } from "react-i18next";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,} from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,} from "@/components/ui/alert-dialog";
-import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Eye, EyeOff, Lock, X,} from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Eye, EyeOff, Lock, X } from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
@@ -23,12 +34,7 @@ const THEME_ICONS: Record<Theme, React.ReactNode> = {
   system: <Monitor className="h-4 w-4" />,
 };
 
-const THEME_LABELS: Record<Theme, string> = {
-  light: "Claro",
-  dark: "Oscuro",
-  system: "Sistema",
-};
-
+// Los nombres de idioma se muestran siempre en su propio idioma, nunca se traducen
 const LANGUAGE_LABELS: Record<string, string> = {
   en: "English",
   es: "Español",
@@ -44,18 +50,8 @@ const LANGUAGE_LABELS: Record<string, string> = {
   zh: "中文",
 };
 
-const AUTO_LOCK_LABELS: Record<AutoLockDuration, string> = {
-  never: "Nunca",
-  "15s": "15 segundos",
-  "30s": "30 segundos",
-  "1m": "1 minuto",
-  "2m": "2 minutos",
-  "5m": "5 minutos",
-};
-
-const DELETE_CONFIRM_PHRASE = "ELIMINAR TODO";
-
 function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
+  const { t } = useTranslation("settings");
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"loading" | "scan" | "verifying">("loading");
   const [qr, setQr] = useState<string | null>(null);
@@ -84,12 +80,12 @@ function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
     try {
       const ok = await invoke<boolean>("totp_confirm_setup", { code });
       if (ok) {
-        toast.success("Verificación en dos pasos activada");
+        toast.success(t("totpEnabledToast"));
         saveActivity("edit", "Verificación en dos pasos (2FA) activada", "settings");
         setOpen(false);
         onEnabled();
       } else {
-        setError("Código incorrecto, inténtalo de nuevo");
+        setError(t("totpWrongCodeError"));
         setStep("scan");
       }
     } catch (e) {
@@ -102,24 +98,20 @@ function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
     <>
       <Button variant="outline" size="sm" onClick={startSetup}>
         <Smartphone className="h-4 w-4 mr-2" />
-        Configurar
+        {t("totpConfigureButton")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Configurar verificación en dos pasos</DialogTitle>
-            <DialogDescription>
-              Escanea este código con Google Authenticator, Authy o tu app de autenticación preferida.
-            </DialogDescription>
+            <DialogTitle>{t("totpSetupTitle")}</DialogTitle>
+            <DialogDescription>{t("totpSetupDescription")}</DialogDescription>
           </DialogHeader>
-          {step === "loading" && (
-            <p className="text-sm text-muted-foreground py-6 text-center">Generando código...</p>
-          )}
+          {step === "loading" && <p className="text-sm text-muted-foreground py-6 text-center">{t("totpGeneratingCode")}</p>}
           {(step === "scan" || step === "verifying") && qr && (
             <div className="flex flex-col gap-3 items-center">
-              <img src={`data:image/png;base64,${qr}`} alt="Código QR" className="w-48 h-48" />
+              <img src={`data:image/png;base64,${qr}`} alt="QR" className="w-48 h-48" />
               <div className="w-full">
-                <Label>Código de la app</Label>
+                <Label>{t("totpAppCodeLabel")}</Label>
                 <Input
                   placeholder="123456"
                   value={code}
@@ -130,7 +122,7 @@ function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
               <Button className="w-full" onClick={confirm} disabled={step === "verifying" || code.length < 6}>
-                {step === "verifying" ? "Verificando..." : "Confirmar"}
+                {step === "verifying" ? t("totpVerifyingButton") : t("totpConfirmButton")}
               </Button>
             </div>
           )}
@@ -141,6 +133,7 @@ function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
 }
 
 function ExportDialog() {
+  const { t } = useTranslation("settings");
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -150,11 +143,11 @@ function ExportDialog() {
 
   const handleExport = async () => {
     if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres");
+      setError(t("exportMinLengthError"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden");
+      setError(t("exportMismatchError"));
       return;
     }
     setError("");
@@ -171,7 +164,7 @@ function ExportDialog() {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       saveActivity("download", "Vault exportado con contraseña propia", "settings");
-      toast.success("Vault exportado correctamente");
+      toast.success(t("exportSuccessToast"));
       setOpen(false);
       setPassword("");
       setConfirmPassword("");
@@ -185,23 +178,21 @@ function ExportDialog() {
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Download className="h-4 w-4 mr-2" /> Exportar
+        <Download className="h-4 w-4 mr-2" /> {t("exportButton")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Exportar datos</DialogTitle>
-            <DialogDescription>
-              Elige una contraseña solo para este archivo — no tiene por qué ser tu contraseña maestra. Sin ella, nadie puede abrir el archivo exportado.
-            </DialogDescription>
+            <DialogTitle>{t("exportDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("exportDialogDescription")}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             <div>
-              <Label>Contraseña del archivo</Label>
+              <Label>{t("exportPasswordLabel")}</Label>
               <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <div>
-              <Label>Repite la contraseña</Label>
+              <Label>{t("exportConfirmPasswordLabel")}</Label>
               <Input
                 type="password"
                 value={confirmPassword}
@@ -211,7 +202,7 @@ function ExportDialog() {
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button onClick={handleExport} disabled={exporting}>
-              {exporting ? "Exportando..." : "Exportar"}
+              {exporting ? t("exportingButton") : t("exportButtonAction")}
             </Button>
           </div>
         </DialogContent>
@@ -224,6 +215,7 @@ type ImportMode = "add_duplicates" | "skip_duplicates" | "replace_all";
 type ImportStep = "form" | "confirm" | "totp" | "importing";
 
 function ImportDialog({ onImported }: { onImported: () => void }) {
+  const { t } = useTranslation("settings");
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<ImportStep>("form");
   const [file, setFile] = useState<File | null>(null);
@@ -236,10 +228,12 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
   const { saveActivity } = useActivity();
 
   const modeLabels: Record<ImportMode, string> = {
-    add_duplicates: "Añadir todo (puede duplicar)",
-    skip_duplicates: "Añadir, omitiendo duplicados por nombre",
-    replace_all: "Reemplazar todo el vault",
+    add_duplicates: t("importModeAddDuplicates"),
+    skip_duplicates: t("importModeSkipDuplicates"),
+    replace_all: t("importModeReplaceAll"),
   };
+
+  const replacePhrase = t("replaceConfirmPhrase");
 
   const reset = () => {
     setStep("form");
@@ -258,11 +252,11 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
 
   const goToConfirm = () => {
     if (!file) {
-      setError("Selecciona un archivo");
+      setError(t("selectFileError"));
       return;
     }
     if (!exportPassword) {
-      setError("Introduce la contraseña de ese archivo");
+      setError(t("enterPasswordError"));
       return;
     }
     setError("");
@@ -270,8 +264,8 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
   };
 
   const proceedFromConfirm = async () => {
-    if (mode === "replace_all" && confirmText.trim().toUpperCase() !== "REEMPLAZAR") {
-      setError('Escribe "REEMPLAZAR" para confirmar');
+    if (mode === "replace_all" && confirmText.trim().toUpperCase() !== replacePhrase) {
+      setError(t("replaceConfirmError", { phrase: replacePhrase }));
       return;
     }
     setError("");
@@ -288,7 +282,7 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
     try {
       const ok = await invoke<boolean>("totp_verify_unlock", { code: totpCode });
       if (!ok) {
-        setError("Código incorrecto");
+        setError(t("wrongCodeError"));
         return;
       }
       await doImport();
@@ -308,7 +302,7 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
         exportPassword,
         mode,
       });
-      toast.success(`${count} elementos importados`);
+      toast.success(t("importSuccessToast", { count }));
       saveActivity("create", `Importados ${count} elementos desde ${file.name} (modo: ${modeLabels[mode]})`, "settings");
       handleOpenChange(false);
       onImported();
@@ -321,37 +315,37 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Upload className="h-4 w-4 mr-2" /> Importar
+        <Upload className="h-4 w-4 mr-2" /> {t("importButton")}
       </Button>
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Importar datos</DialogTitle>
+            <DialogTitle>{t("importDialogTitle")}</DialogTitle>
             <DialogDescription>
-              {step === "form" && "Elige el archivo y la contraseña con la que se exportó."}
-              {step === "confirm" && "Revisa lo que va a pasar antes de continuar."}
-              {step === "totp" && "Introduce el código de tu app de autenticación."}
-              {step === "importing" && "Importando..."}
+              {step === "form" && t("importStepFormDescription")}
+              {step === "confirm" && t("importStepConfirmDescription")}
+              {step === "totp" && t("importStepTotpDescription")}
+              {step === "importing" && t("importStepImportingDescription")}
             </DialogDescription>
           </DialogHeader>
 
           {step === "form" && (
             <div className="flex flex-col gap-3">
               <div>
-                <Label>Archivo .slock</Label>
+                <Label>{t("importFileLabel")}</Label>
                 <div className="flex items-center gap-2 mt-1">
                   <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-                    Elegir archivo
+                    {t("chooseFileButton")}
                   </Button>
                   {file ? (
                     <span className="text-sm flex items-center gap-1 min-w-0">
                       <span className="truncate">{file.name}</span>
-                      <button onClick={() => setFile(null)} title="Quitar archivo">
+                      <button onClick={() => setFile(null)} title={t("removeFileTooltip")}>
                         <X className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
                     </span>
                   ) : (
-                    <span className="text-sm text-muted-foreground">Ningún archivo seleccionado</span>
+                    <span className="text-sm text-muted-foreground">{t("noFileSelected")}</span>
                   )}
                   <input
                     ref={fileInputRef}
@@ -363,19 +357,17 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
                 </div>
               </div>
               <div>
-                <Label>Contraseña de ese archivo</Label>
+                <Label>{t("importPasswordLabel")}</Label>
                 <Input
                   type="password"
-                  placeholder="La contraseña que se eligió al exportarlo"
+                  placeholder={t("importPasswordPlaceholder")}
                   value={exportPassword}
                   onChange={(e) => setExportPassword(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  No es tu contraseña maestra — es la contraseña específica que se creó al exportar ese archivo.
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">{t("importPasswordHint")}</p>
               </div>
               <div>
-                <Label>Qué hacer con las entradas</Label>
+                <Label>{t("importModeLabel")}</Label>
                 <Select value={mode} onValueChange={(v) => v && setMode(v as ImportMode)}>
                   <SelectTrigger className="mt-1">
                     <SelectValue />
@@ -388,33 +380,31 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
                 </Select>
               </div>
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button onClick={goToConfirm}>Continuar</Button>
+              <Button onClick={goToConfirm}>{t("continueButton")}</Button>
             </div>
           )}
 
           {step === "confirm" && (
             <div className="flex flex-col gap-3">
               <p className="text-sm">
-                Modo elegido: <span className="font-medium">{modeLabels[mode]}</span>
+                {t("modeChosenLabel")} <span className="font-medium">{modeLabels[mode]}</span>
               </p>
               {mode === "replace_all" ? (
                 <>
-                  <p className="text-sm text-destructive">
-                    Esto borrará permanentemente todas las entradas que tengas ahora mismo en este vault, y las sustituirá por las del archivo importado.
-                  </p>
+                  <p className="text-sm text-destructive">{t("replaceWarning")}</p>
                   <div>
-                    <Label>Escribe "REEMPLAZAR" para confirmar</Label>
-                    <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="REEMPLAZAR" />
+                    <Label>{t("replaceConfirmLabel", { phrase: replacePhrase })}</Label>
+                    <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={replacePhrase} />
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">Las entradas del archivo se añadirán a tu vault actual.</p>
+                <p className="text-sm text-muted-foreground">{t("addWillBeAddedNotice")}</p>
               )}
               {error && <p className="text-sm text-destructive">{error}</p>}
               <div className="flex gap-2">
-                <Button onClick={proceedFromConfirm}>Confirmar</Button>
+                <Button onClick={proceedFromConfirm}>{t("confirmButton")}</Button>
                 <Button variant="ghost" onClick={() => setStep("form")}>
-                  Atrás
+                  {t("backButton")}
                 </Button>
               </div>
             </div>
@@ -430,14 +420,14 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
                 autoFocus
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button onClick={verifyTotpAndImport}>Verificar e importar</Button>
+              <Button onClick={verifyTotpAndImport}>{t("verifyAndImportButton")}</Button>
             </div>
           )}
 
           {step === "importing" && (
             <div className="flex flex-col items-center justify-center py-6">
               <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent mb-3" />
-              <p className="text-sm text-muted-foreground">Importando...</p>
+              <p className="text-sm text-muted-foreground">{t("importingLabel")}</p>
             </div>
           )}
         </DialogContent>
@@ -461,6 +451,25 @@ export function SettingsView({
   lockOnMinimize,
   onLockOnMinimizeChange,
 }: SettingsViewProps) {
+  const { t } = useTranslation("settings");
+
+  const THEME_LABELS: Record<Theme, string> = {
+    light: t("themeLight"),
+    dark: t("themeDark"),
+    system: t("themeSystem"),
+  };
+
+  const AUTO_LOCK_LABELS: Record<AutoLockDuration, string> = {
+    never: t("autoLockNever"),
+    "15s": t("autoLock15s"),
+    "30s": t("autoLock30s"),
+    "1m": t("autoLock1m"),
+    "2m": t("autoLock2m"),
+    "5m": t("autoLock5m"),
+  };
+
+  const DELETE_CONFIRM_PHRASE = t("deleteConfirmPhrase");
+
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const [language, setLanguage] = useState(i18n.language);
   const [startWithWindows, setStartWithWindows] = useState(() => getStoredBool("startWithWindows", false));
@@ -486,7 +495,7 @@ export function SettingsView({
     await invoke("totp_disable");
     setTotpEnabled(false);
     saveActivity("edit", "Verificación en dos pasos (2FA) desactivada", "settings");
-    toast.success("Verificación en dos pasos desactivada");
+    toast.success(t("totpDisabledToast"));
   };
 
   const handleThemeChange = (value: Theme | null) => {
@@ -495,7 +504,7 @@ export function SettingsView({
     applyTheme(value);
     storeTheme(value);
     saveActivity("edit", `Tema cambiado a ${THEME_LABELS[value]}`, "settings");
-    toast.success(`Tema cambiado a ${THEME_LABELS[value]}`);
+    toast.success(t("themeChangedToast", { theme: THEME_LABELS[value] }));
   };
 
   const handleLanguageChange = (value: string | null) => {
@@ -503,14 +512,14 @@ export function SettingsView({
     setLanguage(value);
     i18n.changeLanguage(value);
     saveActivity("edit", `Idioma cambiado a ${LANGUAGE_LABELS[value]}`, "settings");
-    toast.success(`Idioma cambiado a ${LANGUAGE_LABELS[value]}`);
+    toast.success(`${LANGUAGE_LABELS[value]}`);
   };
 
   const handleAutoLockChange = (value: AutoLockDuration | null) => {
     if (!value) return;
     onAutoLockDurationChange(value);
     saveActivity("edit", `Auto-bloqueo configurado: ${AUTO_LOCK_LABELS[value]}`, "settings");
-    toast.success(`Auto-bloqueo configurado: ${AUTO_LOCK_LABELS[value]}`);
+    toast.success(t("autoLockChangedToast", { duration: AUTO_LOCK_LABELS[value] }));
   };
 
   const handleLockOnMinimizeChange = (value: boolean) => {
@@ -550,7 +559,7 @@ export function SettingsView({
 
   const handleVerifyPassword = async () => {
     if (!masterPassword) {
-      setDeleteError("Introduce tu contraseña maestra");
+      setDeleteError(t("deleteEnterPasswordError"));
       return;
     }
     setDeleteError("");
@@ -558,7 +567,7 @@ export function SettingsView({
     try {
       const ok = await invoke<boolean>("verify_master_password", { masterPassword });
       if (!ok) {
-        setDeleteError("Contraseña maestra incorrecta");
+        setDeleteError(t("deleteWrongPasswordError"));
         return;
       }
       setDeleteStep("confirmType");
@@ -571,14 +580,14 @@ export function SettingsView({
 
   const handleFinalDelete = async () => {
     if (confirmText.trim().toUpperCase() !== DELETE_CONFIRM_PHRASE) {
-      setDeleteError(`Escribe exactamente "${DELETE_CONFIRM_PHRASE}" para confirmar`);
+      setDeleteError(t("deleteWrongPhraseError", { phrase: DELETE_CONFIRM_PHRASE }));
       return;
     }
     setDeleteError("");
     setDeleteStep("deleting");
     try {
       await invoke("delete_vault", { masterPassword });
-      toast.success("Todos los datos han sido eliminados");
+      toast.success(t("deleteSuccessToast"));
       resetDeleteDialog();
       onVaultDeleted();
     } catch (e) {
@@ -592,11 +601,11 @@ export function SettingsView({
       <div className="shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold mb-1">Ajustes</h2>
-            <p className="text-sm text-muted-foreground">Configura Sailock a tu gusto.</p>
+            <h2 className="text-2xl font-bold mb-1">{t("pageTitle")}</h2>
+            <p className="text-sm text-muted-foreground">{t("pageSubtitle")}</p>
           </div>
           <div className="text-right shrink-0">
-            <p className="text-xs text-muted-foreground">Sailock Versión</p>
+            <p className="text-xs text-muted-foreground">{t("versionLabel")}</p>
             <p className="text-sm font-medium">0.1.0</p>
           </div>
         </div>
@@ -608,9 +617,9 @@ export function SettingsView({
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Monitor className="h-4 w-4 text-muted-foreground" />
-                Tema
+                {t("themeCardTitle")}
               </CardTitle>
-              <CardDescription className="text-sm">Elige la apariencia de la aplicación.</CardDescription>
+              <CardDescription className="text-sm">{t("themeCardDescription")}</CardDescription>
             </div>
             <Select value={theme} onValueChange={handleThemeChange}>
               <SelectTrigger className="w-full sm:w-[200px]">
@@ -635,11 +644,9 @@ export function SettingsView({
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
-                Idioma
+                {t("languageCardTitle")}
               </CardTitle>
-              <CardDescription className="text-sm">
-                Selecciona el idioma de la interfaz. (De momento solo guarda tu preferencia — la traducción completa la montamos aparte.)
-              </CardDescription>
+              <CardDescription className="text-sm">{t("languageCardDescription")}</CardDescription>
             </div>
             <Select value={language} onValueChange={handleLanguageChange}>
               <SelectTrigger className="w-full sm:w-[200px]">
@@ -660,20 +667,18 @@ export function SettingsView({
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
               <Shield className="h-4 w-4 text-muted-foreground" />
-              Seguridad
+              {t("securityCardTitle")}
             </CardTitle>
-            <CardDescription className="text-sm mb-4">
-              Configura la autenticación de dos factores y otras opciones de seguridad.
-            </CardDescription>
+            <CardDescription className="text-sm mb-4">{t("securityCardDescription")}</CardDescription>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Códigos de respaldo</p>
-                  <p className="text-xs text-muted-foreground">Códigos de un solo uso para recuperar tu cuenta</p>
+                  <p className="text-sm font-medium">{t("backupCodesLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("backupCodesDescription")}</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setShowBackupCodes(!showBackupCodes)}>
                   {showBackupCodes ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-                  {showBackupCodes ? "Ocultar" : "Ver códigos"}
+                  {showBackupCodes ? t("hideCodesButton") : t("viewCodesButton")}
                 </Button>
               </div>
               {showBackupCodes && (
@@ -685,28 +690,24 @@ export function SettingsView({
               )}
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
-                  <p className="text-sm font-medium">Autenticador (TOTP)</p>
+                  <p className="text-sm font-medium">{t("totpLabel")}</p>
                   <p className="text-xs text-muted-foreground">
-                    {totpEnabled
-                      ? "Activado — se pedirá un código al desbloquear"
-                      : "Pide un código de tu móvil además de la contraseña maestra"}
+                    {totpEnabled ? t("totpEnabledDescription") : t("totpDisabledDescription")}
                   </p>
                 </div>
                 {totpEnabled ? (
                   <AlertDialog>
                     <AlertDialogTrigger render={<Button variant="outline" size="sm" />}>
-                      Desactivar
+                      {t("totpDisableButton")}
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>¿Desactivar la verificación en dos pasos?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Volverás a poder desbloquear Sailock solo con tu contraseña maestra.
-                        </AlertDialogDescription>
+                        <AlertDialogTitle>{t("totpDisableConfirmTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>{t("totpDisableConfirmDescription")}</AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDisableTotp}>Desactivar</AlertDialogAction>
+                        <AlertDialogCancel>{t("totpDisableConfirmCancel")}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDisableTotp}>{t("totpDisableConfirmAction")}</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
@@ -722,16 +723,14 @@ export function SettingsView({
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
               <Lock className="h-4 w-4 text-muted-foreground" />
-              Auto-bloqueo
+              {t("autoLockCardTitle")}
             </CardTitle>
-            <CardDescription className="text-sm mb-4">
-              Bloquea automáticamente la sesión tras un periodo de inactividad.
-            </CardDescription>
+            <CardDescription className="text-sm mb-4">{t("autoLockCardDescription")}</CardDescription>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Tiempo de inactividad</p>
-                  <p className="text-xs text-muted-foreground">Tiempo de espera antes de bloquear la sesión</p>
+                  <p className="text-sm font-medium">{t("autoLockIntervalLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("autoLockIntervalDescription")}</p>
                 </div>
                 <Select value={autoLockDuration} onValueChange={handleAutoLockChange}>
                   <SelectTrigger className="w-[160px]">
@@ -748,8 +747,8 @@ export function SettingsView({
               </div>
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
-                  <p className="text-sm font-medium">Bloquear al minimizar</p>
-                  <p className="text-xs text-muted-foreground">Bloquea la sesión cuando la ventana se minimiza</p>
+                  <p className="text-sm font-medium">{t("lockOnMinimizeLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("lockOnMinimizeDescription")}</p>
                 </div>
                 <Switch checked={lockOnMinimize} onCheckedChange={handleLockOnMinimizeChange} />
               </div>
@@ -761,31 +760,27 @@ export function SettingsView({
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-3">
               <Power className="h-4 w-4 text-muted-foreground" />
-              Sistema
+              {t("systemCardTitle")}
             </CardTitle>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Iniciar con Windows</p>
-                  <p className="text-xs text-muted-foreground">
-                    Guarda la preferencia; falta la integración real con Windows
-                  </p>
+                  <p className="text-sm font-medium">{t("startWithWindowsLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("startWithWindowsDescription")}</p>
                 </div>
                 <Switch checked={startWithWindows} onCheckedChange={handleStartWithWindowsChange} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Minimizar a la bandeja</p>
-                  <p className="text-xs text-muted-foreground">
-                    Guarda la preferencia; falta la integración real
-                  </p>
+                  <p className="text-sm font-medium">{t("minimizeToTrayLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("minimizeToTrayDescription")}</p>
                 </div>
                 <Switch checked={minimizeToTray} onCheckedChange={handleMinimizeToTrayChange} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Actualizaciones automáticas</p>
-                  <p className="text-xs text-muted-foreground">Sailock buscará actualizaciones al iniciar</p>
+                  <p className="text-sm font-medium">{t("autoUpdateLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("autoUpdateDescription")}</p>
                 </div>
                 <Switch checked={autoUpdate} onCheckedChange={handleAutoUpdateChange} />
               </div>
@@ -797,23 +792,21 @@ export function SettingsView({
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
               <Download className="h-4 w-4 text-muted-foreground" />
-              Importar / Exportar datos
+              {t("importExportCardTitle")}
             </CardTitle>
-            <CardDescription className="text-sm mb-4">
-              Exporta una copia cifrada de tu vault, o añade datos desde un archivo exportado antes.
-            </CardDescription>
+            <CardDescription className="text-sm mb-4">{t("importExportCardDescription")}</CardDescription>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Exportar datos</p>
-                  <p className="text-xs text-muted-foreground">Crea un archivo cifrado con una contraseña que tú eliges</p>
+                  <p className="text-sm font-medium">{t("exportDataLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("exportDataDescription")}</p>
                 </div>
                 <ExportDialog />
               </div>
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
-                  <p className="text-sm font-medium">Importar datos</p>
-                  <p className="text-xs text-muted-foreground">Añade o reemplaza entradas desde un archivo .slock</p>
+                  <p className="text-sm font-medium">{t("importDataLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("importDataDescription")}</p>
                 </div>
                 <ImportDialog onImported={() => {}} />
               </div>
@@ -826,39 +819,37 @@ export function SettingsView({
             <div>
               <CardTitle className="text-base flex items-center gap-2 text-destructive">
                 <Trash2 className="h-4 w-4" />
-                Borrar todos los datos
+                {t("deleteCardTitle")}
               </CardTitle>
-              <CardDescription className="text-sm text-destructive/70">
-                Elimina permanentemente todos tus datos. No se puede deshacer.
-              </CardDescription>
+              <CardDescription className="text-sm text-destructive/70">{t("deleteCardDescription")}</CardDescription>
             </div>
             <AlertDialog>
               <AlertDialogTrigger render={<Button variant="destructive" size="sm" />}>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Borrar datos
+                {t("deleteButton")}
               </AlertDialogTrigger>
               <AlertDialogContent className="max-w-md">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="flex items-center gap-2 text-destructive">
                     <AlertTriangle className="h-5 w-5" />
-                    ¿Estás segura?
+                    {t("deleteConfirmAreYouSure")}
                   </AlertDialogTitle>
                   <AlertDialogDescription className="space-y-2">
-                    <p>Esta acción eliminará permanentemente todos tus datos:</p>
+                    <p>{t("deleteConfirmIntro")}</p>
                     <ul className="list-disc list-inside text-sm space-y-1">
-                      <li>Todas las entradas del Vault</li>
-                      <li>Historial de auditoría</li>
-                      <li>Códigos de respaldo guardados</li>
+                      <li>{t("deleteConfirmVaultItem")}</li>
+                      <li>{t("deleteConfirmAuditItem")}</li>
+                      <li>{t("deleteConfirmCodesItem")}</li>
                     </ul>
-                    <p className="font-medium text-destructive mt-2">Esta acción no se puede deshacer.</p>
+                    <p className="font-medium text-destructive mt-2">{t("deleteConfirmCannotUndo")}</p>
                   </AlertDialogDescription>
                 </AlertDialogHeader>
 
                 {deleteStep === "confirm" && (
                   <AlertDialogFooter>
-                    <AlertDialogCancel onClick={resetDeleteDialog}>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel onClick={resetDeleteDialog}>{t("deleteCancelButton")}</AlertDialogCancel>
                     <AlertDialogAction onClick={handleContinueFromConfirm} className="bg-destructive hover:bg-destructive/90">
-                      Continuar
+                      {t("deleteContinueButton")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 )}
@@ -866,10 +857,10 @@ export function SettingsView({
                 {deleteStep === "password" && (
                   <>
                     <div className="space-y-3">
-                      <Label>Contraseña maestra</Label>
+                      <Label>{t("deleteMasterPasswordLabel")}</Label>
                       <Input
                         type="password"
-                        placeholder="Introduce tu contraseña maestra"
+                        placeholder={t("deleteMasterPasswordPlaceholder")}
                         value={masterPassword}
                         onChange={(e) => setMasterPassword(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleVerifyPassword()}
@@ -878,13 +869,13 @@ export function SettingsView({
                       {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
                     </div>
                     <AlertDialogFooter>
-                      <AlertDialogCancel onClick={resetDeleteDialog}>Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel onClick={resetDeleteDialog}>{t("deleteCancelButton")}</AlertDialogCancel>
                       <Button
                         onClick={handleVerifyPassword}
                         disabled={verifyingPassword}
                         className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                       >
-                        {verifyingPassword ? "Verificando..." : "Verificar"}
+                        {verifyingPassword ? t("deleteVerifyingButton") : t("deleteVerifyButton")}
                       </Button>
                     </AlertDialogFooter>
                   </>
@@ -894,9 +885,9 @@ export function SettingsView({
                   <>
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">
-                        Para confirmar, escribe <span className="font-mono font-semibold text-foreground">{DELETE_CONFIRM_PHRASE}</span> en el campo de abajo.
+                        {t("deleteConfirmTypeLabel", { phrase: DELETE_CONFIRM_PHRASE })}
                       </p>
-                      <Label>Confirmación</Label>
+                      <Label>{t("deleteConfirmationLabel")}</Label>
                       <Input
                         placeholder={DELETE_CONFIRM_PHRASE}
                         value={confirmText}
@@ -907,13 +898,13 @@ export function SettingsView({
                       {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
                     </div>
                     <AlertDialogFooter>
-                      <AlertDialogCancel onClick={resetDeleteDialog}>Cancelar</AlertDialogCancel>
+                      <AlertDialogCancel onClick={resetDeleteDialog}>{t("deleteCancelButton")}</AlertDialogCancel>
                       <Button
                         onClick={handleFinalDelete}
                         disabled={confirmText.trim().toUpperCase() !== DELETE_CONFIRM_PHRASE}
                         className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                       >
-                        Eliminar para siempre
+                        {t("deleteForeverButton")}
                       </Button>
                     </AlertDialogFooter>
                   </>
@@ -922,7 +913,7 @@ export function SettingsView({
                 {deleteStep === "deleting" && (
                   <div className="flex flex-col items-center justify-center py-6">
                     <div className="animate-spin rounded-full h-12 w-12 border-4 border-destructive border-t-transparent mb-4" />
-                    <p className="text-sm text-muted-foreground">Eliminando todos los datos...</p>
+                    <p className="text-sm text-muted-foreground">{t("deletingLabel")}</p>
                   </div>
                 )}
               </AlertDialogContent>
