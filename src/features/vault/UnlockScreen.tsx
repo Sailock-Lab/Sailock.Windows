@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,6 +13,7 @@ interface UnlockScreenProps {
 }
 
 export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
+  const { t } = useTranslation("vault");
   const [checking, setChecking] = useState(true);
   const [exists, setExists] = useState(false);
   const [password, setPassword] = useState("");
@@ -31,11 +33,11 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   const handleCreate = async () => {
     setError("");
     if (password.length < 8) {
-      setError("La contraseña maestra debe tener al menos 8 caracteres");
+      setError(t("errorMinLength"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden");
+      setError(t("errorMismatch"));
       return;
     }
     try {
@@ -59,7 +61,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
         onUnlock();
       }
     } catch {
-      setError("Contraseña maestra incorrecta");
+      setError(t("errorWrongPassword"));
     }
   };
 
@@ -71,7 +73,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
         await saveActivity("login", "Inicio de sesión (con verificación en dos pasos)", "system");
         onUnlock();
       } else {
-        setError("Código incorrecto");
+        setError(t("totpErrorIncorrect"));
       }
     } catch (e) {
       setError(String(e));
@@ -90,19 +92,19 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
                 <Smartphone className="h-6 w-6" />
               </div>
             </div>
-            <CardTitle>Verificación en dos pasos</CardTitle>
-            <CardDescription>Introduce el código de tu app de autenticación.</CardDescription>
+            <CardTitle>{t("totpTitle")}</CardTitle>
+            <CardDescription>{t("totpDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <Input
-              placeholder="123456"
+              placeholder={t("totpPlaceholder")}
               value={totpCode}
               onChange={(e) => setTotpCode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
               autoFocus
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button onClick={handleVerifyTotp}>Verificar</Button>
+            <Button onClick={handleVerifyTotp}>{t("totpVerifyButton")}</Button>
           </CardContent>
         </Card>
       </div>
@@ -116,17 +118,13 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
           <div className="flex justify-center mb-2">
             <img src={logo} alt="Sailock" className="h-12 w-12" />
           </div>
-          <CardTitle>{exists ? "Desbloquear Sailock" : "Crea tu contraseña maestra"}</CardTitle>
-          <CardDescription>
-            {exists
-              ? "Introduce tu contraseña maestra para acceder al vault."
-              : "Esta contraseña protege todo tu vault. Si la olvidas, no hay forma de recuperar tus datos."}
-          </CardDescription>
+          <CardTitle>{exists ? t("unlockTitle") : t("unlockCreateTitle")}</CardTitle>
+          <CardDescription>{exists ? t("unlockDescription") : t("unlockCreateDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <Input
             type="password"
-            placeholder="Contraseña maestra"
+            placeholder={t("passwordPlaceholder")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && (exists ? handleUnlock() : handleCreate())}
@@ -134,7 +132,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
           {!exists && (
             <Input
               type="password"
-              placeholder="Repite la contraseña maestra"
+              placeholder={t("confirmPasswordPlaceholder")}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
@@ -142,7 +140,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button onClick={exists ? handleUnlock : handleCreate}>
-            {exists ? "Desbloquear" : "Crear vault"}
+            {exists ? t("unlockButton") : t("createButton")}
           </Button>
         </CardContent>
       </Card>

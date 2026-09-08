@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +72,7 @@ interface VaultViewProps {
 }
 
 export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps) {
+  const { t } = useTranslation("vault");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<FormMode>(null);
@@ -159,13 +161,13 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-1">Vault</h2>
-      <p className="text-sm text-muted-foreground mb-6">Todos tus registros, organizados y seguros.</p>
+      <h2 className="text-2xl font-bold mb-1">{t("title")}</h2>
+      <p className="text-sm text-muted-foreground mb-6">{t("subtitle")}</p>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>
-            {filter === "trash" ? "Papelera" : filter === "favorites" ? "Favoritos" : "Todos los elementos"}
+            {filter === "trash" ? t("listTrash") : filter === "favorites" ? t("listFavorites") : t("listAll")}
           </CardTitle>
           <Button
             size="sm"
@@ -174,7 +176,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               setSelectedId(null);
             }}
           >
-            <Plus className="h-4 w-4 mr-1" /> Nuevo
+            <Plus className="h-4 w-4 mr-1" /> {t("newButton")}
           </Button>
         </CardHeader>
         <CardContent>
@@ -182,7 +184,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar en el vault..."
+                placeholder={t("searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8"
@@ -193,36 +195,34 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los campos</SelectItem>
-                <SelectItem value="name">Nombre</SelectItem>
-                <SelectItem value="contact">Usuario o email</SelectItem>
-                <SelectItem value="website">Sitio web</SelectItem>
-                <SelectItem value="custom">Campos personalizados</SelectItem>
+                <SelectItem value="all">{t("searchAll")}</SelectItem>
+                <SelectItem value="name">{t("searchName")}</SelectItem>
+                <SelectItem value="contact">{t("searchContact")}</SelectItem>
+                <SelectItem value="website">{t("searchWebsite")}</SelectItem>
+                <SelectItem value="custom">{t("searchCustom")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex gap-1 mb-3">
             <Button variant={filter === "all" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("all")}>
-              Todos
+              {t("filterAll")}
             </Button>
             <Button
               variant={filter === "favorites" ? "secondary" : "ghost"}
               size="sm"
               onClick={() => setFilter("favorites")}
             >
-              <Star className="h-3.5 w-3.5 mr-1" /> Favoritos
+              <Star className="h-3.5 w-3.5 mr-1" /> {t("filterFavorites")}
             </Button>
             <Button variant={filter === "trash" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("trash")}>
-              <Trash2 className="h-3.5 w-3.5 mr-1" /> Papelera
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("filterTrash")}
             </Button>
           </div>
 
           <div className="flex flex-col gap-1">
             {visible.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4">
-                {search ? "Nada coincide con tu búsqueda." : "No hay nada aquí."}
-              </p>
+              <p className="text-sm text-muted-foreground py-4">{search ? t("emptySearch") : t("emptyList")}</p>
             )}
             {visible.map((entry) => (
               <button
@@ -295,6 +295,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
 }
 
 function TotpDisplay({ secret, accountName }: { secret: string; accountName: string }) {
+  const { t } = useTranslation("vault");
   const [code, setCode] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(0);
 
@@ -330,7 +331,7 @@ function TotpDisplay({ secret, accountName }: { secret: string; accountName: str
     <div className="flex items-center justify-between">
       <div>
         <p className="font-mono text-lg tracking-widest">{code || "------"}</p>
-        <p className="text-xs text-muted-foreground">Se renueva en {secondsLeft}s</p>
+        <p className="text-xs text-muted-foreground">{t("totpRenews", { seconds: secondsLeft })}</p>
       </div>
       <Button variant="ghost" size="icon" onClick={() => code && navigator.clipboard.writeText(code)}>
         <Copy className="h-4 w-4" />
@@ -350,6 +351,7 @@ function EntryForm({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("vault");
   const [name, setName] = useState(initial?.name ?? "");
   const [username, setUsername] = useState(initial?.username ?? "");
   const [password, setPassword] = useState(initial?.password ?? initialPassword ?? "");
@@ -391,32 +393,35 @@ function EntryForm({
   return (
     <Card className="h-full flex flex-col rounded-none border-l shadow-2xl">
       <CardHeader className="flex flex-row items-center justify-between shrink-0">
-        <CardTitle>{initial ? "Editar elemento" : "Nuevo elemento"}</CardTitle>
+        <CardTitle>{initial ? t("formTitleEdit") : t("formTitleNew")}</CardTitle>
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
       </CardHeader>
       <CardContent className="flex-1 overflow-y-auto flex flex-col gap-3">
         {initialPassword && !initial && (
-          <p className="text-xs text-muted-foreground bg-muted rounded p-2">
-            Contraseña rellenada desde el Generador — ponle un nombre para guardarla.
-          </p>
+          <p className="text-xs text-muted-foreground bg-muted rounded p-2">{t("prefillNotice")}</p>
         )}
         <div>
-          <label className="text-sm font-medium block mb-1">Nombre</label>
-          <Input placeholder="ej: Gmail" value={name} onChange={(e) => setName(e.target.value)} autoFocus={!!initialPassword} />
+          <label className="text-sm font-medium block mb-1">{t("fieldName")}</label>
+          <Input
+            placeholder={t("fieldNamePlaceholder")}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus={!!initialPassword}
+          />
         </div>
 
         <div>
-          <label className="text-sm font-medium block mb-1">Usuario o email</label>
-          <Input placeholder="Opcional" value={username} onChange={(e) => setUsername(e.target.value)} />
+          <label className="text-sm font-medium block mb-1">{t("fieldUsername")}</label>
+          <Input placeholder={t("optional")} value={username} onChange={(e) => setUsername(e.target.value)} />
         </div>
 
         <div>
-          <label className="text-sm font-medium block mb-1">Contraseña</label>
+          <label className="text-sm font-medium block mb-1">{t("fieldPassword")}</label>
           <div className="relative">
             <Input
-              placeholder="Opcional"
+              placeholder={t("optional")}
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -433,26 +438,24 @@ function EntryForm({
         </div>
 
         <div>
-          <label className="text-sm font-medium block mb-1">Sitio web</label>
-          <Input placeholder="Opcional" value={website} onChange={(e) => setWebsite(e.target.value)} />
+          <label className="text-sm font-medium block mb-1">{t("fieldWebsite")}</label>
+          <Input placeholder={t("optional")} value={website} onChange={(e) => setWebsite(e.target.value)} />
         </div>
 
         <div>
-          <label className="text-sm font-medium block mb-1">Secreto TOTP (opcional)</label>
+          <label className="text-sm font-medium block mb-1">{t("fieldTotpSecret")}</label>
           <Input
-            placeholder="El código secreto que te dio el sitio para el 2FA"
+            placeholder={t("fieldTotpPlaceholder")}
             value={totpSecret}
             onChange={(e) => setTotpSecret(e.target.value)}
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Pega aquí el código base32 (no la URL completa) — Sailock generará el código de verificación por ti.
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">{t("fieldTotpHint")}</p>
         </div>
 
         <div>
-          <label className="text-sm font-medium block mb-1">Notas</label>
+          <label className="text-sm font-medium block mb-1">{t("fieldNotes")}</label>
           <textarea
-            placeholder="Opcional"
+            placeholder={t("optional")}
             className="border rounded p-2 bg-transparent text-sm min-h-20 w-full"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -461,19 +464,23 @@ function EntryForm({
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">Campos personalizados</label>
+            <label className="text-sm font-medium">{t("customFieldsLabel")}</label>
             <Button variant="ghost" size="sm" onClick={addCustomField}>
-              <Plus className="h-4 w-4 mr-1" /> Añadir campo
+              <Plus className="h-4 w-4 mr-1" /> {t("addFieldButton")}
             </Button>
           </div>
           {customFields.map((field, i) => (
             <div key={i} className="flex gap-2">
               <Input
-                placeholder="Nombre (ej: Código de recuperación)"
+                placeholder={t("customFieldNamePlaceholder")}
                 value={field.label}
                 onChange={(e) => updateCustomField(i, "label", e.target.value)}
               />
-              <Input placeholder="Valor" value={field.value} onChange={(e) => updateCustomField(i, "value", e.target.value)} />
+              <Input
+                placeholder={t("customFieldValuePlaceholder")}
+                value={field.value}
+                onChange={(e) => updateCustomField(i, "value", e.target.value)}
+              />
               <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
                 <X className="h-4 w-4" />
               </Button>
@@ -482,9 +489,9 @@ function EntryForm({
         </div>
 
         <div className="flex gap-2 pt-2">
-          <Button onClick={handleSave}>{initial ? "Guardar cambios" : "Guardar"}</Button>
+          <Button onClick={handleSave}>{initial ? t("saveChangesButton") : t("saveButton")}</Button>
           <Button variant="ghost" onClick={onClose}>
-            Cancelar
+            {t("cancelButton")}
           </Button>
         </div>
       </CardContent>
@@ -509,6 +516,7 @@ function EntryDetail({
   onToggleFavorite: (e: React.MouseEvent) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("vault");
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -518,41 +526,39 @@ function EntryDetail({
         <div className="flex gap-1">
           {entry.trashed ? (
             <>
-              <Button variant="ghost" size="icon" onClick={onRestore} title="Restaurar">
+              <Button variant="ghost" size="icon" onClick={onRestore} title={t("restoreTooltip")}>
                 <RotateCcw className="h-4 w-4" />
               </Button>
               <AlertDialog>
-                <AlertDialogTrigger render={<Button variant="ghost" size="icon" title="Eliminar definitivamente" />}>
+                <AlertDialogTrigger render={<Button variant="ghost" size="icon" title={t("deleteForeverTooltip")} />}>
                   <Trash2 className="h-4 w-4" />
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar "{entry.name}" para siempre?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. El elemento se borrará por completo, no quedará en la papelera.
-                    </AlertDialogDescription>
+                    <AlertDialogTitle>{t("deleteConfirmTitle", { name: entry.name })}</AlertDialogTitle>
+                    <AlertDialogDescription>{t("deleteConfirmDescription")}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={onDeletePermanently}>Eliminar para siempre</AlertDialogAction>
+                    <AlertDialogCancel>{t("deleteConfirmCancel")}</AlertDialogCancel>
+                    <AlertDialogAction onClick={onDeletePermanently}>{t("deleteConfirmAction")}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
             </>
           ) : (
             <>
-              <Button variant="ghost" size="icon" onClick={onToggleFavorite} title="Favorito">
+              <Button variant="ghost" size="icon" onClick={onToggleFavorite} title={t("favoriteTooltip")}>
                 <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
               </Button>
-              <Button variant="ghost" size="icon" onClick={onEdit} title="Editar">
+              <Button variant="ghost" size="icon" onClick={onEdit} title={t("editTooltip")}>
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={onTrash} title="Mover a papelera">
+              <Button variant="ghost" size="icon" onClick={onTrash} title={t("trashTooltip")}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </>
           )}
-          <Button variant="ghost" size="icon" onClick={onClose} title="Cerrar">
+          <Button variant="ghost" size="icon" onClick={onClose} title={t("closeTooltip")}>
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -560,36 +566,36 @@ function EntryDetail({
       <CardContent className="flex-1 overflow-y-auto flex flex-col gap-3 text-sm">
         {entry.username && (
           <div>
-            <p className="text-muted-foreground text-xs mb-1">Usuario o email</p>
+            <p className="text-muted-foreground text-xs mb-1">{t("detailUsername")}</p>
             <p>{entry.username}</p>
           </div>
         )}
         {entry.password && (
           <div>
-            <p className="text-muted-foreground text-xs mb-1">Contraseña</p>
+            <p className="text-muted-foreground text-xs mb-1">{t("detailPassword")}</p>
             <div className="flex items-center gap-2">
               <p className="font-mono">{showPassword ? entry.password : "•".repeat(10)}</p>
               <Button variant="ghost" size="sm" onClick={() => setShowPassword(!showPassword)}>
-                {showPassword ? "Ocultar" : "Mostrar"}
+                {showPassword ? t("hideButton") : t("showButton")}
               </Button>
             </div>
           </div>
         )}
         {entry.totp_secret && (
           <div>
-            <p className="text-muted-foreground text-xs mb-1">Código de verificación (TOTP)</p>
+            <p className="text-muted-foreground text-xs mb-1">{t("detailTotp")}</p>
             <TotpDisplay secret={entry.totp_secret} accountName={entry.name} />
           </div>
         )}
         {entry.website && (
           <div>
-            <p className="text-muted-foreground text-xs mb-1">Sitio web</p>
+            <p className="text-muted-foreground text-xs mb-1">{t("detailWebsite")}</p>
             <p className="text-primary">{entry.website}</p>
           </div>
         )}
         {entry.notes && (
           <div>
-            <p className="text-muted-foreground text-xs mb-1">Notas</p>
+            <p className="text-muted-foreground text-xs mb-1">{t("detailNotes")}</p>
             <p>{entry.notes}</p>
           </div>
         )}
