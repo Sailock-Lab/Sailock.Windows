@@ -73,15 +73,15 @@ function App() {
     };
   }, []);
 
-  const handleLock = async (reason: string = "Cierre de sesión") => {
+  const handleLock = async (eventKey: string = "logout") => {
     await invoke("lock_vault");
-    await saveActivity("logout", reason, "system");
+    await saveActivity("logout", eventKey, "system");
     setUnlocked(false);
   };
 
-  useAutoLock(autoLockDuration, unlocked, () => handleLock("Bloqueo automático por inactividad"));
-  useLockOnMinimize(unlocked && lockOnMinimize, () => handleLock("Bloqueo automático al minimizar la ventana"));
-
+  useAutoLock(autoLockDuration, unlocked, () => handleLock("logoutIdle"));
+  useLockOnMinimize(unlocked && lockOnMinimize, () => handleLock("logoutMinimize"));
+  
   const handleVaultDeleted = () => {
     setUnlocked(false);
     setActive("vault");

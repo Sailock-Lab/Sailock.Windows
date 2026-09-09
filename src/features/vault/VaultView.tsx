@@ -121,11 +121,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     const entry = entries.find((e) => e.id === id);
     await invoke("toggle_favorite", { id });
     if (entry) {
-      await saveActivity(
-        "edit",
-        `${entry.favorite ? "Quitado de favoritos" : "Añadido a favoritos"}: ${entry.name}`,
-        "vault"
-      );
+      await saveActivity("edit", entry.favorite ? "favoriteRemoved" : "favoriteAdded", "vault", { name: entry.name });
     }
     loadEntries();
   };
@@ -134,7 +130,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     const entry = entries.find((e) => e.id === id);
     await invoke("trash_entry", { id });
     if (entry) {
-      await saveActivity("delete", `Movido a papelera: ${entry.name}`, "vault");
+      await saveActivity("delete", "entryTrashed", "vault", { name: entry.name });
     }
     closePanel();
     loadEntries();
@@ -144,7 +140,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     const entry = entries.find((e) => e.id === id);
     await invoke("restore_entry", { id });
     if (entry) {
-      await saveActivity("restore", `Restaurada entrada: ${entry.name}`, "vault");
+      await saveActivity("restore", "entryRestored", "vault", { name: entry.name });
     }
     loadEntries();
   };
@@ -153,7 +149,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     const entry = entries.find((e) => e.id === id);
     await invoke("delete_entry", { id });
     if (entry) {
-      await saveActivity("delete", `Eliminada permanentemente: ${entry.name}`, "vault");
+      await saveActivity("delete", "entryDeletedForever", "vault", { name: entry.name });
     }
     closePanel();
     loadEntries();
@@ -382,10 +378,10 @@ function EntryForm({
     };
     if (initial) {
       await invoke("update_entry", { id: initial.id, ...payload });
-      await saveActivity("edit", `Editada entrada: ${name}`, "vault", username || undefined);
+      await saveActivity("edit", "entryEdited", "vault", { name });
     } else {
       await invoke("save_entry", payload);
-      await saveActivity("create", `Nueva entrada: ${name}`, "vault", username || undefined);
+      await saveActivity("create", "entryCreated", "vault", { name });
     }
     onSaved();
   };

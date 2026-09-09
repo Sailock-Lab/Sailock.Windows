@@ -66,7 +66,7 @@ function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
       const ok = await invoke<boolean>("totp_confirm_setup", { code });
       if (ok) {
         toast.success(t("totpEnabledToast"));
-        saveActivity("edit", "Verificación en dos pasos (2FA) activada", "settings");
+        saveActivity("edit", "totpEnabled", "settings");
         setOpen(false);
         onEnabled();
       } else {
@@ -148,7 +148,7 @@ function ExportDialog() {
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      saveActivity("download", "Vault exportado con contraseña propia", "settings");
+      saveActivity("download", "vaultExported", "settings");
       toast.success(t("exportSuccessToast"));
       setOpen(false);
       setPassword("");
@@ -288,7 +288,7 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
         mode,
       });
       toast.success(t("importSuccessToast", { count }));
-      saveActivity("create", `Importados ${count} elementos desde ${file.name} (modo: ${modeLabels[mode]})`, "settings");
+      saveActivity("create", "vaultImported", "settings", { count: String(count), filename: file.name, mode });
       handleOpenChange(false);
       onImported();
     } catch (e) {
@@ -473,13 +473,13 @@ export function SettingsView({
   useEffect(() => {
     invoke<boolean>("totp_status")
       .then(setTotpEnabled)
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const handleDisableTotp = async () => {
     await invoke("totp_disable");
     setTotpEnabled(false);
-    saveActivity("edit", "Verificación en dos pasos (2FA) desactivada", "settings");
+    saveActivity("edit", "totpDisabled", "settings");
     toast.success(t("totpDisabledToast"));
   };
 
@@ -488,7 +488,7 @@ export function SettingsView({
     setTheme(value);
     applyTheme(value);
     storeTheme(value);
-    saveActivity("edit", `Tema cambiado a ${THEME_LABELS[value]}`, "settings");
+    saveActivity("edit", "themeChanged", "settings", { theme: value });
     toast.success(t("themeChangedToast", { theme: THEME_LABELS[value] }));
   };
 
@@ -496,38 +496,38 @@ export function SettingsView({
     if (!value) return;
     setLanguage(value);
     i18n.changeLanguage(value);
-    saveActivity("edit", `Idioma cambiado a ${LANGUAGE_LABELS[value]}`, "settings");
+    saveActivity("edit", "languageChanged", "settings", { language: value });
     toast.success(`${LANGUAGE_LABELS[value]}`);
   };
 
   const handleAutoLockChange = (value: AutoLockDuration | null) => {
     if (!value) return;
     onAutoLockDurationChange(value);
-    saveActivity("edit", `Auto-bloqueo configurado: ${AUTO_LOCK_LABELS[value]}`, "settings");
+    saveActivity("edit", "autoLockChanged", "settings", { duration: value });
     toast.success(t("autoLockChangedToast", { duration: AUTO_LOCK_LABELS[value] }));
   };
 
   const handleLockOnMinimizeChange = (value: boolean) => {
     onLockOnMinimizeChange(value);
-    saveActivity("edit", `Bloquear al minimizar: ${value ? "activado" : "desactivado"}`, "settings");
+    saveActivity("edit", "lockOnMinimizeToggled", "settings", { state: value ? "on" : "off" });
   };
 
   const handleStartWithWindowsChange = (value: boolean) => {
     setStartWithWindows(value);
     storeBool("startWithWindows", value);
-    saveActivity("edit", `Iniciar con Windows: ${value ? "activado" : "desactivado"}`, "settings");
+    saveActivity("edit", "startWithWindowsToggled", "settings", { state: value ? "on" : "off" });
   };
 
   const handleMinimizeToTrayChange = (value: boolean) => {
     setMinimizeToTray(value);
     storeBool("minimizeToTray", value);
-    saveActivity("edit", `Minimizar a la bandeja: ${value ? "activado" : "desactivado"}`, "settings");
+    saveActivity("edit", "minimizeToTrayToggled", "settings", { state: value ? "on" : "off" });
   };
 
   const handleAutoUpdateChange = (value: boolean) => {
     setAutoUpdate(value);
     storeBool("autoUpdate", value);
-    saveActivity("edit", `Actualizaciones automáticas: ${value ? "activado" : "desactivado"}`, "settings");
+    saveActivity("edit", "autoUpdateToggled", "settings", { state: value ? "on" : "off" });
   };
 
   const resetDeleteDialog = () => {
@@ -793,7 +793,7 @@ export function SettingsView({
                   <p className="text-sm font-medium">{t("importDataLabel")}</p>
                   <p className="text-xs text-muted-foreground">{t("importDataDescription")}</p>
                 </div>
-                <ImportDialog onImported={() => {}} />
+                <ImportDialog onImported={() => { }} />
               </div>
             </div>
           </div>
