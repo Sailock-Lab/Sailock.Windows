@@ -1015,10 +1015,16 @@ fn totp_disable(
 #[derive(Serialize, Deserialize, Clone)]
 struct ActivityEntry {
     id: String,
-    activity_type: String, // login, logout, create, edit, delete, restore, generate
-    description: String,
-    source: String, // vault, generator, settings, system
-    details: Option<String>,
+    activity_type: String,
+    #[serde(default)]
+    description: Option<String>, // solo entradas antiguas, ya escritas en un idioma fijo
+    #[serde(default)]
+    event_key: Option<String>, // entradas nuevas: clave de evento a traducir en el momento de mostrarla
+    #[serde(default)]
+    params: Option<std::collections::HashMap<String, String>>, // datos variables (nombre, cantidad...)
+    source: String,
+    #[serde(default)]
+    details: Option<String>, // solo entradas antiguas
     timestamp: u64,
 }
 
@@ -1026,11 +1032,10 @@ struct ActivityEntry {
 fn save_activity(
     app_handle: tauri::AppHandle,
     activity_type: String,
-    description: String,
+    event_key: String,
     source: String,
-    details: Option<String>,
+    params: Option<std::collections::HashMap<String, String>>,
 ) -> Result<(), String> {
-    // Cargar actividades existentes
     let path = activity_path(&app_handle);
     let mut activities: Vec<ActivityEntry> = Vec::new();
 
@@ -1039,20 +1044,20 @@ fn save_activity(
         activities = serde_json::from_str(&content).map_err(|e| e.to_string())?;
     }
 
-    // Crear nueva actividad
     let now = now_millis();
     let entry = ActivityEntry {
         id: now.to_string(),
         activity_type,
-        description,
+        description: None,
+        event_key: Some(event_key),
+        params,
         source,
-        details,
+        details: None,
         timestamp: now,
     };
 
     activities.push(entry);
 
-    // Guardar (máximo 1000 entradas para no saturar)
     if activities.len() > 1000 {
         activities = activities.split_off(activities.len() - 1000);
     }

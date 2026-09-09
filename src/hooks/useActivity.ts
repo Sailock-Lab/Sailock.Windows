@@ -6,7 +6,9 @@ export type ActivitySource = "vault" | "generator" | "settings" | "system";
 export interface ActivityEntry {
   id: string;
   activity_type: ActivityType;
-  description: string;
+  description?: string;
+  event_key?: string;
+  params?: Record<string, string>;
   source: ActivitySource;
   details?: string;
   timestamp: number;
@@ -15,16 +17,16 @@ export interface ActivityEntry {
 export function useActivity() {
   const saveActivity = async (
     activityType: ActivityType,
-    description: string,
+    eventKey: string,
     source: ActivitySource,
-    details?: string
+    params?: Record<string, string>
   ) => {
     try {
       await invoke("save_activity", {
         activityType,
-        description,
+        eventKey,
         source,
-        details: details || null,
+        params: params || null,
       });
     } catch (error) {
       console.error("Error saving activity:", error);
