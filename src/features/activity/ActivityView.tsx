@@ -19,6 +19,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useActivity, ActivityEntry, ActivityType, ActivitySource } from "@/hooks/useActivity";
+import { LANGUAGE_LABELS } from "@/i18n/languages";
 import type { TFunction } from "i18next";
 
 const ITEMS_PER_PAGE = 15;
@@ -47,6 +48,37 @@ const TYPE_COLORS: Record<ActivityType, string> = {
   generate: "bg-cyan-500",
   download: "bg-indigo-500",
 };
+
+const THEME_KEY_MAP: Record<string, string> = { light: "themeLight", dark: "themeDark", system: "themeSystem" };
+const DURATION_KEY_MAP: Record<string, string> = {
+  never: "durationNever", "15s": "duration15s", "30s": "duration30s",
+  "1m": "duration1m", "2m": "duration2m", "5m": "duration5m",
+};
+const MODE_KEY_MAP: Record<string, string> = {
+  add_duplicates: "modeAddDuplicates", skip_duplicates: "modeSkipDuplicates", replace_all: "modeReplaceAll",
+};
+
+// Convierte los parámetros "en crudo" guardados (ej. theme: "dark") en el texto
+// traducido correspondiente al idioma activo AHORA MISMO, no al de cuando se creó el evento.
+function resolveParams(t: TFunction, rawParams?: Record<string, string>): Record<string, string> {
+  if (!rawParams) return {};
+  const resolved: Record<string, string> = { ...rawParams };
+  if ("theme" in resolved) resolved.theme = t(THEME_KEY_MAP[resolved.theme] ?? resolved.theme);
+  if ("language" in resolved) resolved.language = LANGUAGE_LABELS[resolved.language] ?? resolved.language;
+  if ("duration" in resolved) resolved.duration = t(DURATION_KEY_MAP[resolved.duration] ?? resolved.duration);
+  if ("mode" in resolved) resolved.mode = t(MODE_KEY_MAP[resolved.mode] ?? resolved.mode);
+  if ("state" in resolved) resolved.state = resolved.state === "on" ? t("stateOn") : t("stateOff");
+  return resolved;
+}
+
+// Entradas nuevas (con event_key) se traducen siempre en el idioma activo.
+// Entradas antiguas (solo con description) se muestran tal cual quedaron guardadas.
+function activityDescription(activity: ActivityEntry, t: TFunction): string {
+  if (activity.event_key) {
+    return t(`event_${activity.event_key}`, resolveParams(t, activity.params));
+  }
+  return activity.description ?? "";
+}
 
 function formatTimestamp(timestamp: number, t: TFunction): string {
   const now = new Date();
@@ -115,10 +147,8 @@ export function ActivityView() {
     if (filter !== "all" && activity.activity_type !== filter) return false;
     if (search) {
       const query = search.toLowerCase();
-      return (
-        activity.description.toLowerCase().includes(query) ||
-        (activity.details && activity.details.toLowerCase().includes(query))
-      );
+      const desc = activityDescription(activity, t).toLowerCase();
+      return desc.includes(query) || (activity.details && activity.details.toLowerCase().includes(query));
     }
     return true;
   });
@@ -160,7 +190,9 @@ export function ActivityView() {
     const content = activities.map((a) => {
       const date = new Date(a.timestamp).toLocaleString();
       const source = SOURCE_LABELS[a.source];
-      return `[${date}] [${source}] ${a.activity_type.toUpperCase()} - ${a.description}${a.details ? ` (${a.details})` : ""}`;
+      const desc = activityDescription(a, t);
+      const legacyDetails = !a.event_key && a.details ? ` (${a.details})` : "";
+      return `[${date}] [${source}] ${a.activity_type.toUpperCase()} - ${desc}${legacyDetails}`;
     }).join("\n");
 
     try {
@@ -220,7 +252,6 @@ export function ActivityView() {
           </div>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden pt-0">
-          {/* Filtros */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3 shrink-0">
             <div className="flex flex-wrap gap-2">
               <Select value={filter} onValueChange={(v) => v && setFilter(v as ActivityType | "all")}>
@@ -257,7 +288,6 @@ export function ActivityView() {
             </div>
           </div>
 
-          {/* Lista de actividades */}
           <div className="flex-1 overflow-y-auto min-h-0 -mx-4 px-4">
             {loading ? (
               <div className="h-full flex items-center justify-center">
@@ -284,7 +314,7 @@ export function ActivityView() {
                     <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${TYPE_COLORS[activity.activity_type]}`} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm truncate">{activity.description}</span>
+                        <span className="font-medium text-sm truncate">{activityDescription(activity, t)}</span>
                         <span className={`flex items-center gap-1 text-[10px] font-medium text-white px-1.5 py-0.5 rounded ${SOURCE_COLORS[activity.source]} shrink-0`}>
                           {SOURCE_ICONS[activity.source]}
                           {SOURCE_LABELS[activity.source]}
@@ -293,7 +323,7 @@ export function ActivityView() {
                           {TYPE_LABELS[activity.activity_type]}
                         </span>
                       </div>
-                      {activity.details && (
+                      {!activity.event_key && activity.details && (
                         <p className="text-xs text-muted-foreground mt-0.5 truncate">{activity.details}</p>
                       )}
                     </div>
@@ -308,7 +338,6 @@ export function ActivityView() {
             )}
           </div>
 
-          {/* Paginación */}
           {totalPages > 1 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t shrink-0 mt-3">
               <p className="text-xs text-muted-foreground">
