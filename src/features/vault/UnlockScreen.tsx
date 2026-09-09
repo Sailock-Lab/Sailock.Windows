@@ -5,15 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Smartphone, Globe } from "lucide-react";
+import { Smartphone, Globe, Sun, Moon, Monitor } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useActivity } from "@/hooks/useActivity";
 import i18n from "@/i18n";
 import { LANGUAGE_LABELS } from "@/i18n/languages";
+import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
 
 interface UnlockScreenProps {
   onUnlock: () => void;
 }
+
+const TRIGGER_CLASS =
+  "h-9 rounded-full border bg-background/90 shadow-sm hover:bg-muted [&_svg:not(:first-child)]:hidden";
 
 function LanguageSwitcher() {
   const [language, setLanguage] = useState(i18n.language);
@@ -27,8 +31,9 @@ function LanguageSwitcher() {
         i18n.changeLanguage(v);
       }}
     >
-      <SelectTrigger className="w-9 h-9 p-0 justify-center rounded-full border-none bg-muted/50 hover:bg-muted [&_svg:not(:first-child)]:hidden">
+      <SelectTrigger className={`${TRIGGER_CLASS} px-3 gap-1.5`}>
         <Globe className="h-4 w-4" />
+        <span className="text-xs font-semibold uppercase">{language}</span>
       </SelectTrigger>
       <SelectContent align="end">
         {Object.entries(LANGUAGE_LABELS).map(([key, label]) => (
@@ -38,6 +43,61 @@ function LanguageSwitcher() {
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function ThemeSwitcher() {
+  const { t } = useTranslation("settings");
+  const [theme, setTheme] = useState<Theme>(getStoredTheme());
+
+  const icons: Record<Theme, React.ReactNode> = {
+    light: <Sun className="h-4 w-4" />,
+    dark: <Moon className="h-4 w-4" />,
+    system: <Monitor className="h-4 w-4" />,
+  };
+
+  return (
+    <Select
+      value={theme}
+      onValueChange={(v) => {
+        if (!v) return;
+        const value = v as Theme;
+        setTheme(value);
+        applyTheme(value);
+        storeTheme(value);
+      }}
+    >
+      <SelectTrigger className={`${TRIGGER_CLASS} w-9 p-0 justify-center`}>{icons[theme]}</SelectTrigger>
+      <SelectContent align="end">
+        <SelectItem value="light">
+          <div className="flex items-center gap-2">
+            <Sun className="h-4 w-4" />
+            {t("themeLight")}
+          </div>
+        </SelectItem>
+        <SelectItem value="dark">
+          <div className="flex items-center gap-2">
+            <Moon className="h-4 w-4" />
+            {t("themeDark")}
+          </div>
+        </SelectItem>
+        <SelectItem value="system">
+          <div className="flex items-center gap-2">
+            <Monitor className="h-4 w-4" />
+            {t("themeSystem")}
+          </div>
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  );
+}
+
+function TopBar() {
+  return (
+    <div className="absolute top-4 right-4 flex items-center gap-2">
+      <ThemeSwitcher />
+      <LanguageSwitcher />
+    </div>
   );
 }
 
@@ -71,7 +131,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
     }
     try {
       await invoke("create_vault", { masterPassword: password });
-      await saveActivity("login", "Primer inicio de sesión - Vault creado", "system");
+      await saveActivity("login", "firstLogin", "system");
       onUnlock();
     } catch (e) {
       setError(String(e));
@@ -86,7 +146,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
       if (totpEnabled) {
         setNeedsTotp(true);
       } else {
-        await saveActivity("login", "Inicio de sesión", "system");
+        await saveActivity("login", "login", "system");
         onUnlock();
       }
     } catch {
@@ -99,7 +159,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
     try {
       const ok = await invoke<boolean>("totp_verify_unlock", { code: totpCode });
       if (ok) {
-        await saveActivity("login", "Inicio de sesión (con verificación en dos pasos)", "system");
+        await saveActivity("login", "loginWithTotp", "system");
         onUnlock();
       } else {
         setError(t("totpErrorIncorrect"));
@@ -114,9 +174,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   if (needsTotp) {
     return (
       <div className="relative flex h-screen items-center justify-center bg-background">
-        <div className="absolute top-4 right-4">
-          <LanguageSwitcher />
-        </div>
+        <TopBar />
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-2">
@@ -145,9 +203,7 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
 
   return (
     <div className="relative flex h-screen items-center justify-center bg-background">
-      <div className="absolute top-4 right-4">
-        <LanguageSwitcher />
-      </div>
+      <TopBar />
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
