@@ -1,1 +1,7 @@
-{"vault":"Bóveda","generator":"Generador","activity":"Auditoría","settings":"Ajustes","lock":"Cerrar sesión"}
+{
+    "vault": "Bóveda",
+    "generator": "Generador",
+    "activity": "Auditoría",
+    "settings": "Ajustes",
+    "lock": "Cerrar sesión"
+}

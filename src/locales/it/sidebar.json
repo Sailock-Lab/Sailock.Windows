@@ -1,1 +1,7 @@
-{"vault":"Cassaforte","generator":"Generatore","activity":"Attività","settings":"Impostazioni","lock":"Disconnetti"}
+{
+    "vault": "Cassaforte",
+    "generator": "Generatore",
+    "activity": "Attività",
+    "settings": "Impostazioni",
+    "lock": "Disconnetti"
+}

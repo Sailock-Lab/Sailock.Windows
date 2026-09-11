@@ -1,1 +1,7 @@
-{"vault":"保管庫","generator":"ジェネレーター","activity":"アクティビティ","settings":"設定","lock":"ログアウト"}
+{
+    "vault": "保管庫",
+    "generator": "ジェネレーター",
+    "activity": "アクティビティ",
+    "settings": "設定",
+    "lock": "ログアウト"
+}

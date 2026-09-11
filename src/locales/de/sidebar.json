@@ -1,1 +1,7 @@
-{"vault":"Tresor","generator":"Generator","activity":"Aktivität","settings":"Einstellungen","lock":"Abmelden"}
+{
+    "vault": "Tresor",
+    "generator": "Generator",
+    "activity": "Aktivität",
+    "settings": "Einstellungen",
+    "lock": "Abmelden"
+}

@@ -1,1 +1,7 @@
-{"vault":"보관함","generator":"생성기","activity":"활동","settings":"설정","lock":"로그아웃"}
+{
+    "vault": "보관함",
+    "generator": "생성기",
+    "activity": "활동",
+    "settings": "설정",
+    "lock": "로그아웃"
+}
