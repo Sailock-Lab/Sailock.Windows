@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { Smartphone, Globe, Sun, Moon, Monitor } from "lucide-react";
+import { Smartphone, Globe, Sun, Moon, Monitor, KeyRound, Eye, EyeOff } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useActivity } from "@/hooks/useActivity";
 import i18n from "@/i18n";
@@ -94,9 +95,51 @@ function ThemeSwitcher() {
 
 function TopBar() {
   return (
-    <div className="absolute top-4 right-4 flex items-center gap-2">
+    <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
       <ThemeSwitcher />
       <LanguageSwitcher />
+    </div>
+  );
+}
+
+function PasswordField({
+  value,
+  onChange,
+  onKeyDown,
+  placeholder,
+  showLabel,
+  hideLabel,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  placeholder: string;
+  showLabel: string;
+  hideLabel: string;
+  autoFocus?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="relative">
+      <Input
+        type={visible ? "text" : "password"}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        autoFocus={autoFocus}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setVisible(!visible)}
+        title={visible ? hideLabel : showLabel}
+        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      >
+        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
     </div>
   );
 }
@@ -175,28 +218,35 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
     return (
       <div className="relative flex h-screen items-center justify-center bg-background">
         <TopBar />
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-2">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Smartphone className="h-6 w-6" />
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="w-full max-w-sm"
+        >
+          <Card className="shadow-xl">
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-2">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <Smartphone className="h-6 w-6" />
+                </div>
               </div>
-            </div>
-            <CardTitle>{t("totpTitle")}</CardTitle>
-            <CardDescription>{t("totpDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <Input
-              placeholder={t("totpPlaceholder")}
-              value={totpCode}
-              onChange={(e) => setTotpCode(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
-              autoFocus
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button onClick={handleVerifyTotp}>{t("totpVerifyButton")}</Button>
-          </CardContent>
-        </Card>
+              <CardTitle>{t("totpTitle")}</CardTitle>
+              <CardDescription>{t("totpDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <Input
+                placeholder={t("totpPlaceholder")}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
+                autoFocus
+              />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button size="lg" onClick={handleVerifyTotp}>{t("totpVerifyButton")}</Button>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     );
   }
@@ -204,37 +254,48 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   return (
     <div className="relative flex h-screen items-center justify-center bg-background">
       <TopBar />
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-2">
-            <img src={logo} alt="Sailock" className="h-12 w-12" />
-          </div>
-          <CardTitle>{exists ? t("unlockTitle") : t("unlockCreateTitle")}</CardTitle>
-          <CardDescription>{exists ? t("unlockDescription") : t("unlockCreateDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <Input
-            type="password"
-            placeholder={t("passwordPlaceholder")}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (exists ? handleUnlock() : handleCreate())}
-          />
-          {!exists && (
-            <Input
-              type="password"
-              placeholder={t("confirmPasswordPlaceholder")}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className="w-full max-w-sm"
+      >
+        <Card className="shadow-xl">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-2">
+              <img src={logo} alt="Sailock" className="h-14 w-14" />
+            </div>
+            <CardTitle className="text-xl">{exists ? t("unlockTitle") : t("unlockCreateTitle")}</CardTitle>
+            <CardDescription>{exists ? t("unlockDescription") : t("unlockCreateDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <PasswordField
+              value={password}
+              onChange={setPassword}
+              onKeyDown={(e) => e.key === "Enter" && (exists ? handleUnlock() : handleCreate())}
+              placeholder={t("passwordPlaceholder")}
+              showLabel={t("showButton")}
+              hideLabel={t("hideButton")}
+              autoFocus
             />
-          )}
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button onClick={exists ? handleUnlock : handleCreate}>
-            {exists ? t("unlockButton") : t("createButton")}
-          </Button>
-        </CardContent>
-      </Card>
+            {!exists && (
+              <PasswordField
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                placeholder={t("confirmPasswordPlaceholder")}
+                showLabel={t("showButton")}
+                hideLabel={t("hideButton")}
+              />
+            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button size="lg" className="gap-2" onClick={exists ? handleUnlock : handleCreate}>
+              <KeyRound className="h-4 w-4" />
+              {exists ? t("unlockButton") : t("createButton")}
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }
