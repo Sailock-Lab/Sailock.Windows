@@ -1,7 +1,7 @@
 import "./App.css";
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Layout } from "@/components/layout/Layout";
 import { View } from "@/components/layout/Sidebar";
 import { VaultView } from "@/features/vault/VaultView";
@@ -13,12 +13,16 @@ import { useActivity } from "@/hooks/useActivity";
 import { useAutoLock } from "@/hooks/useAutoLock";
 import { useLockOnMinimize } from "@/hooks/useLockOnMinimize";
 import { getStoredTheme, applyTheme } from "@/lib/theme";
+import { applyTextSize } from "@/lib/accessibility";
 import {
   AutoLockDuration,
+  TextSize,
   getStoredAutoLockDuration,
   storeAutoLockDuration,
   getStoredBool,
   storeBool,
+  getStoredTextSize,
+  storeTextSize,
 } from "@/lib/appSettings";
 
 function App() {
@@ -27,10 +31,13 @@ function App() {
   const [vaultPrefillPassword, setVaultPrefillPassword] = useState<string | null>(null);
   const [autoLockDuration, setAutoLockDurationState] = useState<AutoLockDuration>(getStoredAutoLockDuration());
   const [lockOnMinimize, setLockOnMinimizeState] = useState<boolean>(() => getStoredBool("lockOnMinimize", false));
+  const [reduceMotion, setReduceMotionState] = useState<boolean>(() => getStoredBool("reduceMotion", false));
+  const [textSize, setTextSizeState] = useState<TextSize>(getStoredTextSize());
   const { saveActivity } = useActivity();
 
   useEffect(() => {
     applyTheme(getStoredTheme());
+    applyTextSize(getStoredTextSize());
   }, []);
 
   useEffect(() => {
@@ -81,7 +88,7 @@ function App() {
 
   useAutoLock(autoLockDuration, unlocked, () => handleLock("logoutIdle"));
   useLockOnMinimize(unlocked && lockOnMinimize, () => handleLock("logoutMinimize"));
-  
+
   const handleVaultDeleted = () => {
     setUnlocked(false);
     setActive("vault");
@@ -102,9 +109,16 @@ function App() {
     storeBool("lockOnMinimize", value);
   };
 
-  if (!unlocked) {
-    return <UnlockScreen onUnlock={() => setUnlocked(true)} />;
-  }
+  const handleReduceMotionChange = (value: boolean) => {
+    setReduceMotionState(value);
+    storeBool("reduceMotion", value);
+  };
+
+  const handleTextSizeChange = (value: TextSize) => {
+    setTextSizeState(value);
+    storeTextSize(value);
+    applyTextSize(value);
+  };
 
   const renderView = () => {
     switch (active) {
@@ -127,26 +141,36 @@ function App() {
             onAutoLockDurationChange={handleAutoLockDurationChange}
             lockOnMinimize={lockOnMinimize}
             onLockOnMinimizeChange={handleLockOnMinimizeChange}
+            reduceMotion={reduceMotion}
+            onReduceMotionChange={handleReduceMotionChange}
+            textSize={textSize}
+            onTextSizeChange={handleTextSizeChange}
           />
         );
     }
   };
 
   return (
-    <Layout active={active} onChange={setActive} onLock={() => handleLock()}>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={active}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.15 }}
-          className="h-full"
-        >
-          {renderView()}
-        </motion.div>
-      </AnimatePresence>
-    </Layout>
+    <MotionConfig reducedMotion={reduceMotion ? "always" : "never"}>
+      {!unlocked ? (
+        <UnlockScreen onUnlock={() => setUnlocked(true)} />
+      ) : (
+        <Layout active={active} onChange={setActive} onLock={() => handleLock()}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={active}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className="h-full"
+            >
+              {renderView()}
+            </motion.div>
+          </AnimatePresence>
+        </Layout>
+      )}
+    </MotionConfig>
   );
 }
 

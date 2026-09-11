@@ -19,11 +19,28 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Eye, EyeOff, Lock, X } from "lucide-react";
+import {
+  Moon,
+  Sun,
+  Monitor,
+  Globe,
+  Download,
+  Upload,
+  Trash2,
+  Shield,
+  AlertTriangle,
+  Smartphone,
+  Power,
+  Eye,
+  EyeOff,
+  Lock,
+  X,
+  Accessibility,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
-import { AutoLockDuration, getStoredBool, storeBool } from "@/lib/appSettings";
+import { AutoLockDuration, TextSize, getStoredBool, storeBool } from "@/lib/appSettings";
 import i18n from "@/i18n";
 import { LANGUAGE_LABELS } from "@/i18n/languages";
 
@@ -427,6 +444,10 @@ interface SettingsViewProps {
   onAutoLockDurationChange: (value: AutoLockDuration) => void;
   lockOnMinimize: boolean;
   onLockOnMinimizeChange: (value: boolean) => void;
+  reduceMotion: boolean;
+  onReduceMotionChange: (value: boolean) => void;
+  textSize: TextSize;
+  onTextSizeChange: (value: TextSize) => void;
 }
 
 export function SettingsView({
@@ -435,6 +456,10 @@ export function SettingsView({
   onAutoLockDurationChange,
   lockOnMinimize,
   onLockOnMinimizeChange,
+  reduceMotion,
+  onReduceMotionChange,
+  textSize,
+  onTextSizeChange,
 }: SettingsViewProps) {
   const { t } = useTranslation("settings");
 
@@ -453,13 +478,17 @@ export function SettingsView({
     "5m": t("autoLock5m"),
   };
 
+  const TEXT_SIZE_LABELS: Record<TextSize, string> = {
+    small: t("textSizeSmall"),
+    normal: t("textSizeNormal"),
+    large: t("textSizeLarge"),
+  };
+
   const DELETE_CONFIRM_PHRASE = t("deleteConfirmPhrase");
 
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const [language, setLanguage] = useState(i18n.language);
   const [startWithWindows, setStartWithWindows] = useState(() => getStoredBool("startWithWindows", false));
-  const [minimizeToTray, setMinimizeToTray] = useState(() => getStoredBool("minimizeToTray", false));
-  const [autoUpdate, setAutoUpdate] = useState(() => getStoredBool("autoUpdate", true));
   const [showBackupCodes, setShowBackupCodes] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
   const { saveActivity } = useActivity();
@@ -473,7 +502,7 @@ export function SettingsView({
   useEffect(() => {
     invoke<boolean>("totp_status")
       .then(setTotpEnabled)
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   const handleDisableTotp = async () => {
@@ -518,16 +547,13 @@ export function SettingsView({
     saveActivity("edit", "startWithWindowsToggled", "settings", { state: value ? "on" : "off" });
   };
 
-  const handleMinimizeToTrayChange = (value: boolean) => {
-    setMinimizeToTray(value);
-    storeBool("minimizeToTray", value);
-    saveActivity("edit", "minimizeToTrayToggled", "settings", { state: value ? "on" : "off" });
+  const handleReduceMotionChange = (value: boolean) => {
+    onReduceMotionChange(value);
   };
 
-  const handleAutoUpdateChange = (value: boolean) => {
-    setAutoUpdate(value);
-    storeBool("autoUpdate", value);
-    saveActivity("edit", "autoUpdateToggled", "settings", { state: value ? "on" : "off" });
+  const handleTextSizeChange = (value: TextSize | null) => {
+    if (!value) return;
+    onTextSizeChange(value);
   };
 
   const resetDeleteDialog = () => {
@@ -755,19 +781,39 @@ export function SettingsView({
                 </div>
                 <Switch checked={startWithWindows} onCheckedChange={handleStartWithWindowsChange} />
               </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-5 rounded-xl">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2 mb-1">
+              <Accessibility className="h-4 w-4 text-muted-foreground" />
+              {t("accessibilityCardTitle")}
+            </CardTitle>
+            <CardDescription className="text-sm mb-4">{t("accessibilityCardDescription")}</CardDescription>
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">{t("minimizeToTrayLabel")}</p>
-                  <p className="text-xs text-muted-foreground">{t("minimizeToTrayDescription")}</p>
+                  <p className="text-sm font-medium">{t("reduceMotionLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("reduceMotionDescription")}</p>
                 </div>
-                <Switch checked={minimizeToTray} onCheckedChange={handleMinimizeToTrayChange} />
+                <Switch checked={reduceMotion} onCheckedChange={handleReduceMotionChange} />
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{t("autoUpdateLabel")}</p>
-                  <p className="text-xs text-muted-foreground">{t("autoUpdateDescription")}</p>
-                </div>
-                <Switch checked={autoUpdate} onCheckedChange={handleAutoUpdateChange} />
+              <div className="flex items-center justify-between pt-2 border-t">
+                <p className="text-sm font-medium">{t("textSizeLabel")}</p>
+                <Select value={textSize} onValueChange={handleTextSizeChange}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TEXT_SIZE_LABELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key as TextSize}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
@@ -793,7 +839,7 @@ export function SettingsView({
                   <p className="text-sm font-medium">{t("importDataLabel")}</p>
                   <p className="text-xs text-muted-foreground">{t("importDataDescription")}</p>
                 </div>
-                <ImportDialog onImported={() => { }} />
+                <ImportDialog onImported={() => {}} />
               </div>
             </div>
           </div>
