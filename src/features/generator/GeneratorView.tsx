@@ -7,16 +7,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Minus, Plus, RefreshCw, Save, Download, Trash2, Key, Type, LayoutGrid } from "lucide-react";
+import { Minus, Plus, RefreshCw, Save, Download, Trash2, Key, Type, LayoutGrid } from "lucide-react";
+import { CopyButton } from "@/components/CopyButton";
 import { useVault } from "../../hooks/useVault";
 import { useActivity } from "@/hooks/useActivity";
 import { useGeneratorHistory, GeneratorHistoryEntry } from "@/hooks/useGeneratorHistory";
 import { toast } from "sonner";
 
+// Genera un entero aleatorio en [0, max) sin sesgo de módulo: en vez de recortar
+// un número de 32 bits con "% max" (lo que favorece ligeramente a los valores bajos
+// cuando max no divide exactamente 2^32), descarta y vuelve a tirar hasta caer
+// dentro del rango que sí se reparte exactamente entre todas las opciones.
 function secureRandomInt(max: number): number {
   const array = new Uint32Array(1);
-  crypto.getRandomValues(array);
-  return array[0] % max;
+  const maxValid = Math.floor(0x100000000 / max) * max;
+  let value: number;
+  do {
+    crypto.getRandomValues(array);
+    value = array[0];
+  } while (value >= maxValid);
+  return value % max;
 }
 
 const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -126,9 +136,7 @@ function RecentHistoryCard({ history }: { history: GeneratorHistoryEntry[] }) {
             {history.map((entry) => (
               <li key={entry.id} className="flex items-center justify-between gap-2 border rounded p-2">
                 <span className="font-mono text-xs truncate">{entry.value}</span>
-                <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(entry.value)}>
-                  <Copy className="h-4 w-4" />
-                </Button>
+                <CopyButton value={entry.value} />
               </li>
             ))}
           </ul>
@@ -278,7 +286,7 @@ function BackupCodesGenerator() {
     setCodes(result);
 
     if (result.length > 0 && result[0]) {
-      saveActivity("generate", "backupBatchGenerated", "generator", { title: effectiveTitle, count: String(count), length: String(length) });
+      saveActivity("generate", `Lote de códigos generado: ${effectiveTitle}`, "generator", `${count} códigos de ${length} caracteres`);
     }
   };
 
@@ -299,7 +307,7 @@ function BackupCodesGenerator() {
 
     if (result.success) {
       toast.success(`"${effectiveTitle}" guardado en el Vault`);
-      saveActivity("create", "backupSavedToVault", "generator", { title: effectiveTitle });
+      saveActivity("create", `Códigos guardados en el Vault: ${effectiveTitle}`, "generator");
       setCodes([]);
     } else {
       toast.error(`Error al guardar: ${result.error || "Error desconocido"}`);
@@ -314,10 +322,8 @@ function BackupCodesGenerator() {
     bits < 20
       ? { label: t("strengthWeak"), color: "text-red-500" }
       : bits < 40
-        ? { label: t("strengthStrong"), color: "text-green-500" }
-        : { label: t("strengthVeryStrong"), color: "text-green-600" };
-
-  const copyAll = () => navigator.clipboard.writeText(codes.join("\n"));
+      ? { label: t("strengthStrong"), color: "text-green-500" }
+      : { label: t("strengthVeryStrong"), color: "text-green-600" };
 
   const downloadTxt = () => {
     if (codes.length === 0) {
@@ -338,7 +344,7 @@ function BackupCodesGenerator() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       toast.success(`Archivo "${effectiveTitle}.txt" descargado correctamente`);
-      saveActivity("download", "backupDownloaded", "generator", { title: effectiveTitle });
+      saveActivity("download", `Códigos descargados: ${effectiveTitle}.txt`, "generator");
     } catch (error) {
       console.error("Error al descargar:", error);
       toast.error("Error al descargar el archivo");
@@ -474,9 +480,7 @@ function BackupCodesGenerator() {
         <CardHeader className="flex flex-row items-center justify-between shrink-0">
           <CardTitle className="text-base">{t("generatedCodesTitle")}</CardTitle>
           {codes.length > 0 && (
-            <Button variant="outline" size="sm" onClick={copyAll}>
-              <Copy className="h-3.5 w-3.5 mr-1" /> {t("copyAllButton")}
-            </Button>
+            <CopyButton value={codes.join("\n")} label={t("copyAllButton")} variant="outline" size="sm" iconClassName="h-3.5 w-3.5" />
           )}
         </CardHeader>
 
@@ -506,9 +510,7 @@ function BackupCodesGenerator() {
                       {numberEach && <span className="text-muted-foreground mr-2">{String(i + 1).padStart(2, "0")}.</span>}
                       {code}
                     </span>
-                    <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(code)}>
-                      <Copy className="h-4 w-4" />
-                    </Button>
+                    <CopyButton value={code} />
                   </div>
                 ))}
               </div>
@@ -518,9 +520,7 @@ function BackupCodesGenerator() {
           {codes.length > 0 && (
             <div className="shrink-0 pt-4 border-t mt-4">
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={copyAll}>
-                  <Copy className="h-3.5 w-3.5 mr-1" /> {t("copyAllButton")}
-                </Button>
+                <CopyButton value={codes.join("\n")} label={t("copyAllButton")} variant="outline" size="sm" iconClassName="h-3.5 w-3.5" />
                 <Button variant="outline" size="sm" onClick={handleSaveToVault}>
                   <Save className="h-3.5 w-3.5 mr-1" /> {t("saveToVaultButton")}
                 </Button>
@@ -553,14 +553,14 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
     bits < 20
       ? { label: t("strengthWeak"), color: "text-red-500" }
       : bits < 40
-        ? { label: t("strengthStrong"), color: "text-green-500" }
-        : { label: t("strengthVeryStrong"), color: "text-green-600" };
+      ? { label: t("strengthStrong"), color: "text-green-500" }
+      : { label: t("strengthVeryStrong"), color: "text-green-600" };
 
   const handleGenerate = () => {
     const result = generatePassphrase(numWords, separator, capitalize, includeNumber);
     setValue(result);
     historyHook.addEntry(result);
-    saveActivity("generate", "passphraseGenerated", "generator", { count: String(numWords) });
+    saveActivity("generate", "Frase de contraseña generada", "generator", `${numWords} palabras`);
   };
 
   return (
@@ -611,13 +611,11 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
             <span className={`flex items-center gap-1 text-sm font-medium ${strength.color}`}>
               <span className="h-2 w-2 rounded-full bg-current inline-block" /> {strength.label}
             </span>
-            <span className="text-xs text-muted-foreground">{bits} {t("bitsPerCodeLabel").replace(" por código", "").replace("每个代码的", "").trim()}</span>
+            <span className="text-xs text-muted-foreground">{bits} {t("bitsLabel")}</span>
           </div>
           <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
             <span>{value}</span>
-            <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)}>
-              <Copy className="h-4 w-4" />
-            </Button>
+            <CopyButton value={value} />
           </div>
         </>
       )}
@@ -645,6 +643,12 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
     { id: "passphrase", label: t("tabPassphrase") },
   ];
 
+  const DESCRIPTIONS: Partial<Record<GeneratorTab, string>> = {
+    password: t("descPassword"),
+    username: t("descUsername"),
+    passphrase: t("descPassphrase"),
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="shrink-0">
@@ -656,8 +660,9 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
             <button
               key={tItem.id}
               onClick={() => setTab(tItem.id)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === tItem.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
-                }`}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+                tab === tItem.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
+              }`}
             >
               {tItem.label}
             </button>
@@ -682,6 +687,15 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
             </Card>
 
             <div className="flex flex-col gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">{t("aboutTitle")}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{DESCRIPTIONS[tab]}</CardDescription>
+                </CardContent>
+              </Card>
+
               {tab === "password" && <RecentHistoryCard history={passwordHistory.history} />}
               {tab === "username" && <RecentHistoryCard history={usernameHistory.history} />}
               {tab === "passphrase" && <RecentHistoryCard history={passphraseHistory.history} />}
@@ -717,7 +731,7 @@ function PasswordGenerator({
     setValue(result);
     if (result) {
       historyHook.addEntry(result);
-      saveActivity("generate", "passwordGenerated", "generator", { length: String(length) });
+      saveActivity("generate", "Contraseña generada", "generator", `${length} caracteres`);
     }
   };
 
@@ -756,9 +770,7 @@ function PasswordGenerator({
         <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
           <span>{value}</span>
           <div className="flex gap-1 shrink-0">
-            <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)} title={t("copyTooltip")}>
-              <Copy className="h-4 w-4" />
-            </Button>
+            <CopyButton value={value} title={t("copyTooltip")} />
             <Button variant="ghost" size="icon" onClick={() => onAddToVault(value)} title={t("addToVaultTooltip")}>
               <Save className="h-4 w-4" />
             </Button>
@@ -779,7 +791,7 @@ function UsernameGenerator({ historyHook }: { historyHook: ReturnType<typeof use
     const result = generateUsername(includeNumber);
     setValue(result);
     historyHook.addEntry(result);
-    saveActivity("generate", "usernameGenerated", "generator");
+    saveActivity("generate", "Usuario generado", "generator");
   };
 
   return (
@@ -792,9 +804,7 @@ function UsernameGenerator({ historyHook }: { historyHook: ReturnType<typeof use
       {value && (
         <div className="flex items-center justify-between border rounded p-2 font-mono break-all">
           <span>{value}</span>
-          <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(value)}>
-            <Copy className="h-4 w-4" />
-          </Button>
+          <CopyButton value={value} />
         </div>
       )}
     </div>

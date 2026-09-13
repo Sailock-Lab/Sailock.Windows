@@ -17,7 +17,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff, Star, RotateCcw, Search, Copy } from "lucide-react";
+import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff, Star, RotateCcw, Search } from "lucide-react";
+import { CopyButton } from "@/components/CopyButton";
 import { useActivity } from "@/hooks/useActivity";
 
 interface CustomFieldData {
@@ -329,9 +330,7 @@ function TotpDisplay({ secret, accountName }: { secret: string; accountName: str
         <p className="font-mono text-lg tracking-widest">{code || "------"}</p>
         <p className="text-xs text-muted-foreground">{t("totpRenews", { seconds: secondsLeft })}</p>
       </div>
-      <Button variant="ghost" size="icon" onClick={() => code && navigator.clipboard.writeText(code)}>
-        <Copy className="h-4 w-4" />
-      </Button>
+      <CopyButton value={code} />
     </div>
   );
 }

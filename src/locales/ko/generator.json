@@ -70,6 +70,7 @@
     "strengthStrong": "強い",
     "strengthVeryStrong": "非常に強い",
     "bitsPerCodeLabel": "コードあたりのビット数",
+    "bitsLabel": "비트",
     "singleUseNotice": "各コードは一度しか使用できません。リストは安全な場所に保管してください。",
     "emptyStateHint": "オプションを設定して「新しいバッチを生成」を押してください。",
     "saveToVaultButton": "保管庫に保存",

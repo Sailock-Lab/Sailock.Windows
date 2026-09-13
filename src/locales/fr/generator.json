@@ -70,6 +70,7 @@
     "strengthStrong": "Fort",
     "strengthVeryStrong": "Très fort",
     "bitsPerCodeLabel": "bits par code",
+    "bitsLabel": "bits",
     "singleUseNotice": "Chaque code est à usage unique. Conservez la liste dans un endroit sûr.",
     "emptyStateHint": "Configurez les options et cliquez sur « Générer un nouveau lot ».",
     "saveToVaultButton": "Enregistrer dans le Coffre-fort",

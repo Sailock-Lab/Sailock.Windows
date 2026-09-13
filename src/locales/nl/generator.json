@@ -70,6 +70,7 @@
     "strengthStrong": "Sterk",
     "strengthVeryStrong": "Zeer sterk",
     "bitsPerCodeLabel": "bits per code",
+    "bitsLabel": "bits",
     "singleUseNotice": "Elke code is eenmalig bruikbaar. Bewaar de lijst op een veilige plek.",
     "emptyStateHint": "Stel de opties in en druk op \"Nieuwe reeks genereren\".",
     "saveToVaultButton": "Opslaan in Kluis",

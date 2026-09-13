@@ -70,6 +70,7 @@
     "strengthStrong": "Forte",
     "strengthVeryStrong": "Muito forte",
     "bitsPerCodeLabel": "bits por código",
+    "bitsLabel": "бит",
     "singleUseNotice": "Cada código é de uso único. Guarde a lista em um local seguro.",
     "emptyStateHint": "Configure as opções e clique em \"Gerar novo lote\".",
     "saveToVaultButton": "Salvar no Cofre",

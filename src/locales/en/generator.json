@@ -70,6 +70,7 @@
     "strengthStrong": "Strong",
     "strengthVeryStrong": "Very strong",
     "bitsPerCodeLabel": "bits per code",
+    "bitsLabel": "bits",
     "singleUseNotice": "Each code is single-use. Keep the list somewhere safe.",
     "emptyStateHint": "Configure the options and press \"Generate new batch\".",
     "saveToVaultButton": "Save to Vault",

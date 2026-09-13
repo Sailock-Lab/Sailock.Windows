@@ -70,6 +70,7 @@
     "strengthStrong": "Silne",
     "strengthVeryStrong": "Bardzo silne",
     "bitsPerCodeLabel": "bitów na kod",
+    "bitsLabel": "bitów",
     "singleUseNotice": "Każdy kod jest jednorazowego użytku. Przechowuj listę w bezpiecznym miejscu.",
     "emptyStateHint": "Skonfiguruj opcje i naciśnij „Wygeneruj nową partię”.",
     "saveToVaultButton": "Zapisz w Sejfie",

@@ -70,6 +70,7 @@
     "strengthStrong": "Stark",
     "strengthVeryStrong": "Sehr stark",
     "bitsPerCodeLabel": "Bit pro Code",
+    "bitsLabel": "Bit",
     "singleUseNotice": "Jeder Code ist nur einmal verwendbar. Bewahre die Liste an einem sicheren Ort auf.",
     "emptyStateHint": "Konfiguriere die Optionen und klicke auf „Neuen Stapel generieren“.",
     "saveToVaultButton": "Im Tresor speichern",

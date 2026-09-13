@@ -70,6 +70,7 @@
     "strengthStrong": "强",
     "strengthVeryStrong": "非常强",
     "bitsPerCodeLabel": "每个代码的比特数",
+    "bitsLabel": "比特",
     "singleUseNotice": "每个代码仅可使用一次。请将列表保存在安全的地方。",
     "emptyStateHint": "配置选项后点击“生成新批次”。",
     "saveToVaultButton": "保存到保管库",
