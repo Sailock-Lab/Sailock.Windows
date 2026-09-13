@@ -81,5 +81,14 @@
     "modeSkipDuplicates": "Hinzufügen, Duplikate nach Name überspringen",
     "modeReplaceAll": "Den gesamten Tresor ersetzen",
     "stateOn": "aktiviert",
-    "stateOff": "deaktiviert"
+    "stateOff": "deaktiviert",
+    "clearPasswordDescription": "Gib dein Master-Passwort ein, um zu bestätigen, dass du den gesamten Aktivitätsverlauf löschen möchtest.",
+    "exportPasswordDescription": "Gib dein Master-Passwort ein, um zu bestätigen, dass du den Aktivitätsverlauf exportieren möchtest.",
+    "masterPasswordPlaceholder": "Master-Passwort",
+    "passwordRequiredError": "Gib dein Master-Passwort ein",
+    "wrongPasswordError": "Falsches Master-Passwort",
+    "verifyingButton": "Wird überprüft...",
+    "confirmButton": "Bestätigen",
+    "event_backupCodesGenerated": "Neue 2FA-Wiederherstellungscodes generiert",
+    "event_loginWithBackupCode": "Angemeldet mit einem Wiederherstellungscode"
 }

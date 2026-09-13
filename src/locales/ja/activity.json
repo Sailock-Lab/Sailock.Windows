@@ -79,5 +79,14 @@
     "modeSkipDuplicates": "名前が重複する項目を除いて追加",
     "modeReplaceAll": "保管庫全体を置き換える",
     "stateOn": "有効",
-    "stateOff": "無効"
+    "stateOff": "無効",
+    "clearPasswordDescription": "アクティビティ履歴全体を削除することを確認するため、マスターパスワードを入力してください。",
+    "exportPasswordDescription": "アクティビティ履歴をエクスポートすることを確認するため、マスターパスワードを入力してください。",
+    "masterPasswordPlaceholder": "マスターパスワード",
+    "passwordRequiredError": "マスターパスワードを入力してください",
+    "wrongPasswordError": "マスターパスワードが正しくありません",
+    "verifyingButton": "確認中...",
+    "confirmButton": "確認",
+    "event_backupCodesGenerated": "新しい2FA復旧コードを生成しました",
+    "event_loginWithBackupCode": "復旧コードを使用してログインしました"
 }

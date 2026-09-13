@@ -69,5 +69,10 @@
     "detailTotp": "Código de verificação (TOTP)",
     "totpRenews": "Renova em {{seconds}}s",
     "detailWebsite": "Site",
-    "detailNotes": "Notas"
+    "detailNotes": "Notas",
+    "useBackupCodeLink": "Perdeu o acesso ao seu app autenticador?",
+    "backupCodePlaceholder": "Código de recuperação",
+    "verifyBackupCodeButton": "Verificar",
+    "useTotpCodeLink": "Usar o código do app em vez disso",
+    "backupCodeErrorIncorrect": "Código incorreto ou já utilizado"
 }

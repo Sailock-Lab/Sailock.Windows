@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "Vergrendelt de sessie wanneer het venster wordt geminimaliseerd",
     "systemCardTitle": "Systeem",
     "startWithWindowsLabel": "Starten met Windows",
-    "startWithWindowsDescription": "Slaat de voorkeur op; echte Windows-integratie ontbreekt nog",
+    "startWithWindowsDescription": "Sailock start automatisch wanneer je je pc aanzet",
     "minimizeToTrayLabel": "Minimaliseren naar systeemvak",
     "minimizeToTrayDescription": "Slaat de voorkeur op; echte integratie ontbreekt nog",
     "autoUpdateLabel": "Automatische updates",
@@ -133,5 +133,15 @@
     "textSizeLabel": "Tekstgrootte",
     "textSizeSmall": "Klein",
     "textSizeNormal": "Normaal",
-    "textSizeLarge": "Groot"
+    "textSizeLarge": "Groot",
+    "backupCodesRemainingCount_one": "{{count}} ongebruikte code",
+    "backupCodesRemainingCount_other": "{{count}} ongebruikte codes",
+    "backupCodesRequiresTotp": "Schakel dit in nadat je tweestapsverificatie hebt ingesteld",
+    "backupCodesGenerateButton": "Nieuwe codes genereren",
+    "backupCodesDialogTitle": "Herstelcodes",
+    "backupCodesConfirmDescription": "Voer je hoofdwachtwoord in om een nieuwe reeks te genereren. Dit maakt eerdere codes ongeldig.",
+    "backupCodesShownOnceWarning": "Bewaar deze codes op een veilige plek — ze worden niet opnieuw getoond. Elke code werkt maar één keer.",
+    "backupCodesCopyAllButton": "Alles kopiëren",
+    "backupCodesDownloadButton": "Downloaden",
+    "backupCodesDoneButton": "Klaar"
 }

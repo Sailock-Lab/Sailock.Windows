@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "Verrouille la session lorsque la fenêtre est réduite",
     "systemCardTitle": "Système",
     "startWithWindowsLabel": "Démarrer avec Windows",
-    "startWithWindowsDescription": "Enregistre la préférence ; l'intégration réelle avec Windows est manquante",
+    "startWithWindowsDescription": "Sailock se lancera automatiquement au démarrage de votre PC",
     "minimizeToTrayLabel": "Réduire dans la barre d'état",
     "minimizeToTrayDescription": "Enregistre la préférence ; l'intégration réelle est manquante",
     "autoUpdateLabel": "Mises à jour automatiques",
@@ -133,5 +133,15 @@
     "textSizeLabel": "Taille du texte",
     "textSizeSmall": "Petite",
     "textSizeNormal": "Normale",
-    "textSizeLarge": "Grande"
+    "textSizeLarge": "Grande",
+    "backupCodesRemainingCount_one": "{{count}} code non utilisé",
+    "backupCodesRemainingCount_other": "{{count}} codes non utilisés",
+    "backupCodesRequiresTotp": "Activez-la après avoir configuré la vérification en deux étapes",
+    "backupCodesGenerateButton": "Générer de nouveaux codes",
+    "backupCodesDialogTitle": "Codes de récupération",
+    "backupCodesConfirmDescription": "Entrez votre mot de passe principal pour générer un nouveau lot. Cela invalide les codes précédents.",
+    "backupCodesShownOnceWarning": "Conservez ces codes en lieu sûr — ils ne seront plus jamais affichés. Chacun ne fonctionne qu'une seule fois.",
+    "backupCodesCopyAllButton": "Tout copier",
+    "backupCodesDownloadButton": "Télécharger",
+    "backupCodesDoneButton": "Terminé"
 }

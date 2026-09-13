@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "Блокирует сеанс при сворачивании окна",
     "systemCardTitle": "Система",
     "startWithWindowsLabel": "Запускать с Windows",
-    "startWithWindowsDescription": "Сохраняет настройку; реальной интеграции с Windows пока нет",
+    "startWithWindowsDescription": "Sailock будет запускаться автоматически при включении ПК",
     "minimizeToTrayLabel": "Сворачивать в трей",
     "minimizeToTrayDescription": "Сохраняет настройку; реальной интеграции пока нет",
     "autoUpdateLabel": "Автоматические обновления",
@@ -133,5 +133,17 @@
     "textSizeLabel": "Размер текста",
     "textSizeSmall": "Маленький",
     "textSizeNormal": "Обычный",
-    "textSizeLarge": "Крупный"
+    "textSizeLarge": "Крупный",
+    "backupCodesRemainingCount_one": "{{count}} неиспользованный код",
+    "backupCodesRemainingCount_few": "{{count}} неиспользованных кода",
+    "backupCodesRemainingCount_many": "{{count}} неиспользованных кодов",
+    "backupCodesRemainingCount_other": "{{count}} неиспользованных кода",
+    "backupCodesRequiresTotp": "Включите её после настройки двухэтапной проверки",
+    "backupCodesGenerateButton": "Сгенерировать новые коды",
+    "backupCodesDialogTitle": "Коды восстановления",
+    "backupCodesConfirmDescription": "Введите мастер-пароль, чтобы сгенерировать новый набор. Это аннулирует все предыдущие коды.",
+    "backupCodesShownOnceWarning": "Сохраните эти коды в надёжном месте — они больше не будут показаны. Каждый код работает только один раз.",
+    "backupCodesCopyAllButton": "Копировать все",
+    "backupCodesDownloadButton": "Скачать",
+    "backupCodesDoneButton": "Готово"
 }

@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "Blokuje sesję po zminimalizowaniu okna",
     "systemCardTitle": "System",
     "startWithWindowsLabel": "Uruchamiaj z Windows",
-    "startWithWindowsDescription": "Zapisuje preferencję; brakuje rzeczywistej integracji z Windows",
+    "startWithWindowsDescription": "Sailock uruchomi się automatycznie po włączeniu komputera",
     "minimizeToTrayLabel": "Minimalizuj do zasobnika systemowego",
     "minimizeToTrayDescription": "Zapisuje preferencję; brakuje rzeczywistej integracji",
     "autoUpdateLabel": "Automatyczne aktualizacje",
@@ -133,5 +133,17 @@
     "textSizeLabel": "Rozmiar tekstu",
     "textSizeSmall": "Mały",
     "textSizeNormal": "Normalny",
-    "textSizeLarge": "Duży"
+    "textSizeLarge": "Duży",
+    "backupCodesRemainingCount_one": "{{count}} nieużyty kod",
+    "backupCodesRemainingCount_few": "{{count}} nieużyte kody",
+    "backupCodesRemainingCount_many": "{{count}} nieużytych kodów",
+    "backupCodesRemainingCount_other": "{{count}} nieużytych kodów",
+    "backupCodesRequiresTotp": "Włącz to po skonfigurowaniu weryfikacji dwuetapowej",
+    "backupCodesGenerateButton": "Wygeneruj nowe kody",
+    "backupCodesDialogTitle": "Kody odzyskiwania",
+    "backupCodesConfirmDescription": "Wprowadź hasło główne, aby wygenerować nową partię. Unieważni to poprzednie kody.",
+    "backupCodesShownOnceWarning": "Zapisz te kody w bezpiecznym miejscu — nie zostaną ponownie wyświetlone. Każdy działa tylko raz.",
+    "backupCodesCopyAllButton": "Kopiuj wszystkie",
+    "backupCodesDownloadButton": "Pobierz",
+    "backupCodesDoneButton": "Gotowe"
 }

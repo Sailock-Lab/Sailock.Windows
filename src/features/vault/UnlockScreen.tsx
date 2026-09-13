@@ -153,6 +153,8 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   const [error, setError] = useState("");
   const [needsTotp, setNeedsTotp] = useState(false);
   const [totpCode, setTotpCode] = useState("");
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [backupCode, setBackupCode] = useState("");
   const { saveActivity } = useActivity();
 
   useEffect(() => {
@@ -212,6 +214,21 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
     }
   };
 
+  const handleVerifyBackupCode = async () => {
+    setError("");
+    try {
+      const ok = await invoke<boolean>("totp_verify_backup_code", { code: backupCode });
+      if (ok) {
+        await saveActivity("login", "loginWithBackupCode", "system");
+        onUnlock();
+      } else {
+        setError(t("backupCodeErrorIncorrect"));
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   if (checking) return null;
 
   if (needsTotp) {
@@ -235,15 +252,51 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
               <CardDescription>{t("totpDescription")}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <Input
-                placeholder={t("totpPlaceholder")}
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
-                autoFocus
-              />
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button size="lg" onClick={handleVerifyTotp}>{t("totpVerifyButton")}</Button>
+              {!useBackupCode ? (
+                <>
+                  <Input
+                    placeholder={t("totpPlaceholder")}
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
+                    autoFocus
+                  />
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                  <Button size="lg" onClick={handleVerifyTotp}>{t("totpVerifyButton")}</Button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseBackupCode(true);
+                      setError("");
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline self-center"
+                  >
+                    {t("useBackupCodeLink")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Input
+                    placeholder={t("backupCodePlaceholder")}
+                    value={backupCode}
+                    onChange={(e) => setBackupCode(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleVerifyBackupCode()}
+                    autoFocus
+                  />
+                  {error && <p className="text-sm text-destructive">{error}</p>}
+                  <Button size="lg" onClick={handleVerifyBackupCode}>{t("verifyBackupCodeButton")}</Button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseBackupCode(false);
+                      setError("");
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline self-center"
+                  >
+                    {t("useTotpCodeLink")}
+                  </button>
+                </>
+              )}
             </CardContent>
           </Card>
         </motion.div>

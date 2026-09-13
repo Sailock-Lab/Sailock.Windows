@@ -69,5 +69,10 @@
     "detailTotp": "확인 코드 (TOTP)",
     "totpRenews": "{{seconds}}초 후 갱신",
     "detailWebsite": "웹사이트",
-    "detailNotes": "메모"
+    "detailNotes": "메모",
+    "useBackupCodeLink": "인증 앱에 접근할 수 없나요?",
+    "backupCodePlaceholder": "복구 코드",
+    "verifyBackupCodeButton": "확인",
+    "useTotpCodeLink": "대신 앱 코드 사용하기",
+    "backupCodeErrorIncorrect": "코드가 올바르지 않거나 이미 사용되었습니다"
 }

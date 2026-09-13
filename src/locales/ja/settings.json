@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "ウィンドウが最小化されたときにセッションをロックします",
     "systemCardTitle": "システム",
     "startWithWindowsLabel": "Windows起動時に開始",
-    "startWithWindowsDescription": "設定は保存されますが、実際のWindows連携はまだありません",
+    "startWithWindowsDescription": "PCの起動時にSailockが自動的に起動します",
     "minimizeToTrayLabel": "トレイに最小化",
     "minimizeToTrayDescription": "設定は保存されますが、実際の連携はまだありません",
     "autoUpdateLabel": "自動アップデート",
@@ -133,5 +133,14 @@
     "textSizeLabel": "文字サイズ",
     "textSizeSmall": "小",
     "textSizeNormal": "標準",
-    "textSizeLarge": "大"
+    "textSizeLarge": "大",
+    "backupCodesRemainingCount_other": "未使用のコード {{count}} 個",
+    "backupCodesRequiresTotp": "二段階認証を設定した後に有効にしてください",
+    "backupCodesGenerateButton": "新しいコードを生成",
+    "backupCodesDialogTitle": "復旧コード",
+    "backupCodesConfirmDescription": "新しいセットを生成するには、マスターパスワードを入力してください。これにより以前のコードは無効になります。",
+    "backupCodesShownOnceWarning": "これらのコードは安全な場所に保管してください。再表示されることはありません。各コードは一度しか使用できません。",
+    "backupCodesCopyAllButton": "すべてコピー",
+    "backupCodesDownloadButton": "ダウンロード",
+    "backupCodesDoneButton": "完了"
 }

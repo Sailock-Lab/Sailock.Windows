@@ -69,5 +69,10 @@
     "detailTotp": "Verifizierungscode (TOTP)",
     "totpRenews": "Erneuert sich in {{seconds}}s",
     "detailWebsite": "Webseite",
-    "detailNotes": "Notizen"
+    "detailNotes": "Notizen",
+    "useBackupCodeLink": "Zugriff auf deine Authenticator-App verloren?",
+    "backupCodePlaceholder": "Wiederherstellungscode",
+    "verifyBackupCodeButton": "Bestätigen",
+    "useTotpCodeLink": "Stattdessen den App-Code verwenden",
+    "backupCodeErrorIncorrect": "Falscher oder bereits verwendeter Code"
 }

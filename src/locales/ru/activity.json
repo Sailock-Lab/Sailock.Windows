@@ -85,5 +85,14 @@
     "modeSkipDuplicates": "Добавить, пропуская дубликаты по имени",
     "modeReplaceAll": "Заменить всё хранилище",
     "stateOn": "включено",
-    "stateOff": "выключено"
+    "stateOff": "выключено",
+    "clearPasswordDescription": "Введите мастер-пароль, чтобы подтвердить удаление всей истории активности.",
+    "exportPasswordDescription": "Введите мастер-пароль, чтобы подтвердить экспорт истории активности.",
+    "masterPasswordPlaceholder": "Мастер-пароль",
+    "passwordRequiredError": "Введите мастер-пароль",
+    "wrongPasswordError": "Неверный мастер-пароль",
+    "verifyingButton": "Проверка...",
+    "confirmButton": "Подтвердить",
+    "event_backupCodesGenerated": "Сгенерированы новые коды восстановления 2FA",
+    "event_loginWithBackupCode": "Выполнен вход с помощью кода восстановления"
 }

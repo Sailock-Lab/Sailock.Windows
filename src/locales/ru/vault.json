@@ -69,5 +69,10 @@
     "detailTotp": "Код подтверждения (TOTP)",
     "totpRenews": "Обновится через {{seconds}}с",
     "detailWebsite": "Сайт",
-    "detailNotes": "Заметки"
+    "detailNotes": "Заметки",
+    "useBackupCodeLink": "Потеряли доступ к приложению-аутентификатору?",
+    "backupCodePlaceholder": "Код восстановления",
+    "verifyBackupCodeButton": "Подтвердить",
+    "useTotpCodeLink": "Использовать код из приложения вместо этого",
+    "backupCodeErrorIncorrect": "Неверный или уже использованный код"
 }

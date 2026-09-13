@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "Locks the session when the window is minimized",
     "systemCardTitle": "System",
     "startWithWindowsLabel": "Start with Windows",
-    "startWithWindowsDescription": "Saves the preference; real Windows integration is missing",
+    "startWithWindowsDescription": "Sailock will launch automatically when you start your PC",
     "minimizeToTrayLabel": "Minimize to tray",
     "minimizeToTrayDescription": "Saves the preference; real integration is missing",
     "autoUpdateLabel": "Automatic updates",
@@ -133,5 +133,15 @@
     "textSizeLabel": "Text size",
     "textSizeSmall": "Small",
     "textSizeNormal": "Normal",
-    "textSizeLarge": "Large"
+    "textSizeLarge": "Large",
+    "backupCodesRemainingCount_one": "{{count}} unused code",
+    "backupCodesRemainingCount_other": "{{count}} unused codes",
+    "backupCodesRequiresTotp": "Enable it after setting up two-step verification",
+    "backupCodesGenerateButton": "Generate new codes",
+    "backupCodesDialogTitle": "Recovery codes",
+    "backupCodesConfirmDescription": "Enter your master password to generate a new batch. This invalidates any previous codes.",
+    "backupCodesShownOnceWarning": "Save these codes somewhere safe — they won't be shown again. Each one works only once.",
+    "backupCodesCopyAllButton": "Copy all",
+    "backupCodesDownloadButton": "Download",
+    "backupCodesDoneButton": "Done"
 }

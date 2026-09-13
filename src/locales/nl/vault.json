@@ -69,5 +69,10 @@
     "detailTotp": "Verificatiecode (TOTP)",
     "totpRenews": "Vernieuwt over {{seconds}}s",
     "detailWebsite": "Website",
-    "detailNotes": "Notities"
+    "detailNotes": "Notities",
+    "useBackupCodeLink": "Geen toegang meer tot je authenticator-app?",
+    "backupCodePlaceholder": "Herstelcode",
+    "verifyBackupCodeButton": "Verifiëren",
+    "useTotpCodeLink": "Gebruik in plaats daarvan de app-code",
+    "backupCodeErrorIncorrect": "Onjuiste of al gebruikte code"
 }

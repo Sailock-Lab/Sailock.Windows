@@ -81,5 +81,14 @@
     "modeSkipDuplicates": "Aggiungi, saltando i duplicati per nome",
     "modeReplaceAll": "Sostituisci tutto l'archivio",
     "stateOn": "attivato",
-    "stateOff": "disattivato"
+    "stateOff": "disattivato",
+    "clearPasswordDescription": "Inserisci la tua password principale per confermare che vuoi eliminare tutta la cronologia delle attività.",
+    "exportPasswordDescription": "Inserisci la tua password principale per confermare che vuoi esportare la cronologia delle attività.",
+    "masterPasswordPlaceholder": "Password principale",
+    "passwordRequiredError": "Inserisci la tua password principale",
+    "wrongPasswordError": "Password principale errata",
+    "verifyingButton": "Verifica in corso...",
+    "confirmButton": "Conferma",
+    "event_backupCodesGenerated": "Generati nuovi codici di recupero 2FA",
+    "event_loginWithBackupCode": "Accesso effettuato con un codice di recupero"
 }

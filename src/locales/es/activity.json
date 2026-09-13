@@ -81,5 +81,14 @@
     "modeSkipDuplicates": "Añadir, omitiendo duplicados por nombre",
     "modeReplaceAll": "Reemplazar todo el vault",
     "stateOn": "activado",
-    "stateOff": "desactivado"
+    "stateOff": "desactivado",
+    "clearPasswordDescription": "Introduce tu contraseña maestra para confirmar que quieres eliminar todo el historial de actividades.",
+    "exportPasswordDescription": "Introduce tu contraseña maestra para confirmar que quieres exportar el historial de actividades.",
+    "masterPasswordPlaceholder": "Contraseña maestra",
+    "passwordRequiredError": "Introduce tu contraseña maestra",
+    "wrongPasswordError": "Contraseña maestra incorrecta",
+    "verifyingButton": "Verificando...",
+    "confirmButton": "Confirmar",
+    "event_backupCodesGenerated": "Nuevos códigos de recuperación del 2FA generados",
+    "event_loginWithBackupCode": "Inicio de sesión con un código de recuperación"
 }

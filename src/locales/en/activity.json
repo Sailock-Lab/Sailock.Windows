@@ -81,5 +81,14 @@
     "modeSkipDuplicates": "Add, skipping duplicates by name",
     "modeReplaceAll": "Replace the entire vault",
     "stateOn": "on",
-    "stateOff": "off"
+    "stateOff": "off",
+    "clearPasswordDescription": "Enter your master password to confirm you want to delete the entire activity history.",
+    "exportPasswordDescription": "Enter your master password to confirm you want to export the activity history.",
+    "masterPasswordPlaceholder": "Master password",
+    "passwordRequiredError": "Enter your master password",
+    "wrongPasswordError": "Incorrect master password",
+    "verifyingButton": "Verifying...",
+    "confirmButton": "Confirm",
+    "event_backupCodesGenerated": "New 2FA recovery codes generated",
+    "event_loginWithBackupCode": "Signed in using a recovery code"
 }

@@ -31,18 +31,19 @@ import {
   AlertTriangle,
   Smartphone,
   Power,
-  Eye,
-  EyeOff,
   Lock,
   X,
   Accessibility,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
+import { CopyButton } from "@/components/CopyButton";
 import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
 import { AutoLockDuration, TextSize, getStoredBool, storeBool } from "@/lib/appSettings";
 import i18n from "@/i18n";
 import { LANGUAGE_LABELS } from "@/i18n/languages";
+import { isEnabled as isAutostartEnabled, enable as enableAutostart, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 
 type DeleteStep = "confirm" | "password" | "confirmType" | "deleting";
 
@@ -126,6 +127,129 @@ function TotpSetupDialog({ onEnabled }: { onEnabled: () => void }) {
               <Button className="w-full" onClick={confirm} disabled={step === "verifying" || code.length < 6}>
                 {step === "verifying" ? t("totpVerifyingButton") : t("totpConfirmButton")}
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+type BackupCodesStep = "confirm" | "codes";
+
+function BackupCodesDialog({ onGenerated }: { onGenerated: (count: number) => void }) {
+  const { t } = useTranslation("settings");
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<BackupCodesStep>("confirm");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+  const [codes, setCodes] = useState<string[]>([]);
+  const { saveActivity } = useActivity();
+
+  const reset = () => {
+    setStep("confirm");
+    setPassword("");
+    setError("");
+    setVerifying(false);
+    setCodes([]);
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) reset();
+  };
+
+  const handleGenerate = async () => {
+    if (!password) {
+      setError(t("deleteEnterPasswordError"));
+      return;
+    }
+    setVerifying(true);
+    setError("");
+    try {
+      const ok = await invoke<boolean>("verify_master_password", { masterPassword: password });
+      if (!ok) {
+        setError(t("deleteWrongPasswordError"));
+        setVerifying(false);
+        return;
+      }
+      const newCodes = await invoke<string[]>("totp_generate_backup_codes");
+      setCodes(newCodes);
+      setStep("codes");
+      saveActivity("create", "backupCodesGenerated", "settings");
+      onGenerated(newCodes.length);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const downloadCodes = () => {
+    const blob = new Blob([codes.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sailock_backup_codes.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <KeyRound className="h-4 w-4 mr-2" />
+        {t("backupCodesGenerateButton")}
+      </Button>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("backupCodesDialogTitle")}</DialogTitle>
+            <DialogDescription>
+              {step === "confirm" ? t("backupCodesConfirmDescription") : t("backupCodesShownOnceWarning")}
+            </DialogDescription>
+          </DialogHeader>
+
+          {step === "confirm" && (
+            <div className="flex flex-col gap-3">
+              <Input
+                type="password"
+                placeholder={t("deleteMasterPasswordPlaceholder")}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
+                autoFocus
+              />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button onClick={handleGenerate} disabled={verifying}>
+                {verifying ? t("deleteVerifyingButton") : t("backupCodesGenerateButton")}
+              </Button>
+            </div>
+          )}
+
+          {step === "codes" && (
+            <div className="flex flex-col gap-3">
+              <div className="bg-muted p-3 rounded-md font-mono text-sm grid grid-cols-2 gap-2">
+                {codes.map((code) => (
+                  <span key={code}>{code}</span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <CopyButton
+                  value={codes.join("\n")}
+                  label={t("backupCodesCopyAllButton")}
+                  variant="outline"
+                  size="sm"
+                  iconClassName="h-3.5 w-3.5"
+                />
+                <Button variant="outline" size="sm" onClick={downloadCodes}>
+                  <Download className="h-3.5 w-3.5 mr-1" /> {t("backupCodesDownloadButton")}
+                </Button>
+              </div>
+              <Button onClick={() => handleOpenChange(false)}>{t("backupCodesDoneButton")}</Button>
             </div>
           )}
         </DialogContent>
@@ -488,9 +612,9 @@ export function SettingsView({
 
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const [language, setLanguage] = useState(i18n.language);
-  const [startWithWindows, setStartWithWindows] = useState(() => getStoredBool("startWithWindows", false));
-  const [showBackupCodes, setShowBackupCodes] = useState(false);
+  const [startWithWindows, setStartWithWindows] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
+  const [backupCodesRemaining, setBackupCodesRemaining] = useState<number | null>(null);
   const { saveActivity } = useActivity();
 
   const [deleteStep, setDeleteStep] = useState<DeleteStep>("confirm");
@@ -504,6 +628,18 @@ export function SettingsView({
       .then(setTotpEnabled)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    isAutostartEnabled().then(setStartWithWindows).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (totpEnabled) {
+      invoke<number>("totp_backup_codes_remaining").then(setBackupCodesRemaining).catch(() => {});
+    } else {
+      setBackupCodesRemaining(null);
+    }
+  }, [totpEnabled]);
 
   const handleDisableTotp = async () => {
     await invoke("totp_disable");
@@ -541,10 +677,18 @@ export function SettingsView({
     saveActivity("edit", "lockOnMinimizeToggled", "settings", { state: value ? "on" : "off" });
   };
 
-  const handleStartWithWindowsChange = (value: boolean) => {
-    setStartWithWindows(value);
-    storeBool("startWithWindows", value);
-    saveActivity("edit", "startWithWindowsToggled", "settings", { state: value ? "on" : "off" });
+  const handleStartWithWindowsChange = async (value: boolean) => {
+    try {
+      if (value) {
+        await enableAutostart();
+      } else {
+        await disableAutostart();
+      }
+      setStartWithWindows(value);
+      saveActivity("edit", "startWithWindowsToggled", "settings", { state: value ? "on" : "off" });
+    } catch (e) {
+      toast.error(String(e));
+    }
   };
 
   const handleReduceMotionChange = (value: boolean) => {
@@ -682,23 +826,6 @@ export function SettingsView({
             </CardTitle>
             <CardDescription className="text-sm mb-4">{t("securityCardDescription")}</CardDescription>
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{t("backupCodesLabel")}</p>
-                  <p className="text-xs text-muted-foreground">{t("backupCodesDescription")}</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setShowBackupCodes(!showBackupCodes)}>
-                  {showBackupCodes ? <EyeOff className="h-4 w-4 mr-2" /> : <Eye className="h-4 w-4 mr-2" />}
-                  {showBackupCodes ? t("hideCodesButton") : t("viewCodesButton")}
-                </Button>
-              </div>
-              {showBackupCodes && (
-                <div className="bg-muted p-3 rounded-md font-mono text-sm grid grid-cols-2 gap-1">
-                  {Array.from({ length: 10 }, (_, i) => (
-                    <span key={i}>XXXX-XXXX-XXXX</span>
-                  ))}
-                </div>
-              )}
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
                   <p className="text-sm font-medium">{t("totpLabel")}</p>
@@ -725,6 +852,19 @@ export function SettingsView({
                 ) : (
                   <TotpSetupDialog onEnabled={() => setTotpEnabled(true)} />
                 )}
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div>
+                  <p className="text-sm font-medium">{t("backupCodesLabel")}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {!totpEnabled
+                      ? t("backupCodesRequiresTotp")
+                      : backupCodesRemaining === null
+                      ? t("backupCodesDescription")
+                      : t("backupCodesRemainingCount", { count: backupCodesRemaining })}
+                  </p>
+                </div>
+                {totpEnabled && <BackupCodesDialog onGenerated={setBackupCodesRemaining} />}
               </div>
             </div>
           </div>

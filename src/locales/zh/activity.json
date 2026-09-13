@@ -79,5 +79,14 @@
     "modeSkipDuplicates": "添加，跳过按名称重复的条目",
     "modeReplaceAll": "替换整个保管库",
     "stateOn": "开启",
-    "stateOff": "关闭"
+    "stateOff": "关闭",
+    "clearPasswordDescription": "请输入主密码以确认要删除全部活动历史记录。",
+    "exportPasswordDescription": "请输入主密码以确认要导出活动历史记录。",
+    "masterPasswordPlaceholder": "主密码",
+    "passwordRequiredError": "请输入主密码",
+    "wrongPasswordError": "主密码不正确",
+    "verifyingButton": "验证中...",
+    "confirmButton": "确认",
+    "event_backupCodesGenerated": "已生成新的双重验证恢复代码",
+    "event_loginWithBackupCode": "已使用恢复代码登录"
 }

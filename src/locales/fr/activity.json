@@ -81,5 +81,14 @@
     "modeSkipDuplicates": "Ajouter, en ignorant les doublons par nom",
     "modeReplaceAll": "Remplacer tout le coffre-fort",
     "stateOn": "activé",
-    "stateOff": "désactivé"
+    "stateOff": "désactivé",
+    "clearPasswordDescription": "Entrez votre mot de passe principal pour confirmer que vous voulez supprimer tout l'historique d'activité.",
+    "exportPasswordDescription": "Entrez votre mot de passe principal pour confirmer que vous voulez exporter l'historique d'activité.",
+    "masterPasswordPlaceholder": "Mot de passe principal",
+    "passwordRequiredError": "Entrez votre mot de passe principal",
+    "wrongPasswordError": "Mot de passe principal incorrect",
+    "verifyingButton": "Vérification...",
+    "confirmButton": "Confirmer",
+    "event_backupCodesGenerated": "Nouveaux codes de récupération 2FA générés",
+    "event_loginWithBackupCode": "Connexion effectuée avec un code de récupération"
 }

@@ -79,5 +79,14 @@
     "modeSkipDuplicates": "이름이 같은 중복 항목은 건너뛰고 추가",
     "modeReplaceAll": "보관함 전체 교체",
     "stateOn": "켜짐",
-    "stateOff": "꺼짐"
+    "stateOff": "꺼짐",
+    "clearPasswordDescription": "전체 활동 기록을 삭제하려는 것이 맞는지 확인하기 위해 마스터 비밀번호를 입력하세요.",
+    "exportPasswordDescription": "활동 기록을 내보내려는 것이 맞는지 확인하기 위해 마스터 비밀번호를 입력하세요.",
+    "masterPasswordPlaceholder": "마스터 비밀번호",
+    "passwordRequiredError": "마스터 비밀번호를 입력하세요",
+    "wrongPasswordError": "마스터 비밀번호가 올바르지 않습니다",
+    "verifyingButton": "확인 중...",
+    "confirmButton": "확인",
+    "event_backupCodesGenerated": "새로운 2FA 복구 코드가 생성됨",
+    "event_loginWithBackupCode": "복구 코드로 로그인함"
 }

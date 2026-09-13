@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "Bloqueia a sessão quando a janela é minimizada",
     "systemCardTitle": "Sistema",
     "startWithWindowsLabel": "Iniciar com o Windows",
-    "startWithWindowsDescription": "Salva a preferência; falta a integração real com o Windows",
+    "startWithWindowsDescription": "O Sailock será iniciado automaticamente ao ligar o PC",
     "minimizeToTrayLabel": "Minimizar para a bandeja",
     "minimizeToTrayDescription": "Salva a preferência; falta a integração real",
     "autoUpdateLabel": "Atualizações automáticas",
@@ -133,5 +133,15 @@
     "textSizeLabel": "Tamanho do texto",
     "textSizeSmall": "Pequeno",
     "textSizeNormal": "Normal",
-    "textSizeLarge": "Grande"
+    "textSizeLarge": "Grande",
+    "backupCodesRemainingCount_one": "{{count}} código não utilizado",
+    "backupCodesRemainingCount_other": "{{count}} códigos não utilizados",
+    "backupCodesRequiresTotp": "Ative-a depois de configurar a verificação em duas etapas",
+    "backupCodesGenerateButton": "Gerar novos códigos",
+    "backupCodesDialogTitle": "Códigos de recuperação",
+    "backupCodesConfirmDescription": "Digite sua senha mestra para gerar um novo lote. Isso invalida quaisquer códigos anteriores.",
+    "backupCodesShownOnceWarning": "Guarde esses códigos em um local seguro — eles não serão mostrados novamente. Cada um funciona apenas uma vez.",
+    "backupCodesCopyAllButton": "Copiar todos",
+    "backupCodesDownloadButton": "Baixar",
+    "backupCodesDoneButton": "Concluído"
 }

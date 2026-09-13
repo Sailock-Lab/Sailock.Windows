@@ -85,5 +85,14 @@
     "modeSkipDuplicates": "Dodaj, pomijając duplikaty według nazwy",
     "modeReplaceAll": "Zastąp cały sejf",
     "stateOn": "włączone",
-    "stateOff": "wyłączone"
+    "stateOff": "wyłączone",
+    "clearPasswordDescription": "Wprowadź hasło główne, aby potwierdzić, że chcesz usunąć całą historię aktywności.",
+    "exportPasswordDescription": "Wprowadź hasło główne, aby potwierdzić, że chcesz wyeksportować historię aktywności.",
+    "masterPasswordPlaceholder": "Hasło główne",
+    "passwordRequiredError": "Wprowadź hasło główne",
+    "wrongPasswordError": "Nieprawidłowe hasło główne",
+    "verifyingButton": "Weryfikacja...",
+    "confirmButton": "Potwierdź",
+    "event_backupCodesGenerated": "Wygenerowano nowe kody odzyskiwania 2FA",
+    "event_loginWithBackupCode": "Zalogowano za pomocą kodu odzyskiwania"
 }

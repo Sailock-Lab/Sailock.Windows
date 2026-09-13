@@ -81,5 +81,14 @@
     "modeSkipDuplicates": "Toevoegen, duplicaten op naam overslaan",
     "modeReplaceAll": "De hele kluis vervangen",
     "stateOn": "aan",
-    "stateOff": "uit"
+    "stateOff": "uit",
+    "clearPasswordDescription": "Voer je hoofdwachtwoord in om te bevestigen dat je de volledige activiteitengeschiedenis wilt verwijderen.",
+    "exportPasswordDescription": "Voer je hoofdwachtwoord in om te bevestigen dat je de activiteitengeschiedenis wilt exporteren.",
+    "masterPasswordPlaceholder": "Hoofdwachtwoord",
+    "passwordRequiredError": "Voer je hoofdwachtwoord in",
+    "wrongPasswordError": "Onjuist hoofdwachtwoord",
+    "verifyingButton": "Verifiëren...",
+    "confirmButton": "Bevestigen",
+    "event_backupCodesGenerated": "Nieuwe 2FA-herstelcodes gegenereerd",
+    "event_loginWithBackupCode": "Aangemeld met een herstelcode"
 }

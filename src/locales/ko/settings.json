@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "창이 최소화되면 세션을 잠급니다",
     "systemCardTitle": "시스템",
     "startWithWindowsLabel": "Windows와 함께 시작",
-    "startWithWindowsDescription": "기본 설정은 저장되지만 실제 Windows 연동은 아직 없습니다",
+    "startWithWindowsDescription": "PC를 켜면 Sailock이 자동으로 실행됩니다",
     "minimizeToTrayLabel": "트레이로 최소화",
     "minimizeToTrayDescription": "기본 설정은 저장되지만 실제 연동은 아직 없습니다",
     "autoUpdateLabel": "자동 업데이트",
@@ -133,5 +133,14 @@
     "textSizeLabel": "글자 크기",
     "textSizeSmall": "작게",
     "textSizeNormal": "보통",
-    "textSizeLarge": "크게"
+    "textSizeLarge": "크게",
+    "backupCodesRemainingCount_other": "미사용 코드 {{count}}개",
+    "backupCodesRequiresTotp": "2단계 인증을 설정한 후 활성화하세요",
+    "backupCodesGenerateButton": "새 코드 생성",
+    "backupCodesDialogTitle": "복구 코드",
+    "backupCodesConfirmDescription": "새 세트를 생성하려면 마스터 비밀번호를 입력하세요. 이전 코드는 모두 무효화됩니다.",
+    "backupCodesShownOnceWarning": "이 코드를 안전한 곳에 보관하세요 — 다시 표시되지 않습니다. 각 코드는 한 번만 사용할 수 있습니다.",
+    "backupCodesCopyAllButton": "모두 복사",
+    "backupCodesDownloadButton": "다운로드",
+    "backupCodesDoneButton": "완료"
 }

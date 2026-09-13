@@ -69,5 +69,10 @@
     "detailTotp": "Code de vérification (TOTP)",
     "totpRenews": "Renouvellement dans {{seconds}}s",
     "detailWebsite": "Site web",
-    "detailNotes": "Notes"
+    "detailNotes": "Notes",
+    "useBackupCodeLink": "Avez-vous perdu l'accès à votre application d'authentification ?",
+    "backupCodePlaceholder": "Code de récupération",
+    "verifyBackupCodeButton": "Vérifier",
+    "useTotpCodeLink": "Utiliser plutôt le code de l'application",
+    "backupCodeErrorIncorrect": "Code incorrect ou déjà utilisé"
 }

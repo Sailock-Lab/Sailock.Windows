@@ -81,5 +81,14 @@
     "modeSkipDuplicates": "Adicionar, ignorando duplicatas por nome",
     "modeReplaceAll": "Substituir todo o cofre",
     "stateOn": "ativado",
-    "stateOff": "desativado"
+    "stateOff": "desativado",
+    "clearPasswordDescription": "Digite sua senha mestra para confirmar que deseja excluir todo o histórico de atividades.",
+    "exportPasswordDescription": "Digite sua senha mestra para confirmar que deseja exportar o histórico de atividades.",
+    "masterPasswordPlaceholder": "Senha mestra",
+    "passwordRequiredError": "Digite sua senha mestra",
+    "wrongPasswordError": "Senha mestra incorreta",
+    "verifyingButton": "Verificando...",
+    "confirmButton": "Confirmar",
+    "event_backupCodesGenerated": "Novos códigos de recuperação de 2FA gerados",
+    "event_loginWithBackupCode": "Login realizado com um código de recuperação"
 }

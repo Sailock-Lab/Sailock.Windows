@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "Sperrt die Sitzung, wenn das Fenster minimiert wird",
     "systemCardTitle": "System",
     "startWithWindowsLabel": "Mit Windows starten",
-    "startWithWindowsDescription": "Speichert die Einstellung; echte Windows-Integration fehlt noch",
+    "startWithWindowsDescription": "Sailock startet automatisch, wenn du deinen PC einschaltest",
     "minimizeToTrayLabel": "In die Taskleiste minimieren",
     "minimizeToTrayDescription": "Speichert die Einstellung; echte Integration fehlt noch",
     "autoUpdateLabel": "Automatische Updates",
@@ -133,5 +133,15 @@
     "textSizeLabel": "Textgröße",
     "textSizeSmall": "Klein",
     "textSizeNormal": "Normal",
-    "textSizeLarge": "Groß"
+    "textSizeLarge": "Groß",
+    "backupCodesRemainingCount_one": "{{count}} unbenutzter Code",
+    "backupCodesRemainingCount_other": "{{count}} unbenutzte Codes",
+    "backupCodesRequiresTotp": "Aktiviere sie, nachdem du die Zwei-Faktor-Verifizierung eingerichtet hast",
+    "backupCodesGenerateButton": "Neue Codes generieren",
+    "backupCodesDialogTitle": "Wiederherstellungscodes",
+    "backupCodesConfirmDescription": "Gib dein Master-Passwort ein, um einen neuen Satz zu generieren. Dadurch werden alle vorherigen Codes ungültig.",
+    "backupCodesShownOnceWarning": "Bewahre diese Codes an einem sicheren Ort auf — sie werden nicht erneut angezeigt. Jeder funktioniert nur einmal.",
+    "backupCodesCopyAllButton": "Alle kopieren",
+    "backupCodesDownloadButton": "Herunterladen",
+    "backupCodesDoneButton": "Fertig"
 }

@@ -69,5 +69,10 @@
     "detailTotp": "確認コード（TOTP）",
     "totpRenews": "{{seconds}}秒後に更新",
     "detailWebsite": "ウェブサイト",
-    "detailNotes": "メモ"
+    "detailNotes": "メモ",
+    "useBackupCodeLink": "認証アプリにアクセスできなくなりましたか？",
+    "backupCodePlaceholder": "復旧コード",
+    "verifyBackupCodeButton": "確認",
+    "useTotpCodeLink": "代わりにアプリのコードを使用する",
+    "backupCodeErrorIncorrect": "コードが正しくないか、すでに使用されています"
 }

@@ -49,7 +49,7 @@
     "lockOnMinimizeDescription": "窗口最小化时锁定会话",
     "systemCardTitle": "系统",
     "startWithWindowsLabel": "随 Windows 启动",
-    "startWithWindowsDescription": "保存该偏好设置；尚未实现真正的 Windows 集成",
+    "startWithWindowsDescription": "开机时 Sailock 将自动启动",
     "minimizeToTrayLabel": "最小化到系统托盘",
     "minimizeToTrayDescription": "保存该偏好设置；尚未实现真正的集成",
     "autoUpdateLabel": "自动更新",
@@ -133,5 +133,14 @@
     "textSizeLabel": "文字大小",
     "textSizeSmall": "小",
     "textSizeNormal": "正常",
-    "textSizeLarge": "大"
+    "textSizeLarge": "大",
+    "backupCodesRemainingCount_other": "{{count}} 个未使用的代码",
+    "backupCodesRequiresTotp": "设置两步验证后即可启用",
+    "backupCodesGenerateButton": "生成新代码",
+    "backupCodesDialogTitle": "恢复代码",
+    "backupCodesConfirmDescription": "请输入主密码以生成新的一批代码。这将使之前的代码全部失效。",
+    "backupCodesShownOnceWarning": "请将这些代码保存在安全的地方——它们不会再次显示。每个代码只能使用一次。",
+    "backupCodesCopyAllButton": "全部复制",
+    "backupCodesDownloadButton": "下载",
+    "backupCodesDoneButton": "完成"
 }

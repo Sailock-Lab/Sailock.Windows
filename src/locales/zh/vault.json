@@ -69,5 +69,10 @@
     "detailTotp": "验证码（TOTP）",
     "totpRenews": "{{seconds}}秒后更新",
     "detailWebsite": "网站",
-    "detailNotes": "备注"
+    "detailNotes": "备注",
+    "useBackupCodeLink": "无法访问您的身份验证器应用了吗？",
+    "backupCodePlaceholder": "恢复代码",
+    "verifyBackupCodeButton": "验证",
+    "useTotpCodeLink": "改用应用中的验证码",
+    "backupCodeErrorIncorrect": "代码不正确或已被使用"
 }
