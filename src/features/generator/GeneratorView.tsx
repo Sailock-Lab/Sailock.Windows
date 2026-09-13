@@ -286,7 +286,7 @@ function BackupCodesGenerator() {
     setCodes(result);
 
     if (result.length > 0 && result[0]) {
-      saveActivity("generate", `Lote de códigos generado: ${effectiveTitle}`, "generator", `${count} códigos de ${length} caracteres`);
+      saveActivity("generate", "backupBatchGenerated", "generator", { title: effectiveTitle, count: String(count), length: String(length) });
     }
   };
 
@@ -307,7 +307,7 @@ function BackupCodesGenerator() {
 
     if (result.success) {
       toast.success(`"${effectiveTitle}" guardado en el Vault`);
-      saveActivity("create", `Códigos guardados en el Vault: ${effectiveTitle}`, "generator");
+      saveActivity("create", "backupSavedToVault", "generator", { title: effectiveTitle });
       setCodes([]);
     } else {
       toast.error(`Error al guardar: ${result.error || "Error desconocido"}`);
@@ -322,8 +322,8 @@ function BackupCodesGenerator() {
     bits < 20
       ? { label: t("strengthWeak"), color: "text-red-500" }
       : bits < 40
-      ? { label: t("strengthStrong"), color: "text-green-500" }
-      : { label: t("strengthVeryStrong"), color: "text-green-600" };
+        ? { label: t("strengthStrong"), color: "text-green-500" }
+        : { label: t("strengthVeryStrong"), color: "text-green-600" };
 
   const downloadTxt = () => {
     if (codes.length === 0) {
@@ -344,7 +344,7 @@ function BackupCodesGenerator() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       toast.success(`Archivo "${effectiveTitle}.txt" descargado correctamente`);
-      saveActivity("download", `Códigos descargados: ${effectiveTitle}.txt`, "generator");
+      saveActivity("download", "backupDownloaded", "generator", { title: effectiveTitle });
     } catch (error) {
       console.error("Error al descargar:", error);
       toast.error("Error al descargar el archivo");
@@ -553,14 +553,14 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
     bits < 20
       ? { label: t("strengthWeak"), color: "text-red-500" }
       : bits < 40
-      ? { label: t("strengthStrong"), color: "text-green-500" }
-      : { label: t("strengthVeryStrong"), color: "text-green-600" };
+        ? { label: t("strengthStrong"), color: "text-green-500" }
+        : { label: t("strengthVeryStrong"), color: "text-green-600" };
 
   const handleGenerate = () => {
     const result = generatePassphrase(numWords, separator, capitalize, includeNumber);
     setValue(result);
     historyHook.addEntry(result);
-    saveActivity("generate", "Frase de contraseña generada", "generator", `${numWords} palabras`);
+    saveActivity("generate", "passphraseGenerated", "generator", { count: String(numWords) });
   };
 
   return (
@@ -660,9 +660,8 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
             <button
               key={tItem.id}
               onClick={() => setTab(tItem.id)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                tab === tItem.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
-              }`}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${tab === tItem.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
+                }`}
             >
               {tItem.label}
             </button>
@@ -731,7 +730,7 @@ function PasswordGenerator({
     setValue(result);
     if (result) {
       historyHook.addEntry(result);
-      saveActivity("generate", "Contraseña generada", "generator", `${length} caracteres`);
+      saveActivity("generate", "passwordGenerated", "generator", { length: String(length) });
     }
   };
 
@@ -791,7 +790,7 @@ function UsernameGenerator({ historyHook }: { historyHook: ReturnType<typeof use
     const result = generateUsername(includeNumber);
     setValue(result);
     historyHook.addEntry(result);
-    saveActivity("generate", "Usuario generado", "generator");
+    saveActivity("generate", "usernameGenerated", "generator");
   };
 
   return (

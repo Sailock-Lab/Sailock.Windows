@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
+use tauri_plugin_autostart::MacosLauncher;
 
 // Campo libre: para códigos de recuperación, PINs, o lo que el usuario quiera añadir
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -601,9 +602,12 @@ fn import_vault(
         .map_err(|_| "El archivo no tiene un formato válido de Sailock".to_string())?;
     let imported_salt = B64.decode(&imported_file.salt).map_err(|e| e.to_string())?;
     let imported_key = derive_key(&export_password, &imported_salt);
-    let imported_entries =
-        decrypt_entries(&imported_key, &imported_file.nonce, &imported_file.ciphertext)
-            .map_err(|_| "Contraseña incorrecta para este archivo".to_string())?;
+    let imported_entries = decrypt_entries(
+        &imported_key,
+        &imported_file.nonce,
+        &imported_file.ciphertext,
+    )
+    .map_err(|_| "Contraseña incorrecta para este archivo".to_string())?;
 
     let local_path = vault_path(&app_handle);
     let local_content = fs::read_to_string(&local_path).map_err(|e| e.to_string())?;
@@ -613,8 +617,10 @@ fn import_vault(
     let final_imported: Vec<Entry> = match mode.as_str() {
         "replace_all" => imported_entries,
         "skip_duplicates" => {
-            let existing_names: std::collections::HashSet<String> =
-                local_entries.iter().map(|e| e.name.to_lowercase()).collect();
+            let existing_names: std::collections::HashSet<String> = local_entries
+                .iter()
+                .map(|e| e.name.to_lowercase())
+                .collect();
             imported_entries
                 .into_iter()
                 .filter(|e| !existing_names.contains(&e.name.to_lowercase()))
@@ -854,6 +860,8 @@ const TOTP_ACCOUNT_NAME: &str = "Sailock";
 struct TotpSettings {
     enabled: bool,
     secret: Option<String>,
+    #[serde(default)]
+    backup_code_hashes: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -955,6 +963,7 @@ fn totp_begin_setup(
     let settings = TotpSettings {
         enabled: false,
         secret: Some(secret_base32.clone()),
+        backup_code_hashes: Vec::new(),
     };
     write_totp_settings(&app_handle, &key, &settings);
 
@@ -1009,6 +1018,101 @@ fn totp_disable(
     let key = key_opt.ok_or("El vault está bloqueado")?;
     write_totp_settings(&app_handle, &key, &TotpSettings::default());
     Ok(())
+}
+
+// ---------- Códigos de recuperación del 2FA (por si pierdes el dispositivo) ----------
+
+use sha2::{Digest, Sha256};
+
+// Sin 0/O/1/I/2/S/5/Z, para que no se confundan al escribirlos a mano
+const BACKUP_CODE_ALPHABET: &[u8] = b"346789ABCDEFGHJKLMNPQRTUVWXY";
+const BACKUP_CODE_COUNT: usize = 10;
+const BACKUP_CODE_LENGTH: usize = 10; // se muestra como dos grupos de 5, ej: K7WXN-QRT9M
+
+fn random_alphabet_char() -> u8 {
+    let alphabet_len = BACKUP_CODE_ALPHABET.len() as u32;
+    let max_valid = (u32::MAX / alphabet_len) * alphabet_len;
+    loop {
+        let mut buf = [0u8; 4];
+        AeadOsRng.fill_bytes(&mut buf);
+        let value = u32::from_le_bytes(buf);
+        if value < max_valid {
+            return BACKUP_CODE_ALPHABET[(value % alphabet_len) as usize];
+        }
+    }
+}
+
+fn generate_backup_code() -> String {
+    let raw: String = (0..BACKUP_CODE_LENGTH)
+        .map(|_| random_alphabet_char() as char)
+        .collect();
+    format!("{}-{}", &raw[0..5], &raw[5..10])
+}
+
+fn hash_backup_code(code: &str) -> String {
+    let normalized = code.trim().to_uppercase();
+    let mut hasher = Sha256::new();
+    hasher.update(normalized.as_bytes());
+    B64.encode(hasher.finalize())
+}
+
+#[tauri::command]
+fn totp_backup_codes_remaining(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<usize, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(read_totp_settings(&app_handle, &key)
+        .backup_code_hashes
+        .len())
+}
+
+#[tauri::command]
+fn totp_generate_backup_codes(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<String>, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut settings = read_totp_settings(&app_handle, &key);
+    if !settings.enabled {
+        return Err("Activa primero la verificación en dos pasos".into());
+    }
+
+    let codes: Vec<String> = (0..BACKUP_CODE_COUNT)
+        .map(|_| generate_backup_code())
+        .collect();
+    settings.backup_code_hashes = codes.iter().map(|c| hash_backup_code(c)).collect();
+    write_totp_settings(&app_handle, &key, &settings);
+
+    Ok(codes)
+}
+
+#[tauri::command]
+fn totp_verify_backup_code(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    code: String,
+) -> Result<bool, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut settings = read_totp_settings(&app_handle, &key);
+    let incoming_hash = hash_backup_code(&code);
+
+    if let Some(pos) = settings
+        .backup_code_hashes
+        .iter()
+        .position(|h| h == &incoming_hash)
+    {
+        settings.backup_code_hashes.remove(pos);
+        write_totp_settings(&app_handle, &key, &settings);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 // ---------- Activity Log ----------
@@ -1103,6 +1207,10 @@ fn activity_path(app_handle: &tauri::AppHandle) -> PathBuf {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(VaultState {
             key: Mutex::new(None),
         })
@@ -1138,6 +1246,9 @@ pub fn run() {
             clear_generator_history,
             export_vault,
             import_vault,
+            totp_backup_codes_remaining,
+            totp_generate_backup_codes,
+            totp_verify_backup_code,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
