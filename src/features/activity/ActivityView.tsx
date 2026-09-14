@@ -1,20 +1,22 @@
 import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { 
-  Search, 
-  Trash2, 
-  Download, 
-  Key, 
-  Shield, 
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Search,
+  Trash2,
+  Download,
+  Key,
+  Shield,
   ChevronLeft,
   ChevronRight,
   HistoryIcon,
   Wand2,
   Settings,
-  RefreshCw
+  RefreshCw,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
@@ -58,8 +60,6 @@ const MODE_KEY_MAP: Record<string, string> = {
   add_duplicates: "modeAddDuplicates", skip_duplicates: "modeSkipDuplicates", replace_all: "modeReplaceAll",
 };
 
-// Convierte los parámetros "en crudo" guardados (ej. theme: "dark") en el texto
-// traducido correspondiente al idioma activo AHORA MISMO, no al de cuando se creó el evento.
 function resolveParams(t: TFunction, rawParams?: Record<string, string>): Record<string, string> {
   if (!rawParams) return {};
   const resolved: Record<string, string> = { ...rawParams };
@@ -71,8 +71,6 @@ function resolveParams(t: TFunction, rawParams?: Record<string, string>): Record
   return resolved;
 }
 
-// Entradas nuevas (con event_key) se traducen siempre en el idioma activo.
-// Entradas antiguas (solo con description) se muestran tal cual quedaron guardadas.
 function activityDescription(activity: ActivityEntry, t: TFunction): string {
   if (activity.event_key) {
     return t(`event_${activity.event_key}`, resolveParams(t, activity.params));
@@ -104,6 +102,83 @@ function formatTimestamp(timestamp: number, t: TFunction): string {
   }
 }
 
+type ConfirmAction = "clear" | "export" | null;
+
+function PasswordConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  onConfirmed,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  onConfirmed: () => void | Promise<void>;
+}) {
+  const { t } = useTranslation("activity");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
+  const handleOpenChange = (isOpen: boolean) => {
+    onOpenChange(isOpen);
+    if (!isOpen) {
+      setPassword("");
+      setError("");
+      setVerifying(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!password) {
+      setError(t("passwordRequiredError"));
+      return;
+    }
+    setVerifying(true);
+    setError("");
+    try {
+      const ok = await invoke<boolean>("verify_master_password", { masterPassword: password });
+      if (!ok) {
+        setError(t("wrongPasswordError"));
+        setVerifying(false);
+        return;
+      }
+      await onConfirmed();
+      handleOpenChange(false);
+    } catch (e) {
+      setError(String(e));
+      setVerifying(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <Input
+            type="password"
+            placeholder={t("masterPasswordPlaceholder")}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+            autoFocus
+          />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button onClick={handleConfirm} disabled={verifying}>
+            {verifying ? t("verifyingButton") : t("confirmButton")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ActivityView() {
   const { t } = useTranslation("activity");
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
@@ -111,6 +186,7 @@ export function ActivityView() {
   const [filter, setFilter] = useState<ActivityType | "all">("all");
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
 
   const { loadActivities, clearActivities } = useActivity();
 
@@ -159,26 +235,12 @@ export function ActivityView() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleClearAll = async () => {
+  const handleClearAll = () => {
     if (activities.length === 0) {
       toast.info(t("clearNothingToast"));
       return;
     }
-
-    if (confirm(t("clearConfirm"))) {
-      const success = await clearActivities();
-      if (success) {
-        setActivities([]);
-        toast.success(t("clearSuccessToast"));
-      } else {
-        toast.error(t("clearErrorToast"));
-      }
-    }
-  };
-
-  const handleRefresh = () => {
-    loadData();
-    toast.info(t("refreshedToast"));
+    setConfirmAction("clear");
   };
 
   const handleExport = () => {
@@ -186,14 +248,29 @@ export function ActivityView() {
       toast.warning(t("exportNothingToast"));
       return;
     }
+    setConfirmAction("export");
+  };
 
-    const content = activities.map((a) => {
-      const date = new Date(a.timestamp).toLocaleString();
-      const source = SOURCE_LABELS[a.source];
-      const desc = activityDescription(a, t);
-      const legacyDetails = !a.event_key && a.details ? ` (${a.details})` : "";
-      return `[${date}] [${source}] ${a.activity_type.toUpperCase()} - ${desc}${legacyDetails}`;
-    }).join("\n");
+  const doClear = async () => {
+    const success = await clearActivities();
+    if (success) {
+      setActivities([]);
+      toast.success(t("clearSuccessToast"));
+    } else {
+      toast.error(t("clearErrorToast"));
+    }
+  };
+
+  const doExport = () => {
+    const content = activities
+      .map((a) => {
+        const date = new Date(a.timestamp).toLocaleString();
+        const source = SOURCE_LABELS[a.source];
+        const desc = activityDescription(a, t);
+        const legacyDetails = !a.event_key && a.details ? ` (${a.details})` : "";
+        return `[${date}] [${source}] ${a.activity_type.toUpperCase()} - ${desc}${legacyDetails}`;
+      })
+      .join("\n");
 
     try {
       const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -219,11 +296,9 @@ export function ActivityView() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold mb-1">{t("pageTitle")}</h2>
-            <p className="text-sm text-muted-foreground">
-              {t("pageSubtitle")}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("pageSubtitle")}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
             {t("refreshButton")}
           </Button>
@@ -301,9 +376,7 @@ export function ActivityView() {
                 <div className="text-center">
                   <HistoryIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
                   <p className="text-sm text-muted-foreground">
-                    {search || filter !== "all" 
-                      ? t("emptyFiltered")
-                      : t("emptyNone")}
+                    {search || filter !== "all" ? t("emptyFiltered") : t("emptyNone")}
                   </p>
                 </div>
               </div>
@@ -396,6 +469,17 @@ export function ActivityView() {
           )}
         </CardContent>
       </Card>
+
+      <PasswordConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(isOpen) => !isOpen && setConfirmAction(null)}
+        title={confirmAction === "clear" ? t("clearButton") : t("exportButton")}
+        description={confirmAction === "clear" ? t("clearPasswordDescription") : t("exportPasswordDescription")}
+        onConfirmed={async () => {
+          if (confirmAction === "clear") await doClear();
+          else if (confirmAction === "export") doExport();
+        }}
+      />
     </div>
   );
 }
