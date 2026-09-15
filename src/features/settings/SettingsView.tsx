@@ -8,42 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  Moon,
-  Sun,
-  Monitor,
-  Globe,
-  Download,
-  Upload,
-  Trash2,
-  Shield,
-  AlertTriangle,
-  Smartphone,
-  Power,
-  Lock,
-  X,
-  Accessibility,
-  KeyRound,
-} from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, } from "@/components/ui/alert-dialog";
+import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, Accessibility, KeyRound, Check} from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { CopyButton } from "@/components/CopyButton";
 import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
-import { AutoLockDuration, TextSize, getStoredBool, storeBool } from "@/lib/appSettings";
+import { AutoLockDuration, TextSize } from "@/lib/appSettings";
 import i18n from "@/i18n";
 import { LANGUAGE_LABELS } from "@/i18n/languages";
 import { isEnabled as isAutostartEnabled, enable as enableAutostart, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
+import { getVersion } from "@tauri-apps/api/app";
 
 type DeleteStep = "confirm" | "password" | "confirmType" | "deleting";
 
@@ -145,6 +120,7 @@ function BackupCodesDialog({ onGenerated }: { onGenerated: (count: number) => vo
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [codes, setCodes] = useState<string[]>([]);
+  const [downloaded, setDownloaded] = useState(false);
   const { saveActivity } = useActivity();
 
   const reset = () => {
@@ -196,6 +172,10 @@ function BackupCodesDialog({ onGenerated }: { onGenerated: (count: number) => vo
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    setDownloaded(true);
+    toast.success(t("backupCodesDownloadedToast"));
+    setTimeout(() => setDownloaded(false), 2000);
   };
 
   return (
@@ -245,8 +225,13 @@ function BackupCodesDialog({ onGenerated }: { onGenerated: (count: number) => vo
                   size="sm"
                   iconClassName="h-3.5 w-3.5"
                 />
-                <Button variant="outline" size="sm" onClick={downloadCodes}>
-                  <Download className="h-3.5 w-3.5 mr-1" /> {t("backupCodesDownloadButton")}
+                <Button variant="outline" size="sm" onClick={downloadCodes} disabled={downloaded}>
+                  {downloaded ? (
+                    <Check className="h-3.5 w-3.5 mr-1 text-green-500" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  {t("backupCodesDownloadButton")}
                 </Button>
               </div>
               <Button onClick={() => handleOpenChange(false)}>{t("backupCodesDoneButton")}</Button>
@@ -616,7 +601,7 @@ export function SettingsView({
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [backupCodesRemaining, setBackupCodesRemaining] = useState<number | null>(null);
   const { saveActivity } = useActivity();
-
+  const [appVersion, setAppVersion] = useState("");
   const [deleteStep, setDeleteStep] = useState<DeleteStep>("confirm");
   const [masterPassword, setMasterPassword] = useState("");
   const [confirmText, setConfirmText] = useState("");
@@ -626,20 +611,24 @@ export function SettingsView({
   useEffect(() => {
     invoke<boolean>("totp_status")
       .then(setTotpEnabled)
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
-    isAutostartEnabled().then(setStartWithWindows).catch(() => {});
+    isAutostartEnabled().then(setStartWithWindows).catch(() => { });
   }, []);
 
   useEffect(() => {
     if (totpEnabled) {
-      invoke<number>("totp_backup_codes_remaining").then(setBackupCodesRemaining).catch(() => {});
+      invoke<number>("totp_backup_codes_remaining").then(setBackupCodesRemaining).catch(() => { });
     } else {
       setBackupCodesRemaining(null);
     }
   }, [totpEnabled]);
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => { });
+  }, []);
 
   const handleDisableTotp = async () => {
     await invoke("totp_disable");
@@ -761,7 +750,7 @@ export function SettingsView({
           </div>
           <div className="text-right shrink-0">
             <p className="text-xs text-muted-foreground">{t("versionLabel")}</p>
-            <p className="text-sm font-medium">0.1.0</p>
+            <p className="text-sm font-medium">{appVersion}</p>
           </div>
         </div>
       </div>
@@ -860,8 +849,8 @@ export function SettingsView({
                     {!totpEnabled
                       ? t("backupCodesRequiresTotp")
                       : backupCodesRemaining === null
-                      ? t("backupCodesDescription")
-                      : t("backupCodesRemainingCount", { count: backupCodesRemaining })}
+                        ? t("backupCodesDescription")
+                        : t("backupCodesRemainingCount", { count: backupCodesRemaining })}
                   </p>
                 </div>
                 {totpEnabled && <BackupCodesDialog onGenerated={setBackupCodesRemaining} />}
@@ -979,7 +968,7 @@ export function SettingsView({
                   <p className="text-sm font-medium">{t("importDataLabel")}</p>
                   <p className="text-xs text-muted-foreground">{t("importDataDescription")}</p>
                 </div>
-                <ImportDialog onImported={() => {}} />
+                <ImportDialog onImported={() => { }} />
               </div>
             </div>
           </div>

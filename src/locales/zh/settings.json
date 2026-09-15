@@ -142,5 +142,6 @@
     "backupCodesShownOnceWarning": "请将这些代码保存在安全的地方——它们不会再次显示。每个代码只能使用一次。",
     "backupCodesCopyAllButton": "全部复制",
     "backupCodesDownloadButton": "下载",
-    "backupCodesDoneButton": "完成"
+    "backupCodesDoneButton": "完成",
+    "backupCodesDownloadedToast":"代码已下载"
 }

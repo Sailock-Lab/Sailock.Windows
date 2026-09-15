@@ -142,5 +142,6 @@
     "backupCodesShownOnceWarning": "これらのコードは安全な場所に保管してください。再表示されることはありません。各コードは一度しか使用できません。",
     "backupCodesCopyAllButton": "すべてコピー",
     "backupCodesDownloadButton": "ダウンロード",
-    "backupCodesDoneButton": "完了"
+    "backupCodesDoneButton": "完了",
+    "backupCodesDownloadedToast":"コードをダウンロードしました"
 }

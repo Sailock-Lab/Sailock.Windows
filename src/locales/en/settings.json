@@ -143,5 +143,6 @@
     "backupCodesShownOnceWarning": "Save these codes somewhere safe — they won't be shown again. Each one works only once.",
     "backupCodesCopyAllButton": "Copy all",
     "backupCodesDownloadButton": "Download",
-    "backupCodesDoneButton": "Done"
+    "backupCodesDoneButton": "Done",
+    "backupCodesDownloadedToast":"Codes downloaded"
 }

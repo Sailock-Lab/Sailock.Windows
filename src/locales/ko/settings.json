@@ -142,5 +142,6 @@
     "backupCodesShownOnceWarning": "이 코드를 안전한 곳에 보관하세요 — 다시 표시되지 않습니다. 각 코드는 한 번만 사용할 수 있습니다.",
     "backupCodesCopyAllButton": "모두 복사",
     "backupCodesDownloadButton": "다운로드",
-    "backupCodesDoneButton": "완료"
+    "backupCodesDoneButton": "완료",
+    "backupCodesDownloadedToast":"코드가 다운로드되었습니다"
 }

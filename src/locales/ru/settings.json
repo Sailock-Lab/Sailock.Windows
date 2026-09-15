@@ -145,5 +145,6 @@
     "backupCodesShownOnceWarning": "Сохраните эти коды в надёжном месте — они больше не будут показаны. Каждый код работает только один раз.",
     "backupCodesCopyAllButton": "Копировать все",
     "backupCodesDownloadButton": "Скачать",
-    "backupCodesDoneButton": "Готово"
+    "backupCodesDoneButton": "Готово",
+    "backupCodesDownloadedToast":"Коды скачаны"
 }
