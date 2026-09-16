@@ -131,6 +131,7 @@
     "reduceMotionLabel": "减少动画",
     "reduceMotionDescription": "最大限度地减少界面过渡和动态效果。",
     "textSizeLabel": "文字大小",
+    "textSizeDescription": "调整整个应用中的文字大小。",
     "textSizeSmall": "小",
     "textSizeNormal": "正常",
     "textSizeLarge": "大",

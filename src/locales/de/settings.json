@@ -131,6 +131,7 @@
     "reduceMotionLabel": "Animationen reduzieren",
     "reduceMotionDescription": "Minimiert Übergänge und Bewegungseffekte der Oberfläche.",
     "textSizeLabel": "Textgröße",
+    "textSizeDescription": "Passt die Textgröße in der gesamten App an.",
     "textSizeSmall": "Klein",
     "textSizeNormal": "Normal",
     "textSizeLarge": "Groß",
@@ -144,5 +145,5 @@
     "backupCodesCopyAllButton": "Alle kopieren",
     "backupCodesDownloadButton": "Herunterladen",
     "backupCodesDoneButton": "Fertig",
-    "backupCodesDownloadedToast":"Codes heruntergeladen"
+    "backupCodesDownloadedToast": "Codes heruntergeladen"
 }

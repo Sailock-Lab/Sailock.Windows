@@ -131,6 +131,7 @@
     "reduceMotionLabel": "アニメーションを減らす",
     "reduceMotionDescription": "インターフェースの切り替えや動きの効果を最小限にします。",
     "textSizeLabel": "文字サイズ",
+    "textSizeDescription": "アプリ全体のテキストサイズを調整します。",
     "textSizeSmall": "小",
     "textSizeNormal": "標準",
     "textSizeLarge": "大",
@@ -143,5 +144,5 @@
     "backupCodesCopyAllButton": "すべてコピー",
     "backupCodesDownloadButton": "ダウンロード",
     "backupCodesDoneButton": "完了",
-    "backupCodesDownloadedToast":"コードをダウンロードしました"
+    "backupCodesDownloadedToast": "コードをダウンロードしました"
 }

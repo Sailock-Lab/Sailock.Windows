@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, } from "@/components/ui/alert-dialog";
-import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, Accessibility, KeyRound, Check} from "lucide-react";
+import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, Accessibility, KeyRound, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { CopyButton } from "@/components/CopyButton";
@@ -930,7 +930,10 @@ export function SettingsView({
                 <Switch checked={reduceMotion} onCheckedChange={handleReduceMotionChange} />
               </div>
               <div className="flex items-center justify-between pt-2 border-t">
-                <p className="text-sm font-medium">{t("textSizeLabel")}</p>
+                <div>
+                  <p className="text-sm font-medium">{t("textSizeLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("textSizeDescription")}</p>
+                </div>
                 <Select value={textSize} onValueChange={handleTextSizeChange}>
                   <SelectTrigger className="w-[140px]">
                     <SelectValue />

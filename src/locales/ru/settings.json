@@ -131,6 +131,7 @@
     "reduceMotionLabel": "Уменьшить анимацию",
     "reduceMotionDescription": "Сводит к минимуму переходы и эффекты движения интерфейса.",
     "textSizeLabel": "Размер текста",
+    "textSizeDescription": "Настройте размер текста во всем приложении.",
     "textSizeSmall": "Маленький",
     "textSizeNormal": "Обычный",
     "textSizeLarge": "Крупный",

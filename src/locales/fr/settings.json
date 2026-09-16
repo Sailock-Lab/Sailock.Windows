@@ -131,6 +131,7 @@
     "reduceMotionLabel": "Réduire les animations",
     "reduceMotionDescription": "Minimise les transitions et les effets de mouvement de l'interface.",
     "textSizeLabel": "Taille du texte",
+    "textSizeDescription": "Ajustez la taille du texte dans toute l’application.",
     "textSizeSmall": "Petite",
     "textSizeNormal": "Normale",
     "textSizeLarge": "Grande",

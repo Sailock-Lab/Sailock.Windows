@@ -131,6 +131,7 @@
     "reduceMotionLabel": "애니메이션 줄이기",
     "reduceMotionDescription": "인터페이스 전환 및 동작 효과를 최소화합니다.",
     "textSizeLabel": "글자 크기",
+    "textSizeDescription": "앱 전체의 텍스트 크기를 조정합니다.",
     "textSizeSmall": "작게",
     "textSizeNormal": "보통",
     "textSizeLarge": "크게",

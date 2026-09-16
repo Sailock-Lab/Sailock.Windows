@@ -131,6 +131,7 @@
     "reduceMotionLabel": "Animaties verminderen",
     "reduceMotionDescription": "Minimaliseert overgangen en bewegingseffecten van de interface.",
     "textSizeLabel": "Tekstgrootte",
+    "textSizeDescription": "Pas de tekstgrootte in de hele app aan.",
     "textSizeSmall": "Klein",
     "textSizeNormal": "Normaal",
     "textSizeLarge": "Groot",
