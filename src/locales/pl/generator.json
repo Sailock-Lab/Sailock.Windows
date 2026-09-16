@@ -75,5 +75,6 @@
     "emptyStateHint": "Skonfiguruj opcje i naciśnij „Wygeneruj nową partię”.",
     "saveToVaultButton": "Zapisz w Sejfie",
     "downloadTxtButton": "Pobierz .txt",
-    "deleteBatchTooltip": "Usuń partię"
+    "deleteBatchTooltip": "Usuń partię",
+    "backupCodesDownloadedToast":"Kody pobrane"
 }

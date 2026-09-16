@@ -90,5 +90,6 @@
     "verifyingButton": "Verifiëren...",
     "confirmButton": "Bevestigen",
     "event_backupCodesGenerated": "Nieuwe 2FA-herstelcodes gegenereerd",
-    "event_loginWithBackupCode": "Aangemeld met een herstelcode"
+    "event_loginWithBackupCode": "Aangemeld met een herstelcode",
+    "backupCodesDownloadedToast":"Codes gedownload"
 }
