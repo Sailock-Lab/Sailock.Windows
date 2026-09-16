@@ -643,11 +643,7 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
     { id: "passphrase", label: t("tabPassphrase") },
   ];
 
-  const DESCRIPTIONS: Partial<Record<GeneratorTab, string>> = {
-    password: t("descPassword"),
-    username: t("descUsername"),
-    passphrase: t("descPassphrase"),
-  };
+
 
   return (
     <div className="flex flex-col h-full">
@@ -690,9 +686,6 @@ export function GeneratorView({ onAddToVault }: GeneratorViewProps) {
                 <CardHeader>
                   <CardTitle className="text-base">{t("aboutTitle")}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <CardDescription>{DESCRIPTIONS[tab]}</CardDescription>
-                </CardContent>
               </Card>
 
               {tab === "password" && <RecentHistoryCard history={passwordHistory.history} />}
