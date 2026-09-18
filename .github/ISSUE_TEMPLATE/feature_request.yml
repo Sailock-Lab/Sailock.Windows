@@ -1,0 +1,33 @@
+name: New Feature Request
+description: Suggest a completely new capability for Sailock
+title: "[Feature]: "
+labels: ["enhancement", "new-feature"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the idea. Please check open issues first to avoid duplicates.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups, links, examples from other apps, etc.
+    validations:
+      required: false
