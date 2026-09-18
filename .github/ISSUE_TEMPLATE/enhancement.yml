@@ -1,0 +1,27 @@
+name: Improve an Existing Feature
+description: Something already works, but could work better
+title: "[Improvement]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: For a feature that doesn't exist yet, use "New Feature Request" instead.
+  - type: input
+    id: feature
+    attributes:
+      label: Which feature is this about?
+      placeholder: e.g. Vault search, Password generator, Auto-lock
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: What's the current behavior?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: What would you change, and why is it better?
+    validations:
+      required: true
