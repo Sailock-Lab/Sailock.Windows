@@ -1,0 +1,17 @@
+name: Question
+description: Ask something that isn't a bug report or feature request
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: What would you like to know?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Sailock version (if relevant)
+    validations:
+      required: false
