@@ -1,0 +1,16 @@
+name: Security Concern
+description: Report a security issue (this will guide you to private reporting)
+title: "Security concern - do not post details here"
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please do not describe the vulnerability in this issue.** Posting details publicly before a fix exists puts every user at risk.
+
+        Please use one of these private channels instead:
+
+        - [GitHub Private Vulnerability Reporting](https://github.com/Sailock-Lab/Sailock.Windows/security/advisories/new) (preferred)
+        - See [SECURITY.md](https://github.com/Sailock-Lab/Sailock.Windows/blob/main/SECURITY.md) for an alternative contact if the option above isn't available to you.
+
+        If this isn't actually a security issue, please close this and pick a different template instead.
