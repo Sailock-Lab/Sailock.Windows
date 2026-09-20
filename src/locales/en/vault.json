@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "Enter your master password",
     "revealWrongPasswordError": "Incorrect master password",
     "revealVerifyingButton": "Verifying...",
-    "revealConfirmButton": "Confirm"
+    "revealConfirmButton": "Confirm",
+    "fieldTypeText": "Text",
+    "fieldTypePassword": "Password",
+    "fieldTypeNumber": "Number",
+    "fieldTypeBoolean": "Yes/No",
+    "fieldValueYes": "Yes",
+    "fieldValueNo": "No"
 }

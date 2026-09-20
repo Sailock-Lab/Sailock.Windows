@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "Wprowadź hasło główne",
     "revealWrongPasswordError": "Nieprawidłowe hasło główne",
     "revealVerifyingButton": "Weryfikacja...",
-    "revealConfirmButton": "Potwierdź"
+    "revealConfirmButton": "Potwierdź",
+    "fieldTypeText": "Tekst",
+    "fieldTypePassword": "Hasło",
+    "fieldTypeNumber": "Liczba",
+    "fieldTypeBoolean": "Tak/Nie",
+    "fieldValueYes": "Tak",
+    "fieldValueNo": "Nie"
 }

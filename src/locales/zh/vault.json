@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "请输入主密码",
     "revealWrongPasswordError": "主密码不正确",
     "revealVerifyingButton": "验证中...",
-    "revealConfirmButton": "确认"
+    "revealConfirmButton": "确认",
+    "fieldTypeText": "文本",
+    "fieldTypePassword": "密码",
+    "fieldTypeNumber": "数字",
+    "fieldTypeBoolean": "是/否",
+    "fieldValueYes": "是",
+    "fieldValueNo": "否"
 }

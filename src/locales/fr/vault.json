@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "Entrez votre mot de passe principal",
     "revealWrongPasswordError": "Mot de passe principal incorrect",
     "revealVerifyingButton": "Vérification...",
-    "revealConfirmButton": "Confirmer"
+    "revealConfirmButton": "Confirmer",
+    "fieldTypeText": "Texte",
+    "fieldTypePassword": "Mot de passe",
+    "fieldTypeNumber": "Nombre",
+    "fieldTypeBoolean": "Oui/Non",
+    "fieldValueYes": "Oui",
+    "fieldValueNo": "Non"
 }

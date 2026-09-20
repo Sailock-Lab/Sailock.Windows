@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "Digite sua senha mestra",
     "revealWrongPasswordError": "Senha mestra incorreta",
     "revealVerifyingButton": "Verificando...",
-    "revealConfirmButton": "Confirmar"
+    "revealConfirmButton": "Confirmar",
+    "fieldTypeText": "Texto",
+    "fieldTypePassword": "Senha",
+    "fieldTypeNumber": "Número",
+    "fieldTypeBoolean": "Sim/Não",
+    "fieldValueYes": "Sim",
+    "fieldValueNo": "Não"
 }

@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "Voer je hoofdwachtwoord in",
     "revealWrongPasswordError": "Onjuist hoofdwachtwoord",
     "revealVerifyingButton": "Verifiëren...",
-    "revealConfirmButton": "Bevestigen"
+    "revealConfirmButton": "Bevestigen",
+    "fieldTypeText": "Tekst",
+    "fieldTypePassword": "Wachtwoord",
+    "fieldTypeNumber": "Getal",
+    "fieldTypeBoolean": "Ja/Nee",
+    "fieldValueYes": "Ja",
+    "fieldValueNo": "Nee"
 }

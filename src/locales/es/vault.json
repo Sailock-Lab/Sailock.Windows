@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "Introduce tu contraseña maestra",
     "revealWrongPasswordError": "Contraseña maestra incorrecta",
     "revealVerifyingButton": "Verificando...",
-    "revealConfirmButton": "Confirmar"
+    "revealConfirmButton": "Confirmar",
+    "fieldTypeText": "Texto",
+    "fieldTypePassword": "Contraseña",
+    "fieldTypeNumber": "Número",
+    "fieldTypeBoolean": "Sí/No",
+    "fieldValueYes": "Sí",
+    "fieldValueNo": "No"
 }

@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "Inserisci la tua password principale",
     "revealWrongPasswordError": "Password principale errata",
     "revealVerifyingButton": "Verifica in corso...",
-    "revealConfirmButton": "Conferma"
+    "revealConfirmButton": "Conferma",
+    "fieldTypeText": "Testo",
+    "fieldTypePassword": "Password",
+    "fieldTypeNumber": "Numero",
+    "fieldTypeBoolean": "Sì/No",
+    "fieldValueYes": "Sì",
+    "fieldValueNo": "No"
 }

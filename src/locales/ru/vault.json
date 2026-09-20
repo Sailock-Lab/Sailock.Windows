@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "Введите мастер-пароль",
     "revealWrongPasswordError": "Неверный мастер-пароль",
     "revealVerifyingButton": "Проверка...",
-    "revealConfirmButton": "Подтвердить"
+    "revealConfirmButton": "Подтвердить",
+    "fieldTypeText": "Текст",
+    "fieldTypePassword": "Пароль",
+    "fieldTypeNumber": "Число",
+    "fieldTypeBoolean": "Да/Нет",
+    "fieldValueYes": "Да",
+    "fieldValueNo": "Нет"
 }

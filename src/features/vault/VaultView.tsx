@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -25,6 +26,7 @@ import { useActivity } from "@/hooks/useActivity";
 interface CustomFieldData {
   label: string;
   value: string;
+  field_type: string; // "text" | "password" | "number" | "boolean"
 }
 
 interface Entry {
@@ -44,6 +46,10 @@ interface Entry {
 type FormMode = "create" | "edit" | null;
 type Filter = "all" | "favorites" | "trash";
 type SearchCategory = "all" | "name" | "contact" | "website" | "custom";
+
+function normalizedFieldType(type: string | undefined): "text" | "password" | "number" | "boolean" {
+  return type === "password" || type === "number" || type === "boolean" ? type : "text";
+}
 
 function matchesSearch(entry: Entry, term: string, category: SearchCategory): boolean {
   if (!term) return true;
@@ -337,6 +343,69 @@ function TotpDisplay({ secret, accountName }: { secret: string; accountName: str
   );
 }
 
+function CustomFieldValueInput({
+  field,
+  onChange,
+}: {
+  field: CustomFieldData;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useTranslation("vault");
+  const [visible, setVisible] = useState(false);
+  const type = normalizedFieldType(field.field_type);
+
+  if (type === "boolean") {
+    return (
+      <div className="flex items-center gap-2">
+        <Switch checked={field.value === "true"} onCheckedChange={(v) => onChange(v ? "true" : "false")} />
+        <span className="text-sm text-muted-foreground">
+          {field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}
+        </span>
+      </div>
+    );
+  }
+
+  if (type === "number") {
+    return (
+      <Input
+        type="number"
+        placeholder={t("customFieldValuePlaceholder")}
+        value={field.value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
+
+  if (type === "password") {
+    return (
+      <div className="relative">
+        <Input
+          type={visible ? "text" : "password"}
+          placeholder={t("customFieldValuePlaceholder")}
+          value={field.value}
+          onChange={(e) => onChange(e.target.value)}
+          className="pr-10"
+        />
+        <button
+          type="button"
+          onClick={() => setVisible(!visible)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+        >
+          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <Input
+      placeholder={t("customFieldValuePlaceholder")}
+      value={field.value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
 function EntryForm({
   initial,
   initialPassword,
@@ -356,11 +425,14 @@ function EntryForm({
   const [website, setWebsite] = useState(initial?.website ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [totpSecret, setTotpSecret] = useState(initial?.totp_secret ?? "");
-  const [customFields, setCustomFields] = useState<CustomFieldData[]>(initial?.custom_fields ?? []);
+  const [customFields, setCustomFields] = useState<CustomFieldData[]>(
+    (initial?.custom_fields ?? []).map((f) => ({ ...f, field_type: normalizedFieldType(f.field_type) }))
+  );
   const { saveActivity } = useActivity();
 
-  const addCustomField = () => setCustomFields([...customFields, { label: "", value: "" }]);
-  const updateCustomField = (index: number, key: "label" | "value", val: string) => {
+  const addCustomField = () =>
+    setCustomFields([...customFields, { label: "", value: "", field_type: "text" }]);
+  const updateCustomField = (index: number, key: "label" | "value" | "field_type", val: string) => {
     setCustomFields(customFields.map((f, i) => (i === index ? { ...f, [key]: val } : f)));
   };
   const removeCustomField = (index: number) => setCustomFields(customFields.filter((_, i) => i !== index));
@@ -467,20 +539,33 @@ function EntryForm({
             </Button>
           </div>
           {customFields.map((field, i) => (
-            <div key={i} className="flex gap-2">
-              <Input
-                placeholder={t("customFieldNamePlaceholder")}
-                value={field.label}
-                onChange={(e) => updateCustomField(i, "label", e.target.value)}
-              />
-              <Input
-                placeholder={t("customFieldValuePlaceholder")}
-                value={field.value}
-                onChange={(e) => updateCustomField(i, "value", e.target.value)}
-              />
-              <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
-                <X className="h-4 w-4" />
-              </Button>
+            <div key={i} className="border rounded-md p-2 flex flex-col gap-2">
+              <div className="flex gap-2 items-center">
+                <Input
+                  placeholder={t("customFieldNamePlaceholder")}
+                  value={field.label}
+                  onChange={(e) => updateCustomField(i, "label", e.target.value)}
+                  className="flex-1"
+                />
+                <Select
+                  value={normalizedFieldType(field.field_type)}
+                  onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
+                    <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
+                    <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
+                    <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
             </div>
           ))}
         </div>
@@ -496,7 +581,10 @@ function EntryForm({
   );
 }
 
-type RevealIntent = "view" | "copy" | null;
+interface RevealRequest {
+  action: "view" | "copy";
+  customFieldIndex?: number; // undefined = la contraseña principal de la entrada
+}
 
 function EntryDetail({
   entry,
@@ -518,13 +606,15 @@ function EntryDetail({
   const { t } = useTranslation("vault");
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [revealIntent, setRevealIntent] = useState<RevealIntent>(null);
+  const [visibleCustomFields, setVisibleCustomFields] = useState<Record<number, boolean>>({});
+  const [copiedCustomField, setCopiedCustomField] = useState<number | null>(null);
+  const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [revealPassword, setRevealPassword] = useState("");
   const [revealError, setRevealError] = useState("");
   const [revealVerifying, setRevealVerifying] = useState(false);
 
   const closeRevealDialog = () => {
-    setRevealIntent(null);
+    setRevealRequest(null);
     setRevealPassword("");
     setRevealError("");
     setRevealVerifying(false);
@@ -535,12 +625,17 @@ function EntryDetail({
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const triggerCustomCopiedFeedback = (index: number) => {
+    setCopiedCustomField(index);
+    setTimeout(() => setCopiedCustomField(null), 1500);
+  };
+
   const handleToggleShow = () => {
     if (showPassword) {
       setShowPassword(false);
       return;
     }
-    setRevealIntent("view");
+    setRevealRequest({ action: "view" });
   };
 
   const handleCopyClick = () => {
@@ -549,7 +644,24 @@ function EntryDetail({
       triggerCopiedFeedback();
       return;
     }
-    setRevealIntent("copy");
+    setRevealRequest({ action: "copy" });
+  };
+
+  const handleToggleCustomShow = (index: number) => {
+    if (visibleCustomFields[index]) {
+      setVisibleCustomFields((prev) => ({ ...prev, [index]: false }));
+      return;
+    }
+    setRevealRequest({ action: "view", customFieldIndex: index });
+  };
+
+  const handleCopyCustomClick = (index: number, value: string) => {
+    if (visibleCustomFields[index]) {
+      navigator.clipboard.writeText(value);
+      triggerCustomCopiedFeedback(index);
+      return;
+    }
+    setRevealRequest({ action: "copy", customFieldIndex: index });
   };
 
   const handleConfirmReveal = async () => {
@@ -566,10 +678,21 @@ function EntryDetail({
         setRevealVerifying(false);
         return;
       }
-      setShowPassword(true);
-      if (revealIntent === "copy" && entry.password) {
-        navigator.clipboard.writeText(entry.password);
-        triggerCopiedFeedback();
+      if (!revealRequest) return;
+      if (revealRequest.customFieldIndex === undefined) {
+        setShowPassword(true);
+        if (revealRequest.action === "copy" && entry.password) {
+          navigator.clipboard.writeText(entry.password);
+          triggerCopiedFeedback();
+        }
+      } else {
+        const idx = revealRequest.customFieldIndex;
+        setVisibleCustomFields((prev) => ({ ...prev, [idx]: true }));
+        const value = entry.custom_fields?.[idx]?.value;
+        if (revealRequest.action === "copy" && value) {
+          navigator.clipboard.writeText(value);
+          triggerCustomCopiedFeedback(idx);
+        }
       }
       closeRevealDialog();
     } catch (e) {
@@ -666,15 +789,46 @@ function EntryDetail({
             <p>{entry.notes}</p>
           </div>
         )}
-        {entry.custom_fields?.map((field, i) => (
-          <div key={i}>
-            <p className="text-muted-foreground text-xs mb-1">{field.label}</p>
-            <p>{field.value}</p>
-          </div>
-        ))}
+        {entry.custom_fields?.map((field, i) => {
+          const type = normalizedFieldType(field.field_type);
+          return (
+            <div key={i}>
+              <p className="text-muted-foreground text-xs mb-1">{field.label}</p>
+              {type === "boolean" ? (
+                <p>{field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}</p>
+              ) : type === "password" ? (
+                <div className="flex items-center gap-1">
+                  <p className="font-mono mr-1">{visibleCustomFields[i] ? field.value : "•".repeat(10)}</p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleToggleCustomShow(i)}
+                    title={visibleCustomFields[i] ? t("hideButton") : t("showButton")}
+                  >
+                    {visibleCustomFields[i] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleCopyCustomClick(i, field.value)}
+                    title={t("copyTooltip")}
+                  >
+                    {copiedCustomField === i ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <p>{field.value}</p>
+              )}
+            </div>
+          );
+        })}
       </CardContent>
 
-      <Dialog open={revealIntent !== null} onOpenChange={(isOpen) => !isOpen && closeRevealDialog()}>
+      <Dialog open={revealRequest !== null} onOpenChange={(isOpen) => !isOpen && closeRevealDialog()}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{t("revealDialogTitle")}</DialogTitle>

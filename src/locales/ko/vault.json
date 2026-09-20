@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "마스터 비밀번호를 입력하세요",
     "revealWrongPasswordError": "마스터 비밀번호가 올바르지 않습니다",
     "revealVerifyingButton": "확인 중...",
-    "revealConfirmButton": "확인"
+    "revealConfirmButton": "확인",
+    "fieldTypeText": "텍스트",
+    "fieldTypePassword": "비밀번호",
+    "fieldTypeNumber": "숫자",
+    "fieldTypeBoolean": "예/아니요",
+    "fieldValueYes": "예",
+    "fieldValueNo": "아니요"
 }

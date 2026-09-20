@@ -12,11 +12,16 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
 
-// Campo libre: para códigos de recuperación, PINs, o lo que el usuario quiera añadir
+fn default_field_type() -> String {
+    "text".to_string()
+}
+
 #[derive(Serialize, Deserialize, Clone, Default)]
 struct CustomField {
     label: String,
     value: String,
+    #[serde(default = "default_field_type")]
+    field_type: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -480,18 +485,22 @@ fn save_backup_batch(
             CustomField {
                 label: "Alfabeto".to_string(),
                 value: batch.alphabet,
+                field_type: "text".to_string(),
             },
             CustomField {
                 label: "Longitud".to_string(),
                 value: batch.length.to_string(),
+                field_type: "text".to_string(),
             },
             CustomField {
                 label: "Número de códigos".to_string(),
                 value: batch.count.to_string(),
+                field_type: "text".to_string(),
             },
             CustomField {
                 label: "Códigos".to_string(),
                 value: batch.codes.join(", "),
+                field_type: "text".to_string(),
             },
         ],
         totp_secret: None,

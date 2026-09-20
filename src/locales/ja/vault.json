@@ -80,5 +80,11 @@
     "revealPasswordRequiredError": "マスターパスワードを入力してください",
     "revealWrongPasswordError": "マスターパスワードが正しくありません",
     "revealVerifyingButton": "確認中...",
-    "revealConfirmButton": "確認"
+    "revealConfirmButton": "確認",
+    "fieldTypeText": "テキスト",
+    "fieldTypePassword": "パスワード",
+    "fieldTypeNumber": "数値",
+    "fieldTypeBoolean": "はい/いいえ",
+    "fieldValueYes": "はい",
+    "fieldValueNo": "いいえ"
 }
