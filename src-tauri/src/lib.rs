@@ -38,6 +38,8 @@ struct Entry {
     #[serde(default)]
     totp_secret: Option<String>,
     #[serde(default)]
+    entry_type: Option<String>,
+    #[serde(default)]
     favorite: bool,
     #[serde(default)]
     trashed: bool,
@@ -212,6 +214,7 @@ fn save_entry(
     notes: Option<String>,
     custom_fields: Vec<CustomField>,
     totp_secret: Option<String>,
+    entry_type: Option<String>,
 ) -> Result<(), String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
@@ -232,6 +235,7 @@ fn save_entry(
         notes,
         custom_fields,
         totp_secret,
+        entry_type,
         favorite: false,
         trashed: false,
         created_at: now,
@@ -263,6 +267,7 @@ fn update_entry(
     notes: Option<String>,
     custom_fields: Vec<CustomField>,
     totp_secret: Option<String>,
+    entry_type: Option<String>,
 ) -> Result<(), String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
@@ -284,6 +289,7 @@ fn update_entry(
             entry.notes = notes.clone();
             entry.custom_fields = custom_fields.clone();
             entry.totp_secret = totp_secret.clone();
+            entry.entry_type = entry_type.clone();
             entry.updated_at = now;
             found = true;
             break;
@@ -504,6 +510,7 @@ fn save_backup_batch(
             },
         ],
         totp_secret: None,
+        entry_type: None,
         favorite: false,
         trashed: false,
         created_at: now,
