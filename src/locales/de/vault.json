@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "Wiederherstellungscode",
     "verifyBackupCodeButton": "Bestätigen",
     "useTotpCodeLink": "Stattdessen den App-Code verwenden",
-    "backupCodeErrorIncorrect": "Falscher oder bereits verwendeter Code"
+    "backupCodeErrorIncorrect": "Falscher oder bereits verwendeter Code",
+    "revealDialogTitle": "Identität bestätigen",
+    "revealDialogDescription": "Gib dein Master-Passwort ein, um dieses Passwort anzuzeigen oder zu kopieren.",
+    "revealPasswordRequiredError": "Gib dein Master-Passwort ein",
+    "revealWrongPasswordError": "Falsches Master-Passwort",
+    "revealVerifyingButton": "Wird überprüft...",
+    "revealConfirmButton": "Bestätigen"
 }

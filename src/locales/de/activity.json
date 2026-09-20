@@ -90,5 +90,7 @@
     "verifyingButton": "Wird überprüft...",
     "confirmButton": "Bestätigen",
     "event_backupCodesGenerated": "Neue 2FA-Wiederherstellungscodes generiert",
-    "event_loginWithBackupCode": "Angemeldet mit einem Wiederherstellungscode"
+    "event_loginWithBackupCode": "Angemeldet mit einem Wiederherstellungscode",
+    "totpStepDescription": "Gib den Code aus deiner Authenticator-App ein.",
+    "totpWrongCodeError": "Falscher Code"
 }

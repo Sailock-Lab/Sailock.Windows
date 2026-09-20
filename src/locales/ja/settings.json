@@ -144,5 +144,7 @@
     "backupCodesCopyAllButton": "すべてコピー",
     "backupCodesDownloadButton": "ダウンロード",
     "backupCodesDoneButton": "完了",
-    "backupCodesDownloadedToast": "コードをダウンロードしました"
+    "backupCodesDownloadedToast": "コードをダウンロードしました",
+    "exportVerifyDescription": "続行するにはマスターパスワードを入力してください。",
+    "exportVerifyAndContinueButton": "確認して続行"
 }

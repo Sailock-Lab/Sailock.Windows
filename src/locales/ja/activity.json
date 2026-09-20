@@ -88,5 +88,7 @@
     "verifyingButton": "確認中...",
     "confirmButton": "確認",
     "event_backupCodesGenerated": "新しい2FA復旧コードを生成しました",
-    "event_loginWithBackupCode": "復旧コードを使用してログインしました"
+    "event_loginWithBackupCode": "復旧コードを使用してログインしました",
+    "totpStepDescription": "認証アプリのコードを入力してください。",
+    "totpWrongCodeError": "コードが正しくありません"
 }

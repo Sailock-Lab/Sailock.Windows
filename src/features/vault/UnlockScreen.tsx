@@ -254,11 +254,13 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
             <CardContent className="flex flex-col gap-3">
               {!useBackupCode ? (
                 <>
-                  <Input
-                    placeholder={t("totpPlaceholder")}
+                  <PasswordField
                     value={totpCode}
-                    onChange={(e) => setTotpCode(e.target.value)}
+                    onChange={setTotpCode}
                     onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
+                    placeholder={t("totpPlaceholder")}
+                    showLabel={t("showButton")}
+                    hideLabel={t("hideButton")}
                     autoFocus
                   />
                   {error && <p className="text-sm text-destructive">{error}</p>}
@@ -276,11 +278,13 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
                 </>
               ) : (
                 <>
-                  <Input
-                    placeholder={t("backupCodePlaceholder")}
+                  <PasswordField
                     value={backupCode}
-                    onChange={(e) => setBackupCode(e.target.value)}
+                    onChange={setBackupCode}
                     onKeyDown={(e) => e.key === "Enter" && handleVerifyBackupCode()}
+                    placeholder={t("backupCodePlaceholder")}
+                    showLabel={t("showButton")}
+                    hideLabel={t("hideButton")}
                     autoFocus
                   />
                   {error && <p className="text-sm text-destructive">{error}</p>}

@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "Código de recuperação",
     "verifyBackupCodeButton": "Verificar",
     "useTotpCodeLink": "Usar o código do app em vez disso",
-    "backupCodeErrorIncorrect": "Código incorreto ou já utilizado"
+    "backupCodeErrorIncorrect": "Código incorreto ou já utilizado",
+    "revealDialogTitle": "Verifique sua identidade",
+    "revealDialogDescription": "Digite sua senha mestra para exibir ou copiar essa senha.",
+    "revealPasswordRequiredError": "Digite sua senha mestra",
+    "revealWrongPasswordError": "Senha mestra incorreta",
+    "revealVerifyingButton": "Verificando...",
+    "revealConfirmButton": "Confirmar"
 }

@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "Recovery code",
     "verifyBackupCodeButton": "Verify",
     "useTotpCodeLink": "Use the authenticator code instead",
-    "backupCodeErrorIncorrect": "Incorrect or already used code"
+    "backupCodeErrorIncorrect": "Incorrect or already used code",
+    "revealDialogTitle": "Verify your identity",
+    "revealDialogDescription": "Enter your master password to reveal or copy this password.",
+    "revealPasswordRequiredError": "Enter your master password",
+    "revealWrongPasswordError": "Incorrect master password",
+    "revealVerifyingButton": "Verifying...",
+    "revealConfirmButton": "Confirm"
 }

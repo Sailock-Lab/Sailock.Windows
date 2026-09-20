@@ -145,5 +145,7 @@
     "backupCodesCopyAllButton": "Copy all",
     "backupCodesDownloadButton": "Download",
     "backupCodesDoneButton": "Done",
-    "backupCodesDownloadedToast": "Codes downloaded"
+    "backupCodesDownloadedToast": "Codes downloaded",
+    "exportVerifyDescription": "Enter your master password to continue.",
+    "exportVerifyAndContinueButton": "Verify and continue"
 }

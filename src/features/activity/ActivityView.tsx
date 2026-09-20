@@ -104,6 +104,8 @@ function formatTimestamp(timestamp: number, t: TFunction): string {
 
 type ConfirmAction = "clear" | "export" | null;
 
+type ConfirmStep = "password" | "totp";
+
 function PasswordConfirmDialog({
   open,
   onOpenChange,
@@ -118,20 +120,24 @@ function PasswordConfirmDialog({
   onConfirmed: () => void | Promise<void>;
 }) {
   const { t } = useTranslation("activity");
+  const [step, setStep] = useState<ConfirmStep>("password");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState("");
   const [verifying, setVerifying] = useState(false);
 
   const handleOpenChange = (isOpen: boolean) => {
     onOpenChange(isOpen);
     if (!isOpen) {
+      setStep("password");
       setPassword("");
+      setTotpCode("");
       setError("");
       setVerifying(false);
     }
   };
 
-  const handleConfirm = async () => {
+  const handleVerifyPassword = async () => {
     if (!password) {
       setError(t("passwordRequiredError"));
       return;
@@ -142,6 +148,30 @@ function PasswordConfirmDialog({
       const ok = await invoke<boolean>("verify_master_password", { masterPassword: password });
       if (!ok) {
         setError(t("wrongPasswordError"));
+        setVerifying(false);
+        return;
+      }
+      const totpEnabled = await invoke<boolean>("totp_status").catch(() => false);
+      if (totpEnabled) {
+        setStep("totp");
+        setVerifying(false);
+      } else {
+        await onConfirmed();
+        handleOpenChange(false);
+      }
+    } catch (e) {
+      setError(String(e));
+      setVerifying(false);
+    }
+  };
+
+  const handleVerifyTotp = async () => {
+    setVerifying(true);
+    setError("");
+    try {
+      const ok = await invoke<boolean>("totp_verify_unlock", { code: totpCode });
+      if (!ok) {
+        setError(t("totpWrongCodeError"));
         setVerifying(false);
         return;
       }
@@ -158,22 +188,38 @@ function PasswordConfirmDialog({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription>{step === "password" ? description : t("totpStepDescription")}</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <Input
-            type="password"
-            placeholder={t("masterPasswordPlaceholder")}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
-            autoFocus
-          />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button onClick={handleConfirm} disabled={verifying}>
-            {verifying ? t("verifyingButton") : t("confirmButton")}
-          </Button>
-        </div>
+        {step === "password" ? (
+          <div className="flex flex-col gap-3">
+            <Input
+              type="password"
+              placeholder={t("masterPasswordPlaceholder")}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleVerifyPassword()}
+              autoFocus
+            />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button onClick={handleVerifyPassword} disabled={verifying}>
+              {verifying ? t("verifyingButton") : t("confirmButton")}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <Input
+              placeholder="123456"
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
+              autoFocus
+            />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button onClick={handleVerifyTotp} disabled={verifying}>
+              {verifying ? t("verifyingButton") : t("confirmButton")}
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "복구 코드",
     "verifyBackupCodeButton": "확인",
     "useTotpCodeLink": "대신 앱 코드 사용하기",
-    "backupCodeErrorIncorrect": "코드가 올바르지 않거나 이미 사용되었습니다"
+    "backupCodeErrorIncorrect": "코드가 올바르지 않거나 이미 사용되었습니다",
+    "revealDialogTitle": "본인 확인",
+    "revealDialogDescription": "이 비밀번호를 표시하거나 복사하려면 마스터 비밀번호를 입력하세요.",
+    "revealPasswordRequiredError": "마스터 비밀번호를 입력하세요",
+    "revealWrongPasswordError": "마스터 비밀번호가 올바르지 않습니다",
+    "revealVerifyingButton": "확인 중...",
+    "revealConfirmButton": "확인"
 }

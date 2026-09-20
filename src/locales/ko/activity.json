@@ -88,5 +88,7 @@
     "verifyingButton": "확인 중...",
     "confirmButton": "확인",
     "event_backupCodesGenerated": "새로운 2FA 복구 코드가 생성됨",
-    "event_loginWithBackupCode": "복구 코드로 로그인함"
+    "event_loginWithBackupCode": "복구 코드로 로그인함",
+    "totpStepDescription": "인증 앱의 코드를 입력하세요.",
+    "totpWrongCodeError": "코드가 올바르지 않습니다"
 }

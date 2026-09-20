@@ -144,5 +144,7 @@
     "backupCodesCopyAllButton": "全部复制",
     "backupCodesDownloadButton": "下载",
     "backupCodesDoneButton": "完成",
-    "backupCodesDownloadedToast":"代码已下载"
+    "backupCodesDownloadedToast": "代码已下载",
+    "exportVerifyDescription": "请输入主密码以继续。",
+    "exportVerifyAndContinueButton": "验证并继续"
 }

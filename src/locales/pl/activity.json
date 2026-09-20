@@ -94,5 +94,7 @@
     "verifyingButton": "Weryfikacja...",
     "confirmButton": "Potwierdź",
     "event_backupCodesGenerated": "Wygenerowano nowe kody odzyskiwania 2FA",
-    "event_loginWithBackupCode": "Zalogowano za pomocą kodu odzyskiwania"
+    "event_loginWithBackupCode": "Zalogowano za pomocą kodu odzyskiwania",
+    "totpStepDescription": "Wprowadź kod z aplikacji uwierzytelniającej.",
+    "totpWrongCodeError": "Nieprawidłowy kod"
 }

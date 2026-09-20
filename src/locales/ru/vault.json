@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "Код восстановления",
     "verifyBackupCodeButton": "Подтвердить",
     "useTotpCodeLink": "Использовать код из приложения вместо этого",
-    "backupCodeErrorIncorrect": "Неверный или уже использованный код"
+    "backupCodeErrorIncorrect": "Неверный или уже использованный код",
+    "revealDialogTitle": "Подтвердите личность",
+    "revealDialogDescription": "Введите мастер-пароль, чтобы показать или скопировать этот пароль.",
+    "revealPasswordRequiredError": "Введите мастер-пароль",
+    "revealWrongPasswordError": "Неверный мастер-пароль",
+    "revealVerifyingButton": "Проверка...",
+    "revealConfirmButton": "Подтвердить"
 }

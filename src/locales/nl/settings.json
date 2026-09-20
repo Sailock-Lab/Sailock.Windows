@@ -144,5 +144,7 @@
     "backupCodesShownOnceWarning": "Bewaar deze codes op een veilige plek — ze worden niet opnieuw getoond. Elke code werkt maar één keer.",
     "backupCodesCopyAllButton": "Alles kopiëren",
     "backupCodesDownloadButton": "Downloaden",
-    "backupCodesDoneButton": "Klaar"
+    "backupCodesDoneButton": "Klaar",
+    "exportVerifyDescription": "Voer je hoofdwachtwoord in om door te gaan.",
+    "exportVerifyAndContinueButton": "Verifiëren en doorgaan"
 }

@@ -90,5 +90,7 @@
     "verifyingButton": "Verifica in corso...",
     "confirmButton": "Conferma",
     "event_backupCodesGenerated": "Generati nuovi codici di recupero 2FA",
-    "event_loginWithBackupCode": "Accesso effettuato con un codice di recupero"
+    "event_loginWithBackupCode": "Accesso effettuato con un codice di recupero",
+    "totpStepDescription": "Inserisci il codice della tua app di autenticazione.",
+    "totpWrongCodeError": "Codice errato"
 }

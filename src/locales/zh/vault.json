@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "恢复代码",
     "verifyBackupCodeButton": "验证",
     "useTotpCodeLink": "改用应用中的验证码",
-    "backupCodeErrorIncorrect": "代码不正确或已被使用"
+    "backupCodeErrorIncorrect": "代码不正确或已被使用",
+    "revealDialogTitle": "验证身份",
+    "revealDialogDescription": "请输入主密码以显示或复制此密码。",
+    "revealPasswordRequiredError": "请输入主密码",
+    "revealWrongPasswordError": "主密码不正确",
+    "revealVerifyingButton": "验证中...",
+    "revealConfirmButton": "确认"
 }

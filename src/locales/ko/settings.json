@@ -144,5 +144,7 @@
     "backupCodesCopyAllButton": "모두 복사",
     "backupCodesDownloadButton": "다운로드",
     "backupCodesDoneButton": "완료",
-    "backupCodesDownloadedToast":"코드가 다운로드되었습니다"
+    "backupCodesDownloadedToast": "코드가 다운로드되었습니다",
+    "exportVerifyDescription": "계속하려면 마스터 비밀번호를 입력하세요.",
+    "exportVerifyAndContinueButton": "확인하고 계속하기"
 }

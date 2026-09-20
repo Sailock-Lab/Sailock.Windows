@@ -90,5 +90,7 @@
     "verifyingButton": "Verifying...",
     "confirmButton": "Confirm",
     "event_backupCodesGenerated": "New 2FA recovery codes generated",
-    "event_loginWithBackupCode": "Signed in using a recovery code"
+    "event_loginWithBackupCode": "Signed in using a recovery code",
+    "totpStepDescription": "Enter the code from your authenticator app.",
+    "totpWrongCodeError": "Incorrect code"
 }

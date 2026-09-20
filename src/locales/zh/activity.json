@@ -88,5 +88,7 @@
     "verifyingButton": "验证中...",
     "confirmButton": "确认",
     "event_backupCodesGenerated": "已生成新的双重验证恢复代码",
-    "event_loginWithBackupCode": "已使用恢复代码登录"
+    "event_loginWithBackupCode": "已使用恢复代码登录",
+    "totpStepDescription": "请输入身份验证器应用中的代码。",
+    "totpWrongCodeError": "验证码不正确"
 }

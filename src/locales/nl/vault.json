@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "Herstelcode",
     "verifyBackupCodeButton": "Verifiëren",
     "useTotpCodeLink": "Gebruik in plaats daarvan de app-code",
-    "backupCodeErrorIncorrect": "Onjuiste of al gebruikte code"
+    "backupCodeErrorIncorrect": "Onjuiste of al gebruikte code",
+    "revealDialogTitle": "Bevestig je identiteit",
+    "revealDialogDescription": "Voer je hoofdwachtwoord in om dit wachtwoord te tonen of te kopiëren.",
+    "revealPasswordRequiredError": "Voer je hoofdwachtwoord in",
+    "revealWrongPasswordError": "Onjuist hoofdwachtwoord",
+    "revealVerifyingButton": "Verifiëren...",
+    "revealConfirmButton": "Bevestigen"
 }

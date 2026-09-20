@@ -243,14 +243,75 @@ function BackupCodesDialog({ onGenerated }: { onGenerated: (count: number) => vo
   );
 }
 
+type ExportStep = "verify" | "totp" | "choose";
+
 function ExportDialog() {
   const { t } = useTranslation("settings");
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<ExportStep>("verify");
+  const [masterPassword, setMasterPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
-  const [exporting, setExporting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const { saveActivity } = useActivity();
+
+  const reset = () => {
+    setStep("verify");
+    setMasterPassword("");
+    setTotpCode("");
+    setPassword("");
+    setConfirmPassword("");
+    setError("");
+    setBusy(false);
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) reset();
+  };
+
+  const handleVerifyMaster = async () => {
+    if (!masterPassword) {
+      setError(t("deleteEnterPasswordError"));
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const ok = await invoke<boolean>("verify_master_password", { masterPassword });
+      if (!ok) {
+        setError(t("deleteWrongPasswordError"));
+        setBusy(false);
+        return;
+      }
+      const totpEnabled = await invoke<boolean>("totp_status").catch(() => false);
+      setStep(totpEnabled ? "totp" : "choose");
+      setBusy(false);
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+    }
+  };
+
+  const handleVerifyTotp = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const ok = await invoke<boolean>("totp_verify_unlock", { code: totpCode });
+      if (!ok) {
+        setError(t("wrongCodeError"));
+        setBusy(false);
+        return;
+      }
+      setStep("choose");
+      setBusy(false);
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+    }
+  };
 
   const handleExport = async () => {
     if (password.length < 8) {
@@ -262,7 +323,7 @@ function ExportDialog() {
       return;
     }
     setError("");
-    setExporting(true);
+    setBusy(true);
     try {
       const content = await invoke<string>("export_vault", { exportPassword: password });
       const blob = new Blob([content], { type: "application/json;charset=utf-8" });
@@ -276,13 +337,10 @@ function ExportDialog() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       saveActivity("download", "vaultExported", "settings");
       toast.success(t("exportSuccessToast"));
-      setOpen(false);
-      setPassword("");
-      setConfirmPassword("");
+      handleOpenChange(false);
     } catch (e) {
       setError(String(e));
-    } finally {
-      setExporting(false);
+      setBusy(false);
     }
   };
 
@@ -291,31 +349,71 @@ function ExportDialog() {
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Download className="h-4 w-4 mr-2" /> {t("exportButton")}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{t("exportDialogTitle")}</DialogTitle>
-            <DialogDescription>{t("exportDialogDescription")}</DialogDescription>
+            <DialogDescription>
+              {step === "verify" && t("exportVerifyDescription")}
+              {step === "totp" && t("importStepTotpDescription")}
+              {step === "choose" && t("exportDialogDescription")}
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <div>
-              <Label>{t("exportPasswordLabel")}</Label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-            <div>
-              <Label>{t("exportConfirmPasswordLabel")}</Label>
+
+          {step === "verify" && (
+            <div className="flex flex-col gap-3">
               <Input
                 type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleExport()}
+                placeholder={t("deleteMasterPasswordPlaceholder")}
+                value={masterPassword}
+                onChange={(e) => setMasterPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleVerifyMaster()}
+                autoFocus
               />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button onClick={handleVerifyMaster} disabled={busy}>
+                {busy ? t("deleteVerifyingButton") : t("continueButton")}
+              </Button>
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button onClick={handleExport} disabled={exporting}>
-              {exporting ? t("exportingButton") : t("exportButtonAction")}
-            </Button>
-          </div>
+          )}
+
+          {step === "totp" && (
+            <div className="flex flex-col gap-3">
+              <Input
+                placeholder="123456"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleVerifyTotp()}
+                autoFocus
+              />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button onClick={handleVerifyTotp} disabled={busy}>
+                {busy ? t("deleteVerifyingButton") : t("exportVerifyAndContinueButton")}
+              </Button>
+            </div>
+          )}
+
+          {step === "choose" && (
+            <div className="flex flex-col gap-3">
+              <div>
+                <Label>{t("exportPasswordLabel")}</Label>
+                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+              <div>
+                <Label>{t("exportConfirmPasswordLabel")}</Label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleExport()}
+                />
+              </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button onClick={handleExport} disabled={busy}>
+                {busy ? t("exportingButton") : t("exportButtonAction")}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>

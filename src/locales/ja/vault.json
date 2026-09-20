@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "復旧コード",
     "verifyBackupCodeButton": "確認",
     "useTotpCodeLink": "代わりにアプリのコードを使用する",
-    "backupCodeErrorIncorrect": "コードが正しくないか、すでに使用されています"
+    "backupCodeErrorIncorrect": "コードが正しくないか、すでに使用されています",
+    "revealDialogTitle": "本人確認",
+    "revealDialogDescription": "このパスワードを表示またはコピーするには、マスターパスワードを入力してください。",
+    "revealPasswordRequiredError": "マスターパスワードを入力してください",
+    "revealWrongPasswordError": "マスターパスワードが正しくありません",
+    "revealVerifyingButton": "確認中...",
+    "revealConfirmButton": "確認"
 }

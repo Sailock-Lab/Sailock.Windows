@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff, Star, RotateCcw, Search } from "lucide-react";
+import { Plus, KeyRound, X, Pencil, Trash2, Eye, EyeOff, Star, RotateCcw, Search, Copy, Check } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import { useActivity } from "@/hooks/useActivity";
 
@@ -275,6 +276,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             )}
             {formMode === null && selected && (
               <EntryDetail
+                key={selected.id}
                 entry={selected}
                 onEdit={() => setFormMode("edit")}
                 onTrash={() => handleTrash(selected.id)}
@@ -494,6 +496,8 @@ function EntryForm({
   );
 }
 
+type RevealIntent = "view" | "copy" | null;
+
 function EntryDetail({
   entry,
   onEdit,
@@ -513,6 +517,66 @@ function EntryDetail({
 }) {
   const { t } = useTranslation("vault");
   const [showPassword, setShowPassword] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [revealIntent, setRevealIntent] = useState<RevealIntent>(null);
+  const [revealPassword, setRevealPassword] = useState("");
+  const [revealError, setRevealError] = useState("");
+  const [revealVerifying, setRevealVerifying] = useState(false);
+
+  const closeRevealDialog = () => {
+    setRevealIntent(null);
+    setRevealPassword("");
+    setRevealError("");
+    setRevealVerifying(false);
+  };
+
+  const triggerCopiedFeedback = () => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleToggleShow = () => {
+    if (showPassword) {
+      setShowPassword(false);
+      return;
+    }
+    setRevealIntent("view");
+  };
+
+  const handleCopyClick = () => {
+    if (showPassword && entry.password) {
+      navigator.clipboard.writeText(entry.password);
+      triggerCopiedFeedback();
+      return;
+    }
+    setRevealIntent("copy");
+  };
+
+  const handleConfirmReveal = async () => {
+    if (!revealPassword) {
+      setRevealError(t("revealPasswordRequiredError"));
+      return;
+    }
+    setRevealVerifying(true);
+    setRevealError("");
+    try {
+      const ok = await invoke<boolean>("verify_master_password", { masterPassword: revealPassword });
+      if (!ok) {
+        setRevealError(t("revealWrongPasswordError"));
+        setRevealVerifying(false);
+        return;
+      }
+      setShowPassword(true);
+      if (revealIntent === "copy" && entry.password) {
+        navigator.clipboard.writeText(entry.password);
+        triggerCopiedFeedback();
+      }
+      closeRevealDialog();
+    } catch (e) {
+      setRevealError(String(e));
+      setRevealVerifying(false);
+    }
+  };
 
   return (
     <Card className="h-full flex flex-col rounded-none border-l shadow-2xl">
@@ -568,10 +632,18 @@ function EntryDetail({
         {entry.password && (
           <div>
             <p className="text-muted-foreground text-xs mb-1">{t("detailPassword")}</p>
-            <div className="flex items-center gap-2">
-              <p className="font-mono">{showPassword ? entry.password : "•".repeat(10)}</p>
-              <Button variant="ghost" size="sm" onClick={() => setShowPassword(!showPassword)}>
-                {showPassword ? t("hideButton") : t("showButton")}
+            <div className="flex items-center gap-1">
+              <p className="font-mono mr-1">{showPassword ? entry.password : "•".repeat(10)}</p>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleToggleShow}
+                title={showPassword ? t("hideButton") : t("showButton")}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={handleCopyClick} title={t("copyTooltip")}>
+                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -601,6 +673,29 @@ function EntryDetail({
           </div>
         ))}
       </CardContent>
+
+      <Dialog open={revealIntent !== null} onOpenChange={(isOpen) => !isOpen && closeRevealDialog()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("revealDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("revealDialogDescription")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Input
+              type="password"
+              placeholder={t("passwordPlaceholder")}
+              value={revealPassword}
+              onChange={(e) => setRevealPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleConfirmReveal()}
+              autoFocus
+            />
+            {revealError && <p className="text-sm text-destructive">{revealError}</p>}
+            <Button onClick={handleConfirmReveal} disabled={revealVerifying}>
+              {revealVerifying ? t("revealVerifyingButton") : t("revealConfirmButton")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

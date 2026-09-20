@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "Kod odzyskiwania",
     "verifyBackupCodeButton": "Zweryfikuj",
     "useTotpCodeLink": "Użyj zamiast tego kodu z aplikacji",
-    "backupCodeErrorIncorrect": "Nieprawidłowy lub już użyty kod"
+    "backupCodeErrorIncorrect": "Nieprawidłowy lub już użyty kod",
+    "revealDialogTitle": "Zweryfikuj swoją tożsamość",
+    "revealDialogDescription": "Wprowadź hasło główne, aby wyświetlić lub skopiować to hasło.",
+    "revealPasswordRequiredError": "Wprowadź hasło główne",
+    "revealWrongPasswordError": "Nieprawidłowe hasło główne",
+    "revealVerifyingButton": "Weryfikacja...",
+    "revealConfirmButton": "Potwierdź"
 }

@@ -147,5 +147,7 @@
     "backupCodesCopyAllButton": "Kopiuj wszystkie",
     "backupCodesDownloadButton": "Pobierz",
     "backupCodesDoneButton": "Gotowe",
-    "backupCodesDownloadedToast":"Kody pobrane"
+    "backupCodesDownloadedToast": "Kody pobrane",
+    "exportVerifyDescription": "Wprowadź hasło główne, aby kontynuować.",
+    "exportVerifyAndContinueButton": "Zweryfikuj i kontynuuj"
 }

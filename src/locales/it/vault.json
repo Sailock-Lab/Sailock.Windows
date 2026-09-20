@@ -74,5 +74,11 @@
     "backupCodePlaceholder": "Codice di recupero",
     "verifyBackupCodeButton": "Verifica",
     "useTotpCodeLink": "Usa invece il codice dell'app",
-    "backupCodeErrorIncorrect": "Codice errato o già utilizzato"
+    "backupCodeErrorIncorrect": "Codice errato o già utilizzato",
+    "revealDialogTitle": "Verifica la tua identità",
+    "revealDialogDescription": "Inserisci la tua password principale per visualizzare o copiare questa password.",
+    "revealPasswordRequiredError": "Inserisci la tua password principale",
+    "revealWrongPasswordError": "Password principale errata",
+    "revealVerifyingButton": "Verifica in corso...",
+    "revealConfirmButton": "Conferma"
 }

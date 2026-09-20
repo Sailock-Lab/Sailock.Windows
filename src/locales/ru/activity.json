@@ -94,5 +94,7 @@
     "verifyingButton": "Проверка...",
     "confirmButton": "Подтвердить",
     "event_backupCodesGenerated": "Сгенерированы новые коды восстановления 2FA",
-    "event_loginWithBackupCode": "Выполнен вход с помощью кода восстановления"
+    "event_loginWithBackupCode": "Выполнен вход с помощью кода восстановления",
+    "totpStepDescription": "Введите код из приложения-аутентификатора.",
+    "totpWrongCodeError": "Неверный код"
 }

@@ -147,5 +147,7 @@
     "backupCodesCopyAllButton": "Копировать все",
     "backupCodesDownloadButton": "Скачать",
     "backupCodesDoneButton": "Готово",
-    "backupCodesDownloadedToast":"Коды скачаны"
+    "backupCodesDownloadedToast": "Коды скачаны",
+    "exportVerifyDescription": "Введите мастер-пароль, чтобы продолжить.",
+    "exportVerifyAndContinueButton": "Подтвердить и продолжить"
 }
