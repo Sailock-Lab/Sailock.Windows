@@ -37,6 +37,8 @@ import {
   StickyNote,
   Wifi,
   Sparkles,
+  List,
+  LayoutGrid,
   LucideIcon,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
@@ -46,6 +48,8 @@ interface CustomFieldData {
   label: string;
   value: string;
   field_type: string; // "text" | "password" | "number" | "boolean"
+  is_preset?: boolean;
+  preset_key?: string | null;
 }
 
 interface Entry {
@@ -61,14 +65,21 @@ interface Entry {
   entry_type?: string | null;
   favorite: boolean;
   trashed: boolean;
+  created_at: number;
+  updated_at: number;
 }
 
 type FormMode = "create" | "edit" | null;
 type Filter = "all" | "favorites" | "trash";
 type SearchCategory = "all" | "name" | "contact" | "website" | "custom";
+type ViewMode = "list" | "gallery";
 
 function normalizedFieldType(type: string | undefined): "text" | "password" | "number" | "boolean" {
   return type === "password" || type === "number" || type === "boolean" ? type : "text";
+}
+
+function formatDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function matchesSearch(entry: Entry, term: string, category: SearchCategory): boolean {
@@ -230,6 +241,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<EntryTemplate | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [search, setSearch] = useState("");
   const [searchCategory, setSearchCategory] = useState<SearchCategory>("all");
   const { saveActivity } = useActivity();
@@ -256,6 +269,10 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     if (filter === "trash" && !e.trashed) return false;
     if (filter === "favorites" && !(e.favorite && !e.trashed)) return false;
     if (filter === "all" && e.trashed) return false;
+    if (typeFilter !== "all") {
+      const entryTypeKey = e.entry_type || "uncategorized";
+      if (entryTypeKey !== typeFilter) return false;
+    }
     return matchesSearch(e, search, searchCategory);
   });
 
@@ -309,6 +326,19 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     loadEntries();
   };
 
+  const renderFavoriteStar = (entry: Entry) =>
+    !entry.trashed && (
+      <span
+        role="button"
+        onClick={(e) => handleToggleFavorite(entry.id, e)}
+        className={`shrink-0 text-muted-foreground hover:text-foreground transition-opacity ${
+          entry.favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
+      </span>
+    );
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-1">{t("title")}</h2>
@@ -348,59 +378,128 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             </Select>
           </div>
 
-          <div className="flex gap-1 mb-3">
-            <Button variant={filter === "all" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("all")}>
-              {t("filterAll")}
-            </Button>
-            <Button
-              variant={filter === "favorites" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setFilter("favorites")}
-            >
-              <Star className="h-3.5 w-3.5 mr-1" /> {t("filterFavorites")}
-            </Button>
-            <Button variant={filter === "trash" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("trash")}>
-              <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("filterTrash")}
-            </Button>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <div className="flex gap-1 flex-wrap">
+              <Button variant={filter === "all" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("all")}>
+                {t("filterAll")}
+              </Button>
+              <Button
+                variant={filter === "favorites" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setFilter("favorites")}
+              >
+                <Star className="h-3.5 w-3.5 mr-1" /> {t("filterFavorites")}
+              </Button>
+              <Button variant={filter === "trash" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("trash")}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("filterTrash")}
+              </Button>
+              <Select value={typeFilter} onValueChange={(v) => v && setTypeFilter(v)}>
+                <SelectTrigger className="w-40 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("typeFilterAll")}</SelectItem>
+                  {TEMPLATES.map((tpl) => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      {t(tpl.labelKey)}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="uncategorized">{t("templateUncategorized")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <Button
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="icon"
+                onClick={() => setViewMode("list")}
+                title={t("viewList")}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "gallery" ? "secondary" : "ghost"}
+                size="icon"
+                onClick={() => setViewMode("gallery")}
+                title={t("viewGallery")}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            {visible.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4">{search ? t("emptySearch") : t("emptyList")}</p>
-            )}
-            {visible.map((entry) => {
-              const Icon = entryIcon(entry.entry_type);
-              return (
-                <button
-                  key={entry.id}
-                  onClick={() => {
-                    setSelectedId(entry.id);
-                    setFormMode(null);
-                  }}
-                  className={`flex items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${
-                    selectedId === entry.id ? "bg-muted" : ""
-                  }`}
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{entry.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{entry.username || entry.folder || "—"}</p>
-                  </div>
-                  {!entry.trashed && (
-                    <span
-                      role="button"
-                      onClick={(e) => handleToggleFavorite(entry.id, e)}
-                      className="shrink-0 text-muted-foreground hover:text-foreground"
-                    >
-                      <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {visible.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">{search ? t("emptySearch") : t("emptyList")}</p>
+          ) : viewMode === "list" ? (
+            <div className="flex flex-col gap-1">
+              {visible.map((entry) => {
+                const Icon = entryIcon(entry.entry_type);
+                return (
+                  <button
+                    key={entry.id}
+                    onClick={() => {
+                      setSelectedId(entry.id);
+                      setFormMode(null);
+                    }}
+                    className={`group flex items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${
+                      selectedId === entry.id ? "bg-muted" : ""
+                    }`}
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">{entry.name}</p>
+                        <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
+                          {entry.entry_type ? t(TEMPLATES.find((tp) => tp.id === entry.entry_type)?.labelKey ?? "templateUncategorized") : t("templateUncategorized")}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {t("editedLabel")}: {formatDate(entry.updated_at)}
+                      </p>
+                    </div>
+                    {renderFavoriteStar(entry)}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {visible.map((entry) => {
+                const Icon = entryIcon(entry.entry_type);
+                return (
+                  <button
+                    key={entry.id}
+                    onClick={() => {
+                      setSelectedId(entry.id);
+                      setFormMode(null);
+                    }}
+                    className={`group flex flex-col gap-2 rounded-lg border p-3 text-left hover:border-primary hover:bg-muted/50 transition-colors ${
+                      selectedId === entry.id ? "border-primary bg-muted/50" : ""
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      {renderFavoriteStar(entry)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium truncate">{entry.name}</p>
+                      <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded inline-block mt-1">
+                        {entry.entry_type ? t(TEMPLATES.find((tp) => tp.id === entry.entry_type)?.labelKey ?? "templateUncategorized") : t("templateUncategorized")}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-auto pt-2 border-t">
+                      <p>{t("createdLabel")}: {formatDate(entry.created_at)}</p>
+                      <p>{t("editedLabel")}: {formatDate(entry.updated_at)}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -609,13 +708,15 @@ function EntryForm({
       return (initial.custom_fields ?? []).map((f) => ({ ...f, field_type: normalizedFieldType(f.field_type) }));
     }
     if (activeTemplate) {
-      return activeTemplate.presetFields.map((f) => ({ label: t(f.labelKey), value: "", field_type: f.type }));
+      return activeTemplate.presetFields.map((f) => ({
+        label: t(f.labelKey),
+        value: "",
+        field_type: f.type,
+        is_preset: true,
+        preset_key: f.labelKey,
+      }));
     }
     return [];
-  });
-  const [presetKeys, setPresetKeys] = useState<(string | undefined)[]>(() => {
-    if (initial || !activeTemplate) return [];
-    return activeTemplate.presetFields.map((f) => f.labelKey);
   });
   const { saveActivity } = useActivity();
 
@@ -627,16 +728,18 @@ function EntryForm({
   const notesLabel = !initial && activeTemplate?.id === "note" ? t("presetContent") : t("fieldNotes");
   const entryTypeToSave = initial ? initial.entry_type ?? null : activeTemplate ? activeTemplate.id : null;
 
+  const indexedFields = customFields.map((field, i) => ({ field, i }));
+  const presetIndexed = indexedFields.filter((x) => x.field.is_preset);
+  const customIndexed = indexedFields.filter((x) => !x.field.is_preset);
+
   const addCustomField = () => {
-    setCustomFields([...customFields, { label: "", value: "", field_type: "text" }]);
-    setPresetKeys([...presetKeys, undefined]);
+    setCustomFields([...customFields, { label: "", value: "", field_type: "text", is_preset: false, preset_key: null }]);
   };
   const updateCustomField = (index: number, key: "label" | "value" | "field_type", val: string) => {
     setCustomFields(customFields.map((f, i) => (i === index ? { ...f, [key]: val } : f)));
   };
   const removeCustomField = (index: number) => {
     setCustomFields(customFields.filter((_, i) => i !== index));
-    setPresetKeys(presetKeys.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
@@ -648,7 +751,7 @@ function EntryForm({
       password: (showPasswordField ? password : "") || null,
       website: (showWebsite ? website : "") || null,
       notes: notes || null,
-      customFields: customFields.filter((f) => f.label.trim() !== ""),
+      customFields: customFields.filter((f) => f.is_preset || f.label.trim() !== ""),
       totpSecret: (showTotp ? totpSecret : "").trim() || null,
       entryType: entryTypeToSave,
     };
@@ -732,6 +835,30 @@ function EntryForm({
           </div>
         )}
 
+        {presetIndexed.map(({ field, i }) => {
+          const isSecurityTypeField = field.preset_key === "presetSecurityType";
+          return (
+            <div key={i}>
+              <label className="text-sm font-medium block mb-1">{field.label}</label>
+              {isSecurityTypeField ? (
+                <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("customFieldValuePlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
+                    <SelectItem value="WPA3">WPA3</SelectItem>
+                    <SelectItem value="WEP">WEP</SelectItem>
+                    <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+              )}
+            </div>
+          );
+        })}
+
         <div>
           <label className="text-sm font-medium block mb-1">{notesLabel}</label>
           <textarea
@@ -749,53 +876,39 @@ function EntryForm({
               <Plus className="h-4 w-4 mr-1" /> {t("addFieldButton")}
             </Button>
           </div>
-          {customFields.map((field, i) => {
-            const isSecurityTypeField = presetKeys[i] === "presetSecurityType";
-            return (
-              <div key={i} className="border rounded-md p-2 flex flex-col gap-2">
-                <div className="flex gap-2 items-center">
-                  <Input
-                    placeholder={t("customFieldNamePlaceholder")}
-                    value={field.label}
-                    onChange={(e) => updateCustomField(i, "label", e.target.value)}
-                    className="flex-1"
-                  />
-                  <Select
-                    value={normalizedFieldType(field.field_type)}
-                    onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
-                  >
-                    <SelectTrigger className="w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
-                      <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
-                      <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
-                      <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                {isSecurityTypeField ? (
-                  <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("customFieldValuePlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
-                      <SelectItem value="WPA3">WPA3</SelectItem>
-                      <SelectItem value="WEP">WEP</SelectItem>
-                      <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
-                )}
+          {customIndexed.length === 0 && (
+            <p className="text-xs text-muted-foreground">{t("customFieldsEmptyHint")}</p>
+          )}
+          {customIndexed.map(({ field, i }) => (
+            <div key={i} className="border rounded-md p-2 flex flex-col gap-2">
+              <div className="flex gap-2 items-center">
+                <Input
+                  placeholder={t("customFieldNamePlaceholder")}
+                  value={field.label}
+                  onChange={(e) => updateCustomField(i, "label", e.target.value)}
+                  className="flex-1"
+                />
+                <Select
+                  value={normalizedFieldType(field.field_type)}
+                  onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
+                    <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
+                    <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
+                    <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-            );
-          })}
+              <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+            </div>
+          ))}
         </div>
 
         <div className="flex gap-2 pt-2">
