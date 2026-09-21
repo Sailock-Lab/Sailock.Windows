@@ -22,6 +22,10 @@ struct CustomField {
     value: String,
     #[serde(default = "default_field_type")]
     field_type: String,
+    #[serde(default)]
+    is_preset: bool,
+    #[serde(default)]
+    preset_key: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -492,21 +496,29 @@ fn save_backup_batch(
                 label: "Alfabeto".to_string(),
                 value: batch.alphabet,
                 field_type: "text".to_string(),
+                is_preset: false,
+                preset_key: None,
             },
             CustomField {
                 label: "Longitud".to_string(),
                 value: batch.length.to_string(),
                 field_type: "text".to_string(),
+                is_preset: false,
+                preset_key: None,
             },
             CustomField {
                 label: "Número de códigos".to_string(),
                 value: batch.count.to_string(),
                 field_type: "text".to_string(),
+                is_preset: false,
+                preset_key: None,
             },
             CustomField {
                 label: "Códigos".to_string(),
                 value: batch.codes.join(", "),
                 field_type: "text".to_string(),
+                is_preset: false,
+                preset_key: None,
             },
         ],
         totp_secret: None,
