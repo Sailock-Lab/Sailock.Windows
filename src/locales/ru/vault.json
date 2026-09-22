@@ -120,5 +120,11 @@
     "presetSecurityType": "Тип безопасности",
     "presetWifiUsername": "Имя пользователя",
     "presetAuthMethod": "Метод аутентификации",
-    "presetSecurityOpen": "Открытая"
+    "presetSecurityOpen": "Открытая",
+    "typeFilterAll": "Все типы",
+    "templateUncategorized": "Без категории",
+    "viewList": "Вид списка",
+    "viewGallery": "Вид галереи",
+    "createdLabel": "Создано",
+    "editedLabel": "Изменено"
 }

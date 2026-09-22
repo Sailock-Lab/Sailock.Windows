@@ -120,5 +120,11 @@
     "presetSecurityType": "Type de sécurité",
     "presetWifiUsername": "Identifiant",
     "presetAuthMethod": "Méthode d'authentification",
-    "presetSecurityOpen": "Ouvert"
+    "presetSecurityOpen": "Ouvert",
+    "typeFilterAll": "Tous les types",
+    "templateUncategorized": "Sans catégorie",
+    "viewList": "Vue liste",
+    "viewGallery": "Vue galerie",
+    "createdLabel": "Créé",
+    "editedLabel": "Modifié"
 }

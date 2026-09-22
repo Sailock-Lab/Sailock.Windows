@@ -48,8 +48,6 @@ interface CustomFieldData {
   label: string;
   value: string;
   field_type: string; // "text" | "password" | "number" | "boolean"
-  is_preset?: boolean;
-  preset_key?: string | null;
 }
 
 interface Entry {
@@ -708,15 +706,13 @@ function EntryForm({
       return (initial.custom_fields ?? []).map((f) => ({ ...f, field_type: normalizedFieldType(f.field_type) }));
     }
     if (activeTemplate) {
-      return activeTemplate.presetFields.map((f) => ({
-        label: t(f.labelKey),
-        value: "",
-        field_type: f.type,
-        is_preset: true,
-        preset_key: f.labelKey,
-      }));
+      return activeTemplate.presetFields.map((f) => ({ label: t(f.labelKey), value: "", field_type: f.type }));
     }
     return [];
+  });
+  const [presetKeys, setPresetKeys] = useState<(string | undefined)[]>(() => {
+    if (initial || !activeTemplate) return [];
+    return activeTemplate.presetFields.map((f) => f.labelKey);
   });
   const { saveActivity } = useActivity();
 
@@ -728,18 +724,16 @@ function EntryForm({
   const notesLabel = !initial && activeTemplate?.id === "note" ? t("presetContent") : t("fieldNotes");
   const entryTypeToSave = initial ? initial.entry_type ?? null : activeTemplate ? activeTemplate.id : null;
 
-  const indexedFields = customFields.map((field, i) => ({ field, i }));
-  const presetIndexed = indexedFields.filter((x) => x.field.is_preset);
-  const customIndexed = indexedFields.filter((x) => !x.field.is_preset);
-
   const addCustomField = () => {
-    setCustomFields([...customFields, { label: "", value: "", field_type: "text", is_preset: false, preset_key: null }]);
+    setCustomFields([...customFields, { label: "", value: "", field_type: "text" }]);
+    setPresetKeys([...presetKeys, undefined]);
   };
   const updateCustomField = (index: number, key: "label" | "value" | "field_type", val: string) => {
     setCustomFields(customFields.map((f, i) => (i === index ? { ...f, [key]: val } : f)));
   };
   const removeCustomField = (index: number) => {
     setCustomFields(customFields.filter((_, i) => i !== index));
+    setPresetKeys(presetKeys.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
@@ -751,7 +745,7 @@ function EntryForm({
       password: (showPasswordField ? password : "") || null,
       website: (showWebsite ? website : "") || null,
       notes: notes || null,
-      customFields: customFields.filter((f) => f.is_preset || f.label.trim() !== ""),
+      customFields: customFields.filter((f) => f.label.trim() !== ""),
       totpSecret: (showTotp ? totpSecret : "").trim() || null,
       entryType: entryTypeToSave,
     };
@@ -835,30 +829,6 @@ function EntryForm({
           </div>
         )}
 
-        {presetIndexed.map(({ field, i }) => {
-          const isSecurityTypeField = field.preset_key === "presetSecurityType";
-          return (
-            <div key={i}>
-              <label className="text-sm font-medium block mb-1">{field.label}</label>
-              {isSecurityTypeField ? (
-                <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("customFieldValuePlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
-                    <SelectItem value="WPA3">WPA3</SelectItem>
-                    <SelectItem value="WEP">WEP</SelectItem>
-                    <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
-              )}
-            </div>
-          );
-        })}
-
         <div>
           <label className="text-sm font-medium block mb-1">{notesLabel}</label>
           <textarea
@@ -876,39 +846,53 @@ function EntryForm({
               <Plus className="h-4 w-4 mr-1" /> {t("addFieldButton")}
             </Button>
           </div>
-          {customIndexed.length === 0 && (
-            <p className="text-xs text-muted-foreground">{t("customFieldsEmptyHint")}</p>
-          )}
-          {customIndexed.map(({ field, i }) => (
-            <div key={i} className="border rounded-md p-2 flex flex-col gap-2">
-              <div className="flex gap-2 items-center">
-                <Input
-                  placeholder={t("customFieldNamePlaceholder")}
-                  value={field.label}
-                  onChange={(e) => updateCustomField(i, "label", e.target.value)}
-                  className="flex-1"
-                />
-                <Select
-                  value={normalizedFieldType(field.field_type)}
-                  onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
-                >
-                  <SelectTrigger className="w-28">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
-                    <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
-                    <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
-                    <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
-                  <X className="h-4 w-4" />
-                </Button>
+          {customFields.map((field, i) => {
+            const isSecurityTypeField = presetKeys[i] === "presetSecurityType";
+            return (
+              <div key={i} className="border rounded-md p-2 flex flex-col gap-2">
+                <div className="flex gap-2 items-center">
+                  <Input
+                    placeholder={t("customFieldNamePlaceholder")}
+                    value={field.label}
+                    onChange={(e) => updateCustomField(i, "label", e.target.value)}
+                    className="flex-1"
+                  />
+                  <Select
+                    value={normalizedFieldType(field.field_type)}
+                    onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
+                  >
+                    <SelectTrigger className="w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
+                      <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
+                      <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
+                      <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                {isSecurityTypeField ? (
+                  <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("customFieldValuePlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
+                      <SelectItem value="WPA3">WPA3</SelectItem>
+                      <SelectItem value="WEP">WEP</SelectItem>
+                      <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+                )}
               </div>
-              <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="flex gap-2 pt-2">

@@ -120,5 +120,11 @@
     "presetSecurityType": "セキュリティの種類",
     "presetWifiUsername": "ユーザー名",
     "presetAuthMethod": "認証方式",
-    "presetSecurityOpen": "オープン"
+    "presetSecurityOpen": "オープン",
+    "typeFilterAll": "すべての種類",
+    "templateUncategorized": "未分類",
+    "viewList": "リスト表示",
+    "viewGallery": "ギャラリー表示",
+    "createdLabel": "作成日",
+    "editedLabel": "更新日"
 }

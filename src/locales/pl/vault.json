@@ -120,5 +120,11 @@
     "presetSecurityType": "Typ zabezpieczeń",
     "presetWifiUsername": "Nazwa użytkownika",
     "presetAuthMethod": "Metoda uwierzytelniania",
-    "presetSecurityOpen": "Otwarta"
+    "presetSecurityOpen": "Otwarta",
+    "typeFilterAll": "Wszystkie typy",
+    "templateUncategorized": "Bez kategorii",
+    "viewList": "Widok listy",
+    "viewGallery": "Widok galerii",
+    "createdLabel": "Utworzono",
+    "editedLabel": "Edytowano"
 }

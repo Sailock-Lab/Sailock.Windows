@@ -120,5 +120,11 @@
     "presetSecurityType": "安全类型",
     "presetWifiUsername": "用户名",
     "presetAuthMethod": "身份验证方式",
-    "presetSecurityOpen": "开放"
+    "presetSecurityOpen": "开放",
+    "typeFilterAll": "所有类型",
+    "templateUncategorized": "未分类",
+    "viewList": "列表视图",
+    "viewGallery": "画廊视图",
+    "createdLabel": "创建于",
+    "editedLabel": "编辑于"
 }

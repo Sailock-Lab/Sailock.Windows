@@ -120,5 +120,11 @@
     "presetSecurityType": "Beveiligingstype",
     "presetWifiUsername": "Gebruikersnaam",
     "presetAuthMethod": "Authenticatiemethode",
-    "presetSecurityOpen": "Open"
+    "presetSecurityOpen": "Open",
+    "typeFilterAll": "Alle typen",
+    "templateUncategorized": "Geen categorie",
+    "viewList": "Lijstweergave",
+    "viewGallery": "Galerijweergave",
+    "createdLabel": "Gemaakt",
+    "editedLabel": "Bewerkt"
 }

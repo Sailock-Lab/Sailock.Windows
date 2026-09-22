@@ -120,5 +120,11 @@
     "presetSecurityType": "보안 유형",
     "presetWifiUsername": "사용자 이름",
     "presetAuthMethod": "인증 방식",
-    "presetSecurityOpen": "개방형"
+    "presetSecurityOpen": "개방형",
+    "typeFilterAll": "모든 유형",
+    "templateUncategorized": "분류 없음",
+    "viewList": "목록 보기",
+    "viewGallery": "갤러리 보기",
+    "createdLabel": "생성일",
+    "editedLabel": "수정일"
 }
