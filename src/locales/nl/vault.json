@@ -126,5 +126,15 @@
     "viewList": "Lijstweergave",
     "viewGallery": "Galerijweergave",
     "createdLabel": "Gemaakt",
-    "editedLabel": "Bewerkt"
+    "editedLabel": "Bewerkt",
+    "newFolderButton": "Nieuwe map",
+    "newFolderDialogTitle": "Nieuwe map",
+    "folderNamePlaceholder": "Mapnaam",
+    "createFolderButton": "Maken",
+    "renameFolderDialogTitle": "Map hernoemen",
+    "folderLabel": "Map",
+    "vaultRootLabel": "Kluis",
+    "moveToFolderTooltip": "Naar map verplaatsen",
+    "moveToFolderDialogTitle": "Naar map verplaatsen",
+    "moveButton": "Verplaatsen"
 }

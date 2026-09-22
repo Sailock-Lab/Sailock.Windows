@@ -126,5 +126,15 @@
     "viewList": "Vista de lista",
     "viewGallery": "Vista de galería",
     "createdLabel": "Creado",
-    "editedLabel": "Editado"
+    "editedLabel": "Editado",
+    "newFolderButton": "Nueva carpeta",
+    "newFolderDialogTitle": "Nueva carpeta",
+    "folderNamePlaceholder": "Nombre de la carpeta",
+    "createFolderButton": "Crear",
+    "renameFolderDialogTitle": "Renombrar carpeta",
+    "folderLabel": "Carpeta",
+    "vaultRootLabel": "Vault",
+    "moveToFolderTooltip": "Mover a carpeta",
+    "moveToFolderDialogTitle": "Mover a carpeta",
+    "moveButton": "Mover"
 }

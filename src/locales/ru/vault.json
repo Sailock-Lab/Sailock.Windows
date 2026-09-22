@@ -126,5 +126,15 @@
     "viewList": "Вид списка",
     "viewGallery": "Вид галереи",
     "createdLabel": "Создано",
-    "editedLabel": "Изменено"
+    "editedLabel": "Изменено",
+    "newFolderButton": "Новая папка",
+    "newFolderDialogTitle": "Новая папка",
+    "folderNamePlaceholder": "Название папки",
+    "createFolderButton": "Создать",
+    "renameFolderDialogTitle": "Переименовать папку",
+    "folderLabel": "Папка",
+    "vaultRootLabel": "Хранилище",
+    "moveToFolderTooltip": "Переместить в папку",
+    "moveToFolderDialogTitle": "Переместить в папку",
+    "moveButton": "Переместить"
 }

@@ -126,5 +126,15 @@
     "viewList": "Listenansicht",
     "viewGallery": "Galerieansicht",
     "createdLabel": "Erstellt",
-    "editedLabel": "Bearbeitet"
+    "editedLabel": "Bearbeitet",
+    "newFolderButton": "Neuer Ordner",
+    "newFolderDialogTitle": "Neuer Ordner",
+    "folderNamePlaceholder": "Ordnername",
+    "createFolderButton": "Erstellen",
+    "renameFolderDialogTitle": "Ordner umbenennen",
+    "folderLabel": "Ordner",
+    "vaultRootLabel": "Tresor",
+    "moveToFolderTooltip": "In Ordner verschieben",
+    "moveToFolderDialogTitle": "In Ordner verschieben",
+    "moveButton": "Verschieben"
 }

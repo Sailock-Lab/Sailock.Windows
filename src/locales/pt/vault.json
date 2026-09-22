@@ -126,5 +126,15 @@
     "viewList": "Vista de lista",
     "viewGallery": "Vista de galeria",
     "createdLabel": "Criado",
-    "editedLabel": "Editado"
+    "editedLabel": "Editado",
+    "newFolderButton": "Nova pasta",
+    "newFolderDialogTitle": "Nova pasta",
+    "folderNamePlaceholder": "Nome da pasta",
+    "createFolderButton": "Criar",
+    "renameFolderDialogTitle": "Renomear pasta",
+    "folderLabel": "Pasta",
+    "vaultRootLabel": "Cofre",
+    "moveToFolderTooltip": "Mover para pasta",
+    "moveToFolderDialogTitle": "Mover para pasta",
+    "moveButton": "Mover"
 }

@@ -126,5 +126,15 @@
     "viewList": "목록 보기",
     "viewGallery": "갤러리 보기",
     "createdLabel": "생성일",
-    "editedLabel": "수정일"
+    "editedLabel": "수정일",
+    "newFolderButton": "새 폴더",
+    "newFolderDialogTitle": "새 폴더",
+    "folderNamePlaceholder": "폴더 이름",
+    "createFolderButton": "만들기",
+    "renameFolderDialogTitle": "폴더 이름 바꾸기",
+    "folderLabel": "폴더",
+    "vaultRootLabel": "보관함",
+    "moveToFolderTooltip": "폴더로 이동",
+    "moveToFolderDialogTitle": "폴더로 이동",
+    "moveButton": "이동"
 }

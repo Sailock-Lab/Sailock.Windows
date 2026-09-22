@@ -126,5 +126,15 @@
     "viewList": "List view",
     "viewGallery": "Gallery view",
     "createdLabel": "Created",
-    "editedLabel": "Edited"
+    "editedLabel": "Edited",
+    "newFolderButton": "New folder",
+    "newFolderDialogTitle": "New folder",
+    "folderNamePlaceholder": "Folder name",
+    "createFolderButton": "Create",
+    "renameFolderDialogTitle": "Rename folder",
+    "folderLabel": "Folder",
+    "vaultRootLabel": "Vault",
+    "moveToFolderTooltip": "Move to folder",
+    "moveToFolderDialogTitle": "Move to folder",
+    "moveButton": "Move"
 }

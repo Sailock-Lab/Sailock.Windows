@@ -126,5 +126,15 @@
     "viewList": "Widok listy",
     "viewGallery": "Widok galerii",
     "createdLabel": "Utworzono",
-    "editedLabel": "Edytowano"
+    "editedLabel": "Edytowano",
+    "newFolderButton": "Nowy folder",
+    "newFolderDialogTitle": "Nowy folder",
+    "folderNamePlaceholder": "Nazwa folderu",
+    "createFolderButton": "Utwórz",
+    "renameFolderDialogTitle": "Zmień nazwę folderu",
+    "folderLabel": "Folder",
+    "vaultRootLabel": "Sejf",
+    "moveToFolderTooltip": "Przenieś do folderu",
+    "moveToFolderDialogTitle": "Przenieś do folderu",
+    "moveButton": "Przenieś"
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -39,6 +40,9 @@ import {
   Sparkles,
   List,
   LayoutGrid,
+  Folder,
+  FolderPlus,
+  Move,
   LucideIcon,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
@@ -48,12 +52,22 @@ interface CustomFieldData {
   label: string;
   value: string;
   field_type: string; // "text" | "password" | "number" | "boolean"
+  is_preset?: boolean;
+  preset_key?: string | null;
+}
+
+interface FolderData {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  created_at: number;
 }
 
 interface Entry {
   id: string;
   name: string;
   folder?: string | null;
+  folder_id?: string | null;
   username?: string | null;
   password?: string | null;
   website?: string | null;
@@ -101,6 +115,30 @@ function matchesSearch(entry: Entry, term: string, category: SearchCategory): bo
     default:
       return inName || inContact || inWebsite || inCustom;
   }
+}
+
+function buildBreadcrumb(folders: FolderData[], currentId: string | null): FolderData[] {
+  const trail: FolderData[] = [];
+  let cursor = currentId;
+  while (cursor) {
+    const f = folders.find((x) => x.id === cursor);
+    if (!f) break;
+    trail.unshift(f);
+    cursor = f.parent_id;
+  }
+  return trail;
+}
+
+function folderPath(folders: FolderData[], id: string): string {
+  const trail: string[] = [];
+  let cursor: string | null = id;
+  while (cursor) {
+    const f = folders.find((x) => x.id === cursor);
+    if (!f) break;
+    trail.unshift(f.name);
+    cursor = f.parent_id;
+  }
+  return trail.join(" / ");
 }
 
 interface TemplateFieldPreset {
@@ -233,6 +271,8 @@ interface VaultViewProps {
 export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps) {
   const { t } = useTranslation("vault");
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [folders, setFolders] = useState<FolderData[]>([]);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<FormMode>(null);
   const [pendingPassword, setPendingPassword] = useState<string | null>(null);
@@ -243,6 +283,10 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [search, setSearch] = useState("");
   const [searchCategory, setSearchCategory] = useState<SearchCategory>("all");
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [renamingFolder, setRenamingFolder] = useState<FolderData | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const { saveActivity } = useActivity();
 
   const loadEntries = async () => {
@@ -250,8 +294,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     setEntries(result);
   };
 
+  const loadFolders = async () => {
+    const result = await invoke<FolderData[]>("load_folders");
+    setFolders(result);
+  };
+
   useEffect(() => {
     loadEntries();
+    loadFolders();
   }, []);
 
   useEffect(() => {
@@ -263,6 +313,10 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     }
   }, [prefillPassword]);
 
+  const browsingMode = filter === "all" && !search;
+  const breadcrumbTrail = buildBreadcrumb(folders, currentFolderId);
+  const currentSubfolders = browsingMode ? folders.filter((f) => f.parent_id === currentFolderId) : [];
+
   const visible = entries.filter((e) => {
     if (filter === "trash" && !e.trashed) return false;
     if (filter === "favorites" && !(e.favorite && !e.trashed)) return false;
@@ -271,6 +325,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
       const entryTypeKey = e.entry_type || "uncategorized";
       if (entryTypeKey !== typeFilter) return false;
     }
+    if (browsingMode && (e.folder_id ?? null) !== currentFolderId) return false;
     return matchesSearch(e, search, searchCategory);
   });
 
@@ -324,6 +379,30 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     loadEntries();
   };
 
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) return;
+    await invoke("create_folder", { name: newFolderName.trim(), parentId: currentFolderId });
+    setNewFolderName("");
+    setNewFolderOpen(false);
+    loadFolders();
+  };
+
+  const handleRenameFolder = async () => {
+    if (!renamingFolder || !renameValue.trim()) return;
+    await invoke("rename_folder", { id: renamingFolder.id, name: renameValue.trim() });
+    setRenamingFolder(null);
+    loadFolders();
+  };
+
+  const handleDeleteFolder = async (id: string) => {
+    try {
+      await invoke("delete_folder", { id });
+      loadFolders();
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
+
   const renderFavoriteStar = (entry: Entry) =>
     !entry.trashed && (
       <span
@@ -347,9 +426,16 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
           <CardTitle>
             {filter === "trash" ? t("listTrash") : filter === "favorites" ? t("listFavorites") : t("listAll")}
           </CardTitle>
-          <Button size="sm" onClick={() => setTemplatePickerOpen(true)}>
-            <Plus className="h-4 w-4 mr-1" /> {t("newButton")}
-          </Button>
+          <div className="flex gap-2">
+            {browsingMode && (
+              <Button size="sm" variant="outline" onClick={() => setNewFolderOpen(true)}>
+                <FolderPlus className="h-4 w-4 mr-1" /> {t("newFolderButton")}
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setTemplatePickerOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" /> {t("newButton")}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-3">
@@ -426,10 +512,72 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             </div>
           </div>
 
-          {visible.length === 0 ? (
+          {browsingMode && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-3 flex-wrap">
+              <button
+                onClick={() => setCurrentFolderId(null)}
+                className={`hover:text-foreground ${currentFolderId === null ? "font-medium text-foreground" : ""}`}
+              >
+                {t("vaultRootLabel")}
+              </button>
+              {breadcrumbTrail.map((f) => (
+                <span key={f.id} className="flex items-center gap-1">
+                  <span>/</span>
+                  <button
+                    onClick={() => setCurrentFolderId(f.id)}
+                    className={`hover:text-foreground ${f.id === currentFolderId ? "font-medium text-foreground" : ""}`}
+                  >
+                    {f.name}
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {visible.length === 0 && currentSubfolders.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">{search ? t("emptySearch") : t("emptyList")}</p>
           ) : viewMode === "list" ? (
             <div className="flex flex-col gap-1">
+              {currentSubfolders.map((f) => (
+                <div
+                  key={f.id}
+                  onClick={() => setCurrentFolderId(f.id)}
+                  className="group flex items-center gap-3 rounded-md p-2 hover:bg-muted cursor-pointer"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
+                    <Folder className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{f.name}</p>
+                    <p className="text-xs text-muted-foreground">{t("folderLabel")}</p>
+                  </div>
+                  <div className="opacity-0 group-hover:opacity-100 flex gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenamingFolder(f);
+                        setRenameValue(f.name);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFolder(f.id);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
               {visible.map((entry) => {
                 const Icon = entryIcon(entry.entry_type);
                 return (
@@ -464,6 +612,53 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {currentSubfolders.map((f) => (
+                <div
+                  key={f.id}
+                  onClick={() => setCurrentFolderId(f.id)}
+                  className="group flex flex-col gap-2 rounded-lg border p-3 text-left hover:border-primary hover:bg-muted/50 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
+                      <Folder className="h-4 w-4" />
+                    </div>
+                    <div className="opacity-0 group-hover:opacity-100 flex gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenamingFolder(f);
+                          setRenameValue(f.name);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteFolder(f.id);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium truncate">{f.name}</p>
+                    <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded inline-block mt-1">
+                      {t("folderLabel")}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-auto pt-2 border-t">
+                    <p>{t("createdLabel")}: {formatDate(f.created_at)}</p>
+                  </div>
+                </div>
+              ))}
               {visible.map((entry) => {
                 const Icon = entryIcon(entry.entry_type);
                 return (
@@ -500,6 +695,41 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("newFolderDialogTitle")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Input
+              placeholder={t("folderNamePlaceholder")}
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+              autoFocus
+            />
+            <Button onClick={handleCreateFolder}>{t("createFolderButton")}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renamingFolder !== null} onOpenChange={(isOpen) => !isOpen && setRenamingFolder(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("renameFolderDialogTitle")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleRenameFolder()}
+              autoFocus
+            />
+            <Button onClick={handleRenameFolder}>{t("saveChangesButton")}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
         <DialogContent className="max-w-lg">
@@ -545,6 +775,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               <EntryForm
                 initialPassword={pendingPassword ?? undefined}
                 template={selectedTemplate ?? TEMPLATES.find((tpl) => tpl.id === "custom")!}
+                defaultFolderId={currentFolderId}
                 onSaved={() => { setFormMode(null); setPendingPassword(null); setSelectedTemplate(null); loadEntries(); }}
                 onClose={closePanel}
               />
@@ -556,11 +787,16 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               <EntryDetail
                 key={selected.id}
                 entry={selected}
+                folders={folders}
                 onEdit={() => setFormMode("edit")}
                 onTrash={() => handleTrash(selected.id)}
                 onRestore={() => handleRestore(selected.id)}
                 onDeletePermanently={() => handleDeletePermanently(selected.id)}
                 onToggleFavorite={(e) => handleToggleFavorite(selected.id, e)}
+                onMoveToFolder={async (folderId) => {
+                  await invoke("move_entry_to_folder", { id: selected.id, folderId });
+                  loadEntries();
+                }}
                 onClose={closePanel}
               />
             )}
@@ -682,12 +918,14 @@ function EntryForm({
   initial,
   initialPassword,
   template,
+  defaultFolderId,
   onSaved,
   onClose,
 }: {
   initial?: Entry;
   initialPassword?: string;
   template?: EntryTemplate;
+  defaultFolderId?: string | null;
   onSaved: () => void;
   onClose: () => void;
 }) {
@@ -706,13 +944,15 @@ function EntryForm({
       return (initial.custom_fields ?? []).map((f) => ({ ...f, field_type: normalizedFieldType(f.field_type) }));
     }
     if (activeTemplate) {
-      return activeTemplate.presetFields.map((f) => ({ label: t(f.labelKey), value: "", field_type: f.type }));
+      return activeTemplate.presetFields.map((f) => ({
+        label: t(f.labelKey),
+        value: "",
+        field_type: f.type,
+        is_preset: true,
+        preset_key: f.labelKey,
+      }));
     }
     return [];
-  });
-  const [presetKeys, setPresetKeys] = useState<(string | undefined)[]>(() => {
-    if (initial || !activeTemplate) return [];
-    return activeTemplate.presetFields.map((f) => f.labelKey);
   });
   const { saveActivity } = useActivity();
 
@@ -724,16 +964,18 @@ function EntryForm({
   const notesLabel = !initial && activeTemplate?.id === "note" ? t("presetContent") : t("fieldNotes");
   const entryTypeToSave = initial ? initial.entry_type ?? null : activeTemplate ? activeTemplate.id : null;
 
+  const indexedFields = customFields.map((field, i) => ({ field, i }));
+  const presetIndexed = indexedFields.filter((x) => x.field.is_preset);
+  const customIndexed = indexedFields.filter((x) => !x.field.is_preset);
+
   const addCustomField = () => {
-    setCustomFields([...customFields, { label: "", value: "", field_type: "text" }]);
-    setPresetKeys([...presetKeys, undefined]);
+    setCustomFields([...customFields, { label: "", value: "", field_type: "text", is_preset: false, preset_key: null }]);
   };
   const updateCustomField = (index: number, key: "label" | "value" | "field_type", val: string) => {
     setCustomFields(customFields.map((f, i) => (i === index ? { ...f, [key]: val } : f)));
   };
   const removeCustomField = (index: number) => {
     setCustomFields(customFields.filter((_, i) => i !== index));
-    setPresetKeys(presetKeys.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
@@ -745,7 +987,7 @@ function EntryForm({
       password: (showPasswordField ? password : "") || null,
       website: (showWebsite ? website : "") || null,
       notes: notes || null,
-      customFields: customFields.filter((f) => f.label.trim() !== ""),
+      customFields: customFields.filter((f) => f.is_preset || f.label.trim() !== ""),
       totpSecret: (showTotp ? totpSecret : "").trim() || null,
       entryType: entryTypeToSave,
     };
@@ -753,7 +995,7 @@ function EntryForm({
       await invoke("update_entry", { id: initial.id, ...payload });
       await saveActivity("edit", "entryEdited", "vault", { name });
     } else {
-      await invoke("save_entry", payload);
+      await invoke("save_entry", { ...payload, folderId: defaultFolderId ?? null });
       await saveActivity("create", "entryCreated", "vault", { name });
     }
     onSaved();
@@ -829,6 +1071,30 @@ function EntryForm({
           </div>
         )}
 
+        {presetIndexed.map(({ field, i }) => {
+          const isSecurityTypeField = field.preset_key === "presetSecurityType";
+          return (
+            <div key={i}>
+              <label className="text-sm font-medium block mb-1">{field.label}</label>
+              {isSecurityTypeField ? (
+                <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("customFieldValuePlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
+                    <SelectItem value="WPA3">WPA3</SelectItem>
+                    <SelectItem value="WEP">WEP</SelectItem>
+                    <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+              )}
+            </div>
+          );
+        })}
+
         <div>
           <label className="text-sm font-medium block mb-1">{notesLabel}</label>
           <textarea
@@ -846,53 +1112,39 @@ function EntryForm({
               <Plus className="h-4 w-4 mr-1" /> {t("addFieldButton")}
             </Button>
           </div>
-          {customFields.map((field, i) => {
-            const isSecurityTypeField = presetKeys[i] === "presetSecurityType";
-            return (
-              <div key={i} className="border rounded-md p-2 flex flex-col gap-2">
-                <div className="flex gap-2 items-center">
-                  <Input
-                    placeholder={t("customFieldNamePlaceholder")}
-                    value={field.label}
-                    onChange={(e) => updateCustomField(i, "label", e.target.value)}
-                    className="flex-1"
-                  />
-                  <Select
-                    value={normalizedFieldType(field.field_type)}
-                    onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
-                  >
-                    <SelectTrigger className="w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
-                      <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
-                      <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
-                      <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                {isSecurityTypeField ? (
-                  <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("customFieldValuePlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
-                      <SelectItem value="WPA3">WPA3</SelectItem>
-                      <SelectItem value="WEP">WEP</SelectItem>
-                      <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
-                )}
+          {customIndexed.length === 0 && (
+            <p className="text-xs text-muted-foreground">{t("customFieldsEmptyHint")}</p>
+          )}
+          {customIndexed.map(({ field, i }) => (
+            <div key={i} className="border rounded-md p-2 flex flex-col gap-2">
+              <div className="flex gap-2 items-center">
+                <Input
+                  placeholder={t("customFieldNamePlaceholder")}
+                  value={field.label}
+                  onChange={(e) => updateCustomField(i, "label", e.target.value)}
+                  className="flex-1"
+                />
+                <Select
+                  value={normalizedFieldType(field.field_type)}
+                  onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
+                    <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
+                    <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
+                    <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-            );
-          })}
+              <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+            </div>
+          ))}
         </div>
 
         <div className="flex gap-2 pt-2">
@@ -913,19 +1165,23 @@ interface RevealRequest {
 
 function EntryDetail({
   entry,
+  folders,
   onEdit,
   onTrash,
   onRestore,
   onDeletePermanently,
   onToggleFavorite,
+  onMoveToFolder,
   onClose,
 }: {
   entry: Entry;
+  folders: FolderData[];
   onEdit: () => void;
   onTrash: () => void;
   onRestore: () => void;
   onDeletePermanently: () => void;
   onToggleFavorite: (e: React.MouseEvent) => void;
+  onMoveToFolder: (folderId: string | null) => void | Promise<void>;
   onClose: () => void;
 }) {
   const { t } = useTranslation("vault");
@@ -937,6 +1193,8 @@ function EntryDetail({
   const [revealPassword, setRevealPassword] = useState("");
   const [revealError, setRevealError] = useState("");
   const [revealVerifying, setRevealVerifying] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<string>("root");
 
   const closeRevealDialog = () => {
     setRevealRequest(null);
@@ -1057,6 +1315,17 @@ function EntryDetail({
               <Button variant="ghost" size="icon" onClick={onToggleFavorite} title={t("favoriteTooltip")}>
                 <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setMoveTarget(entry.folder_id ?? "root");
+                  setMoveOpen(true);
+                }}
+                title={t("moveToFolderTooltip")}
+              >
+                <Move className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" onClick={onEdit} title={t("editTooltip")}>
                 <Pencil className="h-4 w-4" />
               </Button>
@@ -1173,6 +1442,37 @@ function EntryDetail({
             {revealError && <p className="text-sm text-destructive">{revealError}</p>}
             <Button onClick={handleConfirmReveal} disabled={revealVerifying}>
               {revealVerifying ? t("revealVerifyingButton") : t("revealConfirmButton")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("moveToFolderDialogTitle")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Select value={moveTarget} onValueChange={(v) => v && setMoveTarget(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="root">{t("vaultRootLabel")}</SelectItem>
+                {folders.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {folderPath(folders, f.id)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={async () => {
+                await onMoveToFolder(moveTarget === "root" ? null : moveTarget);
+                setMoveOpen(false);
+              }}
+            >
+              {t("moveButton")}
             </Button>
           </div>
         </DialogContent>

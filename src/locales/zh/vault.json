@@ -126,5 +126,15 @@
     "viewList": "列表视图",
     "viewGallery": "画廊视图",
     "createdLabel": "创建于",
-    "editedLabel": "编辑于"
+    "editedLabel": "编辑于",
+    "newFolderButton": "新建文件夹",
+    "newFolderDialogTitle": "新建文件夹",
+    "folderNamePlaceholder": "文件夹名称",
+    "createFolderButton": "创建",
+    "renameFolderDialogTitle": "重命名文件夹",
+    "folderLabel": "文件夹",
+    "vaultRootLabel": "保管库",
+    "moveToFolderTooltip": "移动到文件夹",
+    "moveToFolderDialogTitle": "移动到文件夹",
+    "moveButton": "移动"
 }

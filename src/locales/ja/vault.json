@@ -126,5 +126,15 @@
     "viewList": "リスト表示",
     "viewGallery": "ギャラリー表示",
     "createdLabel": "作成日",
-    "editedLabel": "更新日"
+    "editedLabel": "更新日",
+    "newFolderButton": "新しいフォルダ",
+    "newFolderDialogTitle": "新しいフォルダ",
+    "folderNamePlaceholder": "フォルダ名",
+    "createFolderButton": "作成",
+    "renameFolderDialogTitle": "フォルダ名を変更",
+    "folderLabel": "フォルダ",
+    "vaultRootLabel": "保管庫",
+    "moveToFolderTooltip": "フォルダに移動",
+    "moveToFolderDialogTitle": "フォルダに移動",
+    "moveButton": "移動"
 }

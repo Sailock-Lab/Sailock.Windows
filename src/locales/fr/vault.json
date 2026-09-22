@@ -126,5 +126,15 @@
     "viewList": "Vue liste",
     "viewGallery": "Vue galerie",
     "createdLabel": "Créé",
-    "editedLabel": "Modifié"
+    "editedLabel": "Modifié",
+    "newFolderButton": "Nouveau dossier",
+    "newFolderDialogTitle": "Nouveau dossier",
+    "folderNamePlaceholder": "Nom du dossier",
+    "createFolderButton": "Créer",
+    "renameFolderDialogTitle": "Renommer le dossier",
+    "folderLabel": "Dossier",
+    "vaultRootLabel": "Coffre-fort",
+    "moveToFolderTooltip": "Déplacer vers un dossier",
+    "moveToFolderDialogTitle": "Déplacer vers un dossier",
+    "moveButton": "Déplacer"
 }

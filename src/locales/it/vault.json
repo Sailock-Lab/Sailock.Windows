@@ -126,5 +126,15 @@
     "viewList": "Vista elenco",
     "viewGallery": "Vista galleria",
     "createdLabel": "Creato",
-    "editedLabel": "Modificato"
+    "editedLabel": "Modificato",
+    "newFolderButton": "Nuova cartella",
+    "newFolderDialogTitle": "Nuova cartella",
+    "folderNamePlaceholder": "Nome della cartella",
+    "createFolderButton": "Crea",
+    "renameFolderDialogTitle": "Rinomina cartella",
+    "folderLabel": "Cartella",
+    "vaultRootLabel": "Archivio",
+    "moveToFolderTooltip": "Sposta in una cartella",
+    "moveToFolderDialogTitle": "Sposta in una cartella",
+    "moveButton": "Sposta"
 }

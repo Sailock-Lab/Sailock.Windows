@@ -33,6 +33,8 @@ struct Entry {
     id: String,
     name: String,
     folder: Option<String>,
+    #[serde(default)]
+    folder_id: Option<String>,
     username: Option<String>,
     password: Option<String>,
     website: Option<String>,
@@ -212,6 +214,7 @@ fn save_entry(
     state: tauri::State<VaultState>,
     name: String,
     folder: Option<String>,
+    folder_id: Option<String>,
     username: Option<String>,
     password: Option<String>,
     website: Option<String>,
@@ -233,6 +236,7 @@ fn save_entry(
         id: now.to_string(),
         name,
         folder,
+        folder_id,
         username,
         password,
         website,
@@ -523,6 +527,7 @@ fn save_backup_batch(
         ],
         totp_secret: None,
         entry_type: None,
+        folder_id: None,
         favorite: false,
         trashed: false,
         created_at: now,
@@ -581,6 +586,10 @@ fn delete_vault(
     let activity = activity_path(&app_handle);
     if activity.exists() {
         let _ = fs::remove_file(&activity);
+    }
+    let folders_file = folders_path(&app_handle);
+    if folders_file.exists() {
+        let _ = fs::remove_file(&folders_file);
     }
 
     *state.key.lock().unwrap() = None;
@@ -1143,6 +1152,222 @@ fn totp_verify_backup_code(
     }
 }
 
+// ---------- Carpetas del Vault ----------
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Folder {
+    id: String,
+    name: String,
+    parent_id: Option<String>,
+    created_at: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct FoldersFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn folders_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("folders.json")
+}
+
+fn read_folders(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> Vec<Folder> {
+    let path = folders_path(app_handle);
+    if !path.exists() {
+        return Vec::new();
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let file: FoldersFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return Vec::new(),
+    };
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let nonce_bytes = match B64.decode(&file.nonce) {
+        Ok(n) => n,
+        Err(_) => return Vec::new(),
+    };
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = match B64.decode(&file.ciphertext) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    match cipher.decrypt(nonce, ciphertext.as_ref()) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn write_folders(app_handle: &tauri::AppHandle, key: &[u8; 32], folders: &[Folder]) {
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let plaintext = match serde_json::to_vec(folders) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    let ciphertext = match cipher.encrypt(nonce, plaintext.as_ref()) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let file = FoldersFile {
+        nonce: B64.encode(nonce_bytes),
+        ciphertext: B64.encode(ciphertext),
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&file) {
+        let path = folders_path(app_handle);
+        let _ = fs::write(&path, json);
+    }
+}
+
+#[tauri::command]
+fn load_folders(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<Folder>, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(read_folders(&app_handle, &key))
+}
+
+#[tauri::command]
+fn create_folder(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    name: String,
+    parent_id: Option<String>,
+) -> Result<Folder, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut folders = read_folders(&app_handle, &key);
+    let now = now_millis();
+    let folder = Folder {
+        id: now.to_string(),
+        name,
+        parent_id,
+        created_at: now,
+    };
+    folders.push(folder.clone());
+    write_folders(&app_handle, &key, &folders);
+    Ok(folder)
+}
+
+#[tauri::command]
+fn rename_folder(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut folders = read_folders(&app_handle, &key);
+    let mut found = false;
+    for folder in folders.iter_mut() {
+        if folder.id == id {
+            folder.name = name.clone();
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        return Err("No se encontró la carpeta".into());
+    }
+    write_folders(&app_handle, &key, &folders);
+    Ok(())
+}
+
+#[tauri::command]
+fn delete_folder(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let folders = read_folders(&app_handle, &key);
+    let has_subfolders = folders
+        .iter()
+        .any(|f| f.parent_id.as_deref() == Some(id.as_str()));
+    if has_subfolders {
+        return Err("La carpeta tiene subcarpetas dentro. Vacíala primero.".into());
+    }
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+    let has_entries = entries
+        .iter()
+        .any(|e| e.folder_id.as_deref() == Some(id.as_str()));
+    if has_entries {
+        return Err("La carpeta tiene registros dentro. Vacíala primero.".into());
+    }
+
+    let mut folders = folders;
+    folders.retain(|f| f.id != id);
+    write_folders(&app_handle, &key, &folders);
+    Ok(())
+}
+
+#[tauri::command]
+fn move_entry_to_folder(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+    folder_id: Option<String>,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    let mut found = false;
+    for entry in entries.iter_mut() {
+        if entry.id == id {
+            entry.folder_id = folder_id.clone();
+            entry.updated_at = now_millis();
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        return Err("No se encontró la entrada".into());
+    }
+
+    let (nonce, ciphertext) = encrypt_entries(&key, &entries);
+    let new_file = VaultFile {
+        salt: file.salt,
+        nonce,
+        ciphertext,
+    };
+    let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+    fs::write(&path, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 // ---------- Activity Log ----------
 #[derive(Serialize, Deserialize, Clone)]
 struct ActivityEntry {
@@ -1277,6 +1502,11 @@ pub fn run() {
             totp_backup_codes_remaining,
             totp_generate_backup_codes,
             totp_verify_backup_code,
+            load_folders,
+            create_folder,
+            rename_folder,
+            delete_folder,
+            move_entry_to_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
