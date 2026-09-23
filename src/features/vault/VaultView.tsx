@@ -44,6 +44,8 @@ import {
   FolderPlus,
   Move,
   LucideIcon,
+  Home,
+  ChevronRight,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import { useActivity } from "@/hooks/useActivity";
@@ -408,9 +410,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
       <span
         role="button"
         onClick={(e) => handleToggleFavorite(entry.id, e)}
-        className={`shrink-0 text-muted-foreground hover:text-foreground transition-opacity ${
-          entry.favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        }`}
+        className={`shrink-0 text-muted-foreground hover:text-foreground transition-opacity ${entry.favorite ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
       >
         <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
       </span>
@@ -513,19 +514,26 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
           </div>
 
           {browsingMode && (
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mb-3 flex-wrap">
+            <div className="flex items-center gap-1 text-sm mb-3 flex-wrap rounded-lg border bg-muted/40 px-2 py-1.5">
               <button
                 onClick={() => setCurrentFolderId(null)}
-                className={`hover:text-foreground ${currentFolderId === null ? "font-medium text-foreground" : ""}`}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${currentFolderId === null
+                  ? "bg-background font-medium text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                  }`}
               >
+                <Home className="h-3.5 w-3.5" />
                 {t("vaultRootLabel")}
               </button>
               {breadcrumbTrail.map((f) => (
                 <span key={f.id} className="flex items-center gap-1">
-                  <span>/</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
                   <button
                     onClick={() => setCurrentFolderId(f.id)}
-                    className={`hover:text-foreground ${f.id === currentFolderId ? "font-medium text-foreground" : ""}`}
+                    className={`rounded-md px-2 py-1 transition-colors ${f.id === currentFolderId
+                      ? "bg-background font-medium text-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                      }`}
                   >
                     {f.name}
                   </button>
@@ -578,6 +586,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                   </div>
                 </div>
               ))}
+              {currentSubfolders.length > 0 && visible.length > 0 && (
+                <div className="my-2 border-t" />
+              )}
               {visible.map((entry) => {
                 const Icon = entryIcon(entry.entry_type);
                 return (
@@ -587,9 +598,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                       setSelectedId(entry.id);
                       setFormMode(null);
                     }}
-                    className={`group flex items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${
-                      selectedId === entry.id ? "bg-muted" : ""
-                    }`}
+                    className={`group flex items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${selectedId === entry.id ? "bg-muted" : ""
+                      }`}
                   >
                     <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
                       <Icon className="h-4 w-4" />
@@ -659,6 +669,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                   </div>
                 </div>
               ))}
+              {currentSubfolders.length > 0 && visible.length > 0 && (
+                <div className="col-span-full my-1 border-t" />
+              )}
               {visible.map((entry) => {
                 const Icon = entryIcon(entry.entry_type);
                 return (
@@ -668,9 +681,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                       setSelectedId(entry.id);
                       setFormMode(null);
                     }}
-                    className={`group flex flex-col gap-2 rounded-lg border p-3 text-left hover:border-primary hover:bg-muted/50 transition-colors ${
-                      selectedId === entry.id ? "border-primary bg-muted/50" : ""
-                    }`}
+                    className={`group flex flex-col gap-2 rounded-lg border p-3 text-left hover:border-primary hover:bg-muted/50 transition-colors ${selectedId === entry.id ? "border-primary bg-muted/50" : ""
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
@@ -1284,61 +1296,102 @@ function EntryDetail({
     }
   };
 
+  const indexedFields = (entry.custom_fields ?? []).map((field, i) => ({ field, i }));
+  const presetFields = indexedFields.filter((x) => x.field.is_preset);
+  const customFields = indexedFields.filter((x) => !x.field.is_preset);
+
+  const renderFieldRow = (field: CustomFieldData, i: number) => {
+    const type = normalizedFieldType(field.field_type);
+    return (
+      <div key={i}>
+        <p className="text-muted-foreground text-xs mb-1">{field.label}</p>
+        {type === "boolean" ? (
+          <p>{field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}</p>
+        ) : type === "password" ? (
+          <div className="flex items-center gap-1">
+            <p className="font-mono mr-1">{visibleCustomFields[i] ? field.value : "•".repeat(10)}</p>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleToggleCustomShow(i)}
+              title={visibleCustomFields[i] ? t("hideButton") : t("showButton")}
+            >
+              {visibleCustomFields[i] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleCopyCustomClick(i, field.value)}
+              title={t("copyTooltip")}
+            >
+              {copiedCustomField === i ? (
+                <Check className="h-4 w-4 text-green-500" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        ) : (
+          <p>{field.value}</p>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <Card className="h-full flex flex-col rounded-none border-l shadow-2xl">
-      <CardHeader className="flex flex-row items-center justify-between shrink-0">
-        <CardTitle>{entry.name}</CardTitle>
-        <div className="flex gap-1">
-          {entry.trashed ? (
-            <>
-              <Button variant="ghost" size="icon" onClick={onRestore} title={t("restoreTooltip")}>
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger render={<Button variant="ghost" size="icon" title={t("deleteForeverTooltip")} />}>
-                  <Trash2 className="h-4 w-4" />
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{t("deleteConfirmTitle", { name: entry.name })}</AlertDialogTitle>
-                    <AlertDialogDescription>{t("deleteConfirmDescription")}</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{t("deleteConfirmCancel")}</AlertDialogCancel>
-                    <AlertDialogAction onClick={onDeletePermanently}>{t("deleteConfirmAction")}</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
-          ) : (
-            <>
-              <Button variant="ghost" size="icon" onClick={onToggleFavorite} title={t("favoriteTooltip")}>
-                <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setMoveTarget(entry.folder_id ?? "root");
-                  setMoveOpen(true);
-                }}
-                title={t("moveToFolderTooltip")}
-              >
-                <Move className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={onEdit} title={t("editTooltip")}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={onTrash} title={t("trashTooltip")}>
+    <Card className="h-full flex flex-col rounded-none border-l shadow-2xl"><CardHeader className="flex flex-row items-center justify-between shrink-0">
+      <CardTitle>{entry.name}</CardTitle>
+      <div className="flex gap-1">
+        {entry.trashed ? (
+          <>
+            <Button variant="ghost" size="icon" onClick={onRestore} title={t("restoreTooltip")}>
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button variant="ghost" size="icon" title={t("deleteForeverTooltip")} />}>
                 <Trash2 className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-          <Button variant="ghost" size="icon" onClick={onClose} title={t("closeTooltip")}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t("deleteConfirmTitle", { name: entry.name })}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("deleteConfirmDescription")}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("deleteConfirmCancel")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={onDeletePermanently}>{t("deleteConfirmAction")}</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        ) : (
+          <>
+            <Button variant="ghost" size="icon" onClick={onToggleFavorite} title={t("favoriteTooltip")}>
+              <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setMoveTarget(entry.folder_id ?? "root");
+                setMoveOpen(true);
+              }}
+              title={t("moveToFolderTooltip")}
+            >
+              <Move className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onEdit} title={t("editTooltip")}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onTrash} title={t("trashTooltip")}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        <Button variant="ghost" size="icon" onClick={onClose} title={t("closeTooltip")}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    </CardHeader>
       <CardContent className="flex-1 overflow-y-auto flex flex-col gap-3 text-sm">
         {entry.username && (
           <div>
@@ -1385,43 +1438,18 @@ function EntryDetail({
             <p>{entry.notes}</p>
           </div>
         )}
-        {entry.custom_fields?.map((field, i) => {
-          const type = normalizedFieldType(field.field_type);
-          return (
-            <div key={i}>
-              <p className="text-muted-foreground text-xs mb-1">{field.label}</p>
-              {type === "boolean" ? (
-                <p>{field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}</p>
-              ) : type === "password" ? (
-                <div className="flex items-center gap-1">
-                  <p className="font-mono mr-1">{visibleCustomFields[i] ? field.value : "•".repeat(10)}</p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleToggleCustomShow(i)}
-                    title={visibleCustomFields[i] ? t("hideButton") : t("showButton")}
-                  >
-                    {visibleCustomFields[i] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleCopyCustomClick(i, field.value)}
-                    title={t("copyTooltip")}
-                  >
-                    {copiedCustomField === i ? (
-                      <Check className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              ) : (
-                <p>{field.value}</p>
-              )}
+        {presetFields.map(({ field, i }) => renderFieldRow(field, i))}
+
+        {customFields.length > 0 && (
+          <div className="pt-3 border-t">
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+              {t("customFieldsLabel")}
+            </p>
+            <div className="flex flex-col gap-3">
+              {customFields.map(({ field, i }) => renderFieldRow(field, i))}
             </div>
-          );
-        })}
+          </div>
+        )}
       </CardContent>
 
       <Dialog open={revealRequest !== null} onOpenChange={(isOpen) => !isOpen && closeRevealDialog()}>
