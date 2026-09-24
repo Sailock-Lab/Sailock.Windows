@@ -106,7 +106,7 @@
     "deleteButton": "Borrar datos",
     "deleteConfirmAreYouSure": "¿Estás segura?",
     "deleteConfirmIntro": "Esta acción eliminará permanentemente todos tus datos:",
-    "deleteConfirmVaultItem": "Todas las entradas del Vault",
+    "deleteConfirmVaultItem": "Todos los registros del Vault",
     "deleteConfirmAuditItem": "Historial de auditoría",
     "deleteConfirmCodesItem": "Códigos de respaldo guardados",
     "deleteConfirmCannotUndo": "Esta acción no se puede deshacer.",
