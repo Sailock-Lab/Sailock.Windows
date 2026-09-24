@@ -49,6 +49,7 @@
     "addFieldButton": "Feld hinzufügen",
     "customFieldNamePlaceholder": "Name (z. B. Wiederherstellungscode)",
     "customFieldValuePlaceholder": "Wert",
+    "customFieldsEmptyHint": "Noch keine benutzerdefinierten Felder.",
     "saveButton": "Speichern",
     "saveChangesButton": "Änderungen speichern",
     "cancelButton": "Abbrechen",

@@ -66,6 +66,8 @@
     "event_autoUpdateToggled": "自動アップデート：{{state}}",
     "event_vaultExported": "独自のパスワードで保管庫をエクスポートしました",
     "event_vaultImported": "{{filename}}から{{count}}件の項目をインポートしました（モード：{{mode}}）",
+    "event_folderCreated": "新しいフォルダ：{{name}}",
+    "event_entryMoved": "{{name}}を{{folder}}に移動しました",
     "themeLight": "ライト",
     "themeDark": "ダーク",
     "themeSystem": "システム",

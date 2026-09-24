@@ -68,6 +68,8 @@
     "event_autoUpdateToggled": "Atualizações automáticas: {{state}}",
     "event_vaultExported": "Cofre exportado com senha personalizada",
     "event_vaultImported": "Importados {{count}} itens de {{filename}} (modo: {{mode}})",
+    "event_folderCreated": "Nova pasta: {{name}}",
+    "event_entryMoved": "Movido {{name}} para {{folder}}",
     "themeLight": "Claro",
     "themeDark": "Escuro",
     "themeSystem": "Sistema",

@@ -68,6 +68,8 @@
     "event_autoUpdateToggled": "Automatic updates: {{state}}",
     "event_vaultExported": "Vault exported with custom password",
     "event_vaultImported": "Imported {{count}} items from {{filename}} (mode: {{mode}})",
+    "event_folderCreated": "New folder: {{name}}",
+    "event_entryMoved": "Moved {{name}} to {{folder}}",
     "themeLight": "Light",
     "themeDark": "Dark",
     "themeSystem": "System",

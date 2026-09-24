@@ -72,6 +72,8 @@
     "event_autoUpdateToggled": "Автоматические обновления: {{state}}",
     "event_vaultExported": "Хранилище экспортировано с собственным паролем",
     "event_vaultImported": "Импортировано {{count}} элементов из {{filename}} (режим: {{mode}})",
+    "event_folderCreated": "Создана папка: {{name}}",
+    "event_entryMoved": "{{name}} перемещено в {{folder}}",
     "themeLight": "Светлая",
     "themeDark": "Тёмная",
     "themeSystem": "Системная",

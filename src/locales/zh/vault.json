@@ -49,6 +49,7 @@
     "addFieldButton": "添加字段",
     "customFieldNamePlaceholder": "名称（例如：恢复代码）",
     "customFieldValuePlaceholder": "值",
+    "customFieldsEmptyHint": "暂无自定义字段。",
     "saveButton": "保存",
     "saveChangesButton": "保存更改",
     "cancelButton": "取消",

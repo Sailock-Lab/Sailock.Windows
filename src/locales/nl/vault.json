@@ -49,6 +49,7 @@
     "addFieldButton": "Veld toevoegen",
     "customFieldNamePlaceholder": "Naam (bijv. herstelcode)",
     "customFieldValuePlaceholder": "Waarde",
+    "customFieldsEmptyHint": "Nog geen aangepaste velden.",
     "saveButton": "Opslaan",
     "saveChangesButton": "Wijzigingen opslaan",
     "cancelButton": "Annuleren",

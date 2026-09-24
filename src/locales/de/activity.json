@@ -68,6 +68,8 @@
     "event_autoUpdateToggled": "Automatische Updates: {{state}}",
     "event_vaultExported": "Tresor mit eigenem Passwort exportiert",
     "event_vaultImported": "{{count}} Elemente aus {{filename}} importiert (Modus: {{mode}})",
+    "event_folderCreated": "Ordner erstellt: {{name}}",
+    "event_entryMoved": "{{name}} verschoben nach {{folder}}",
     "themeLight": "Hell",
     "themeDark": "Dunkel",
     "themeSystem": "System",

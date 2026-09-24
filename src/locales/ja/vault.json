@@ -49,6 +49,7 @@
     "addFieldButton": "フィールドを追加",
     "customFieldNamePlaceholder": "名前（例：復旧コード）",
     "customFieldValuePlaceholder": "値",
+    "customFieldsEmptyHint": "カスタムフィールドはまだありません。",
     "saveButton": "保存",
     "saveChangesButton": "変更を保存",
     "cancelButton": "キャンセル",

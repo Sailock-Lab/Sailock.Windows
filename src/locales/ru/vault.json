@@ -49,6 +49,7 @@
     "addFieldButton": "Добавить поле",
     "customFieldNamePlaceholder": "Название (напр. код восстановления)",
     "customFieldValuePlaceholder": "Значение",
+    "customFieldsEmptyHint": "Пользовательских полей пока нет.",
     "saveButton": "Сохранить",
     "saveChangesButton": "Сохранить изменения",
     "cancelButton": "Отмена",

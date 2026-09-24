@@ -49,6 +49,7 @@
     "addFieldButton": "Add field",
     "customFieldNamePlaceholder": "Name (e.g. Recovery code)",
     "customFieldValuePlaceholder": "Value",
+    "customFieldsEmptyHint": "No custom fields yet.",
     "saveButton": "Save",
     "saveChangesButton": "Save changes",
     "cancelButton": "Cancel",

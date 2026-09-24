@@ -49,6 +49,7 @@
     "addFieldButton": "필드 추가",
     "customFieldNamePlaceholder": "이름 (예: 복구 코드)",
     "customFieldValuePlaceholder": "값",
+    "customFieldsEmptyHint": "아직 사용자 지정 필드가 없습니다.",
     "saveButton": "저장",
     "saveChangesButton": "변경 사항 저장",
     "cancelButton": "취소",

@@ -49,6 +49,7 @@
     "addFieldButton": "Aggiungi campo",
     "customFieldNamePlaceholder": "Nome (es: codice di recupero)",
     "customFieldValuePlaceholder": "Valore",
+    "customFieldsEmptyHint": "Nessun campo personalizzato ancora.",
     "saveButton": "Salva",
     "saveChangesButton": "Salva modifiche",
     "cancelButton": "Annulla",

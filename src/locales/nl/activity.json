@@ -68,6 +68,8 @@
     "event_autoUpdateToggled": "Automatische updates: {{state}}",
     "event_vaultExported": "Kluis geëxporteerd met eigen wachtwoord",
     "event_vaultImported": "{{count}} items geïmporteerd uit {{filename}} (modus: {{mode}})",
+    "event_folderCreated": "Nieuwe map: {{name}}",
+    "event_entryMoved": "{{name}} verplaatst naar {{folder}}",
     "themeLight": "Licht",
     "themeDark": "Donker",
     "themeSystem": "Systeem",

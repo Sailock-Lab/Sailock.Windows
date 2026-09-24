@@ -68,6 +68,8 @@
     "event_autoUpdateToggled": "Mises à jour automatiques : {{state}}",
     "event_vaultExported": "Coffre-fort exporté avec un mot de passe personnalisé",
     "event_vaultImported": "{{count}} éléments importés depuis {{filename}} (mode : {{mode}})",
+    "event_folderCreated": "Nouveau dossier : {{name}}",
+    "event_entryMoved": "{{name}} déplacé vers {{folder}}",
     "themeLight": "Clair",
     "themeDark": "Sombre",
     "themeSystem": "Système",

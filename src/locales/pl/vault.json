@@ -49,6 +49,7 @@
     "addFieldButton": "Dodaj pole",
     "customFieldNamePlaceholder": "Nazwa (np. kod odzyskiwania)",
     "customFieldValuePlaceholder": "Wartość",
+    "customFieldsEmptyHint": "Brak jeszcze pól niestandardowych.",
     "saveButton": "Zapisz",
     "saveChangesButton": "Zapisz zmiany",
     "cancelButton": "Anuluj",

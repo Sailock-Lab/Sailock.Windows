@@ -66,6 +66,8 @@
     "event_autoUpdateToggled": "自动更新：{{state}}",
     "event_vaultExported": "已使用自定义密码导出保管库",
     "event_vaultImported": "已从 {{filename}} 导入 {{count}} 个项目（模式：{{mode}}）",
+    "event_folderCreated": "新建文件夹：{{name}}",
+    "event_entryMoved": "已将 {{name}} 移动到 {{folder}}",
     "themeLight": "浅色",
     "themeDark": "深色",
     "themeSystem": "跟随系统",

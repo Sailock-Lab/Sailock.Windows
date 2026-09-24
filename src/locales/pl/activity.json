@@ -72,6 +72,8 @@
     "event_autoUpdateToggled": "Automatyczne aktualizacje: {{state}}",
     "event_vaultExported": "Wyeksportowano sejf z własnym hasłem",
     "event_vaultImported": "Zaimportowano {{count}} elementów z {{filename}} (tryb: {{mode}})",
+    "event_folderCreated": "Nowy folder: {{name}}",
+    "event_entryMoved": "Przeniesiono {{name}} do {{folder}}",
     "themeLight": "Jasny",
     "themeDark": "Ciemny",
     "themeSystem": "Systemowy",
