@@ -45,7 +45,6 @@ import {
   Move,
   LucideIcon,
   Home,
-  ChevronRight,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import { useActivity } from "@/hooks/useActivity";
@@ -384,6 +383,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
     await invoke("create_folder", { name: newFolderName.trim(), parentId: currentFolderId });
+    await saveActivity("create", "folderCreated", "vault", { name: newFolderName.trim() });
     setNewFolderName("");
     setNewFolderOpen(false);
     loadFolders();
@@ -513,26 +513,20 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             </div>
           </div>
 
-          {browsingMode && (
-            <div className="flex items-center gap-1 text-sm mb-3 flex-wrap rounded-lg border bg-muted/40 px-2 py-1.5">
+          {browsingMode && currentFolderId !== null && (
+            <div className="flex items-center gap-1.5 text-sm mb-3 flex-wrap">
               <button
                 onClick={() => setCurrentFolderId(null)}
-                className={`flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${currentFolderId === null
-                  ? "bg-background font-medium text-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
-                  }`}
+                className="text-muted-foreground hover:text-foreground transition-colors"
               >
-                <Home className="h-3.5 w-3.5" />
                 {t("vaultRootLabel")}
               </button>
               {breadcrumbTrail.map((f) => (
-                <span key={f.id} className="flex items-center gap-1">
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                <span key={f.id} className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground/50">/</span>
                   <button
                     onClick={() => setCurrentFolderId(f.id)}
-                    className={`rounded-md px-2 py-1 transition-colors ${f.id === currentFolderId
-                      ? "bg-background font-medium text-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                    className={`hover:text-foreground transition-colors ${f.id === currentFolderId ? "font-semibold text-foreground" : "text-muted-foreground"
                       }`}
                   >
                     {f.name}
@@ -546,46 +540,45 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             <p className="text-sm text-muted-foreground py-4">{search ? t("emptySearch") : t("emptyList")}</p>
           ) : viewMode === "list" ? (
             <div className="flex flex-col gap-1">
-              {currentSubfolders.map((f) => (
-                <div
-                  key={f.id}
-                  onClick={() => setCurrentFolderId(f.id)}
-                  className="group flex items-center gap-3 rounded-md p-2 hover:bg-muted cursor-pointer"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
-                    <Folder className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{f.name}</p>
-                    <p className="text-xs text-muted-foreground">{t("folderLabel")}</p>
-                  </div>
-                  <div className="opacity-0 group-hover:opacity-100 flex gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRenamingFolder(f);
-                        setRenameValue(f.name);
-                      }}
+              {currentSubfolders.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1">
+                  {currentSubfolders.map((f) => (
+                    <div
+                      key={f.id}
+                      onClick={() => setCurrentFolderId(f.id)}
+                      className="group relative flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2 hover:bg-muted hover:border-primary/50 transition-colors cursor-pointer"
                     >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteFolder(f.id);
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                      <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</span>
+                      <div className="hidden group-hover:flex items-center gap-0.5 shrink-0 absolute right-1 top-1/2 -translate-y-1/2 bg-muted pl-1 rounded">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingFolder(f);
+                            setRenameValue(f.name);
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFolder(f.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               {currentSubfolders.length > 0 && visible.length > 0 && (
                 <div className="my-2 border-t" />
               )}
@@ -621,54 +614,46 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               })}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {currentSubfolders.map((f) => (
-                <div
-                  key={f.id}
-                  onClick={() => setCurrentFolderId(f.id)}
-                  className="group flex flex-col gap-2 rounded-lg border p-3 text-left hover:border-primary hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
-                      <Folder className="h-4 w-4" />
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+              {currentSubfolders.length > 0 && (
+                <div className="col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1">
+                  {currentSubfolders.map((f) => (
+                    <div
+                      key={f.id}
+                      onClick={() => setCurrentFolderId(f.id)}
+                      className="group relative flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2 hover:bg-muted hover:border-primary/50 transition-colors cursor-pointer"
+                    >
+                      <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</span>
+                      <div className="hidden group-hover:flex items-center gap-0.5 shrink-0 absolute right-1 top-1/2 -translate-y-1/2 bg-muted pl-1 rounded">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRenamingFolder(f);
+                            setRenameValue(f.name);
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFolder(f.id);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="opacity-0 group-hover:opacity-100 flex gap-1 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRenamingFolder(f);
-                          setRenameValue(f.name);
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteFolder(f.id);
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium truncate">{f.name}</p>
-                    <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded inline-block mt-1">
-                      {t("folderLabel")}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-muted-foreground mt-auto pt-2 border-t">
-                    <p>{t("createdLabel")}: {formatDate(f.created_at)}</p>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
               {currentSubfolders.length > 0 && visible.length > 0 && (
                 <div className="col-span-full my-1 border-t" />
               )}
@@ -681,11 +666,11 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                       setSelectedId(entry.id);
                       setFormMode(null);
                     }}
-                    className={`group flex flex-col gap-2 rounded-lg border p-3 text-left hover:border-primary hover:bg-muted/50 transition-colors ${selectedId === entry.id ? "border-primary bg-muted/50" : ""
+                    className={`group flex flex-col gap-1.5 rounded-lg border p-2.5 text-left hover:border-primary hover:bg-muted/50 transition-colors ${selectedId === entry.id ? "border-primary bg-muted/50" : ""
                       }`}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
                         <Icon className="h-4 w-4" />
                       </div>
                       {renderFavoriteStar(entry)}
@@ -807,6 +792,10 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 onToggleFavorite={(e) => handleToggleFavorite(selected.id, e)}
                 onMoveToFolder={async (folderId) => {
                   await invoke("move_entry_to_folder", { id: selected.id, folderId });
+                  await saveActivity("edit", "entryMoved", "vault", {
+                    name: selected.name,
+                    folder: folderId ? folderPath(folders, folderId) : t("vaultRootLabel"),
+                  });
                   loadEntries();
                 }}
                 onClose={closePanel}
