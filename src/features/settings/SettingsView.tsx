@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, } from "@/components/ui/alert-dialog";
-import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, Accessibility, KeyRound, Check } from "lucide-react";
+import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, KeyRound, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { CopyButton } from "@/components/CopyButton";
@@ -651,6 +651,8 @@ interface SettingsViewProps {
   onAutoLockDurationChange: (value: AutoLockDuration) => void;
   lockOnMinimize: boolean;
   onLockOnMinimizeChange: (value: boolean) => void;
+  autoUpdate: boolean;
+  onAutoUpdateChange: (value: boolean) => void;
   reduceMotion: boolean;
   onReduceMotionChange: (value: boolean) => void;
   textSize: TextSize;
@@ -663,6 +665,8 @@ export function SettingsView({
   onAutoLockDurationChange,
   lockOnMinimize,
   onLockOnMinimizeChange,
+  autoUpdate,
+  onAutoUpdateChange,
   reduceMotion,
   onReduceMotionChange,
   textSize,
@@ -762,6 +766,11 @@ export function SettingsView({
   const handleLockOnMinimizeChange = (value: boolean) => {
     onLockOnMinimizeChange(value);
     saveActivity("edit", "lockOnMinimizeToggled", "settings", { state: value ? "on" : "off" });
+  };
+
+  const handleAutoUpdateChange = (value: boolean) => {
+    onAutoUpdateChange(value);
+    saveActivity("edit", "autoUpdateToggled", "settings", { state: value ? "on" : "off" });
   };
 
   const handleStartWithWindowsChange = async (value: boolean) => {
@@ -1008,6 +1017,13 @@ export function SettingsView({
                 </div>
                 <Switch checked={startWithWindows} onCheckedChange={handleStartWithWindowsChange} />
               </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div>
+                  <p className="text-sm font-medium">{t("autoUpdateLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("autoUpdateDescription")}</p>
+                </div>
+                <Switch checked={autoUpdate} onCheckedChange={handleAutoUpdateChange} />
+              </div>
             </div>
           </div>
         </Card>
@@ -1015,8 +1031,7 @@ export function SettingsView({
         <Card className="p-5 rounded-xl">
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
-              <Accessibility className="h-4 w-4 text-muted-foreground" />
-              {t("accessibilityCardTitle")}
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-muted-foreground" aria-hidden="true"><circle cx="12" cy="12" r="10" strokeWidth="1.5" /><g transform="translate(3 3) scale(0.75)" strokeWidth="2"><path d="M12 10v4" /><path d="m6 8 6 2 6-2" /><path d="m9 20 3-6 3 6" /><circle cx="12" cy="5" r="1" /></g></svg>              {t("accessibilityCardTitle")}
             </CardTitle>
             <CardDescription className="text-sm mb-4">{t("accessibilityCardDescription")}</CardDescription>
             <div className="space-y-3">

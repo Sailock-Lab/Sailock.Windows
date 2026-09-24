@@ -24,7 +24,7 @@ import { useActivity, ActivityEntry, ActivityType, ActivitySource } from "@/hook
 import { LANGUAGE_LABELS } from "@/i18n/languages";
 import type { TFunction } from "i18next";
 
-const ITEMS_PER_PAGE = 15;
+const ITEMS_PER_PAGE = 16;
 
 const SOURCE_ICONS: Record<ActivitySource, React.ReactNode> = {
   vault: <Key className="h-3 w-3" />,
@@ -351,170 +351,172 @@ export function ActivityView() {
         </div>
       </div>
 
-      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4">
-        <CardHeader className="shrink-0 pb-2">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base">
-              {t("logTitle")}
-              {activities.length > 0 && (
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  {t("eventsCount", { count: activities.length })}
-                </span>
-              )}
-            </CardTitle>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={handleExport}>
-                <Download className="h-3.5 w-3.5 mr-1" /> {t("exportButton")}
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleClearAll}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("clearButton")}
-              </Button>
+      <div className="flex-1 overflow-y-auto pt-4 pb-6 px-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">
+                {t("logTitle")}
+                {activities.length > 0 && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    {t("eventsCount", { count: activities.length })}
+                  </span>
+                )}
+              </CardTitle>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={handleExport}>
+                  <Download className="h-3.5 w-3.5 mr-1" /> {t("exportButton")}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleClearAll}>
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("clearButton")}
+                </Button>
+              </div>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden pt-0">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3 shrink-0">
-            <div className="flex flex-wrap gap-2">
-              <Select value={filter} onValueChange={(v) => v && setFilter(v as ActivityType | "all")}>
-                <SelectTrigger className="w-[160px] h-9">
-                  <SelectValue placeholder={t("filterTypePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-gray-400" />
-                      {t("filterAllLabel")}
-                    </div>
-                  </SelectItem>
-                  {Object.entries(TYPE_LABELS).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+              <div className="flex flex-wrap gap-2">
+                <Select value={filter} onValueChange={(v) => v && setFilter(v as ActivityType | "all")}>
+                  <SelectTrigger className="w-[160px] h-9">
+                    <SelectValue placeholder={t("filterTypePlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${TYPE_COLORS[key as ActivityType]}`} />
-                        {label}
+                        <span className="w-2 h-2 rounded-full bg-gray-400" />
+                        {t("filterAllLabel")}
                       </div>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {Object.entries(TYPE_LABELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${TYPE_COLORS[key as ActivityType]}`} />
+                          {label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="relative flex-1 sm:max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder={t("searchPlaceholder")}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 h-9"
+                />
+              </div>
             </div>
 
-            <div className="relative flex-1 sm:max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder={t("searchPlaceholder")}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-9"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto min-h-0 -mx-4 px-4">
-            {loading ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
-                  <p className="text-sm text-muted-foreground">{t("loadingLabel")}</p>
+            <div className="-mx-4 px-4">
+              {loading ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <RefreshCw className="h-8 w-8 text-muted-foreground mx-auto mb-3 animate-spin" />
+                    <p className="text-sm text-muted-foreground">{t("loadingLabel")}</p>
+                  </div>
                 </div>
-              </div>
-            ) : paginatedActivities.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <HistoryIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
-                  <p className="text-sm text-muted-foreground">
-                    {search || filter !== "all" ? t("emptyFiltered") : t("emptyNone")}
-                  </p>
+              ) : paginatedActivities.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <HistoryIcon className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                    <p className="text-sm text-muted-foreground">
+                      {search || filter !== "all" ? t("emptyFiltered") : t("emptyNone")}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {paginatedActivities.map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-3 py-2.5 hover:bg-muted/50 rounded-md px-2 -mx-2 transition-colors">
-                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${TYPE_COLORS[activity.activity_type]}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm truncate">{activityDescription(activity, t)}</span>
-                        <span className={`flex items-center gap-1 text-[10px] font-medium text-white px-1.5 py-0.5 rounded ${SOURCE_COLORS[activity.source]} shrink-0`}>
-                          {SOURCE_ICONS[activity.source]}
-                          {SOURCE_LABELS[activity.source]}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground uppercase bg-muted px-1.5 py-0.5 rounded shrink-0">
-                          {TYPE_LABELS[activity.activity_type]}
+              ) : (
+                <div className="divide-y">
+                  {paginatedActivities.map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-3 py-2.5 hover:bg-muted/50 rounded-md px-2 -mx-2 transition-colors">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${TYPE_COLORS[activity.activity_type]}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm truncate">{activityDescription(activity, t)}</span>
+                          <span className={`flex items-center gap-1 text-[10px] font-medium text-white px-1.5 py-0.5 rounded ${SOURCE_COLORS[activity.source]} shrink-0`}>
+                            {SOURCE_ICONS[activity.source]}
+                            {SOURCE_LABELS[activity.source]}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground uppercase bg-muted px-1.5 py-0.5 rounded shrink-0">
+                            {TYPE_LABELS[activity.activity_type]}
+                          </span>
+                        </div>
+                        {!activity.event_key && activity.details && (
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{activity.details}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatTimestamp(activity.timestamp, t)}
                         </span>
                       </div>
-                      {!activity.event_key && activity.details && (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{activity.details}</p>
-                      )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatTimestamp(activity.timestamp, t)}
-                      </span>
-                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t mt-3">
+                <p className="text-xs text-muted-foreground">
+                  {t("showingRange", {
+                    from: (currentPage - 1) * ITEMS_PER_PAGE + 1,
+                    to: Math.min(currentPage * ITEMS_PER_PAGE, filteredActivities.length),
+                    total: filteredActivities.length,
+                  })}
+                </p>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 w-8 text-xs"
+                          onClick={() => setCurrentPage(pageNum)}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
                   </div>
-                ))}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
             )}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-3 border-t shrink-0 mt-3">
-              <p className="text-xs text-muted-foreground">
-                {t("showingRange", {
-                  from: (currentPage - 1) * ITEMS_PER_PAGE + 1,
-                  to: Math.min(currentPage * ITEMS_PER_PAGE, filteredActivities.length),
-                  total: filteredActivities.length,
-                })}
-              </p>
-              <div className="flex gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="sm"
-                        className="h-8 w-8 text-xs"
-                        onClick={() => setCurrentPage(pageNum)}
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-                </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       <PasswordConfirmDialog
         open={confirmAction !== null}

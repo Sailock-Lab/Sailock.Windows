@@ -31,6 +31,7 @@ function App() {
   const [vaultPrefillPassword, setVaultPrefillPassword] = useState<string | null>(null);
   const [autoLockDuration, setAutoLockDurationState] = useState<AutoLockDuration>(getStoredAutoLockDuration());
   const [lockOnMinimize, setLockOnMinimizeState] = useState<boolean>(() => getStoredBool("lockOnMinimize", false));
+  const [autoUpdate, setAutoUpdateState] = useState<boolean>(() => getStoredBool("autoUpdate", true));
   const [reduceMotion, setReduceMotionState] = useState<boolean>(() => getStoredBool("reduceMotion", false));
   const [textSize, setTextSizeState] = useState<TextSize>(getStoredTextSize());
   const { saveActivity } = useActivity();
@@ -109,6 +110,11 @@ function App() {
     storeBool("lockOnMinimize", value);
   };
 
+  const handleAutoUpdateChange = (value: boolean) => {
+    setAutoUpdateState(value);
+    storeBool("autoUpdate", value);
+  };
+
   const handleReduceMotionChange = (value: boolean) => {
     setReduceMotionState(value);
     storeBool("reduceMotion", value);
@@ -141,6 +147,8 @@ function App() {
             onAutoLockDurationChange={handleAutoLockDurationChange}
             lockOnMinimize={lockOnMinimize}
             onLockOnMinimizeChange={handleLockOnMinimizeChange}
+            autoUpdate={autoUpdate}
+            onAutoUpdateChange={handleAutoUpdateChange}
             reduceMotion={reduceMotion}
             onReduceMotionChange={handleReduceMotionChange}
             textSize={textSize}
