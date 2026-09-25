@@ -70,6 +70,7 @@
     "event_vaultImported": "Importados {{count}} elementos desde {{filename}} (modo: {{mode}})",
     "event_folderCreated": "Nueva carpeta: {{name}}",
     "event_entryMoved": "Movida {{name}} a {{folder}}",
+    "event_folderMoved": "Carpeta {{name}} movida a {{folder}}",
     "themeLight": "Claro",
     "themeDark": "Oscuro",
     "themeSystem": "Sistema",

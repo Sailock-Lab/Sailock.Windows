@@ -288,6 +288,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const [newFolderName, setNewFolderName] = useState("");
   const [renamingFolder, setRenamingFolder] = useState<FolderData | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [movingFolder, setMovingFolder] = useState<FolderData | null>(null);
+  const [moveFolderTarget, setMoveFolderTarget] = useState<string>("root");
   const { saveActivity } = useActivity();
 
   const loadEntries = async () => {
@@ -399,6 +401,34 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const handleDeleteFolder = async (id: string) => {
     try {
       await invoke("delete_folder", { id });
+      loadFolders();
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
+
+  const folderDescendantIds = (rootId: string): Set<string> => {
+    const ids = new Set<string>();
+    const stack = [rootId];
+    while (stack.length) {
+      const current = stack.pop()!;
+      folders.filter((f) => f.parent_id === current).forEach((f) => {
+        ids.add(f.id);
+        stack.push(f.id);
+      });
+    }
+    return ids;
+  };
+
+  const handleMoveFolder = async (targetId: string | null) => {
+    if (!movingFolder) return;
+    try {
+      await invoke("move_folder", { id: movingFolder.id, parentId: targetId });
+      await saveActivity("edit", "folderMoved", "vault", {
+        name: movingFolder.name,
+        folder: targetId ? folderPath(folders, targetId) : t("vaultRootLabel"),
+      });
+      setMovingFolder(null);
       loadFolders();
     } catch (e) {
       toast.error(String(e));
@@ -557,6 +587,19 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                           className="h-6 w-6"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setMovingFolder(f);
+                            setMoveFolderTarget(f.parent_id ?? "root");
+                          }}
+                          title={t("moveToFolderTooltip")}
+                        >
+                          <Move className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setRenamingFolder(f);
                             setRenameValue(f.name);
                           }}
@@ -626,6 +669,19 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                       <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
                       <span className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</span>
                       <div className="hidden group-hover:flex items-center gap-0.5 shrink-0 absolute right-1 top-1/2 -translate-y-1/2 bg-muted pl-1 rounded">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMovingFolder(f);
+                            setMoveFolderTarget(f.parent_id ?? "root");
+                          }}
+                          title={t("moveToFolderTooltip")}
+                        >
+                          <Move className="h-3 w-3" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -724,6 +780,37 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               autoFocus
             />
             <Button onClick={handleRenameFolder}>{t("saveChangesButton")}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={movingFolder !== null} onOpenChange={(isOpen) => !isOpen && setMovingFolder(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("moveFolderDialogTitle")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Select value={moveFolderTarget} onValueChange={(v) => v && setMoveFolderTarget(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="root">{t("vaultRootLabel")}</SelectItem>
+                {movingFolder &&
+                  folders
+                    .filter(
+                      (f) => f.id !== movingFolder.id && !folderDescendantIds(movingFolder.id).has(f.id)
+                    )
+                    .map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {folderPath(folders, f.id)}
+                      </SelectItem>
+                    ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => handleMoveFolder(moveFolderTarget === "root" ? null : moveFolderTarget)}>
+              {t("moveButton")}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -1317,13 +1317,64 @@ fn delete_folder(
     let entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
     let has_entries = entries
         .iter()
-        .any(|e| e.folder_id.as_deref() == Some(id.as_str()));
+        .any(|e| e.folder_id.as_deref() == Some(id.as_str()) && !e.trashed);
     if has_entries {
         return Err("La carpeta tiene registros dentro. Vacíala primero.".into());
     }
 
     let mut folders = folders;
     folders.retain(|f| f.id != id);
+    write_folders(&app_handle, &key, &folders);
+    Ok(())
+}
+
+fn is_descendant_or_self(folders: &[Folder], candidate_id: &str, ancestor_id: &str) -> bool {
+    let mut current = Some(candidate_id.to_string());
+    while let Some(cur) = current {
+        if cur == ancestor_id {
+            return true;
+        }
+        current = folders
+            .iter()
+            .find(|f| f.id == cur)
+            .and_then(|f| f.parent_id.clone());
+    }
+    false
+}
+
+#[tauri::command]
+fn move_folder(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+    parent_id: Option<String>,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut folders = read_folders(&app_handle, &key);
+
+    if let Some(ref target) = parent_id {
+        if is_descendant_or_self(&folders, target, &id) {
+            return Err(
+                "No puedes mover una carpeta dentro de sí misma o de una de sus propias subcarpetas."
+                    .into(),
+            );
+        }
+    }
+
+    let mut found = false;
+    for folder in folders.iter_mut() {
+        if folder.id == id {
+            folder.parent_id = parent_id.clone();
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        return Err("No se encontró la carpeta".into());
+    }
+
     write_folders(&app_handle, &key, &folders);
     Ok(())
 }
@@ -1507,6 +1558,7 @@ pub fn run() {
             rename_folder,
             delete_folder,
             move_entry_to_folder,
+            move_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

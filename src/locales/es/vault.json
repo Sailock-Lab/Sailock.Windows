@@ -137,5 +137,6 @@
     "vaultRootLabel": "Vault",
     "moveToFolderTooltip": "Mover a carpeta",
     "moveToFolderDialogTitle": "Mover a carpeta",
-    "moveButton": "Mover"
+    "moveButton": "Mover",
+    "moveFolderDialogTitle": "Mover carpeta a"
 }
