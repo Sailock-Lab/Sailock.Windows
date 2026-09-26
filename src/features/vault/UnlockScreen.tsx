@@ -144,6 +144,121 @@ function PasswordField({
   );
 }
 
+function BackgroundDecor() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* Large green glow - top left */}
+      <div
+        className="
+          absolute -left-52 -top-52
+          h-[720px] w-[720px]
+          rounded-full
+          bg-primary/[0.20]
+          blur-[80px]
+          dark:bg-primary/[0.18]
+        "
+      />
+
+      {/* Large green glow - bottom right */}
+      <div
+        className="
+          absolute -bottom-64 -right-56
+          h-[760px] w-[760px]
+          rounded-full
+          bg-primary/[0.18]
+          blur-[90px]
+          dark:bg-primary/[0.20]
+        "
+      />
+
+      {/* Secondary glow */}
+      <div
+        className="
+          absolute right-[18%] top-[8%]
+          h-[320px] w-[320px]
+          rounded-full
+          bg-primary/[0.06]
+          blur-[100px]
+          dark:bg-primary/[0.08]
+        "
+      />
+
+      {/* Top-left organic shape */}
+      <svg
+        className="absolute -left-[180px] -top-[120px] h-[620px] w-[650px]"
+        viewBox="0 0 650 620"
+        fill="none"
+      >
+        <path
+          d="M0 120C120 40 270 10 390 90C520 176 570 300 650 390V0H0V120Z"
+          className="fill-primary/[0.12] dark:fill-primary/[0.13]"
+        />
+
+        <path
+          d="M-30 310C100 210 160 110 300 90C420 72 475 180 520 290"
+          className="stroke-primary/[0.22] dark:stroke-primary/[0.25]"
+          strokeWidth="2"
+        />
+
+        <path
+          d="M-20 350C120 250 185 150 315 135C430 122 475 220 525 330"
+          className="stroke-primary/[0.16] dark:stroke-primary/[0.18]"
+          strokeWidth="2"
+        />
+
+        <path
+          d="M0 390C120 310 220 200 335 185C430 172 470 250 510 355"
+          className="stroke-primary/[0.11] dark:stroke-primary/[0.14]"
+          strokeWidth="1.5"
+        />
+      </svg>
+
+      {/* Bottom-right organic shape */}
+      <svg
+        className="absolute -bottom-[170px] -right-[150px] h-[620px] w-[650px]"
+        viewBox="0 0 650 620"
+        fill="none"
+      >
+        <path
+          d="M650 500C520 570 380 590 250 520C120 450 80 320 0 220V620H650V500Z"
+          className="fill-primary/[0.12] dark:fill-primary/[0.14]"
+        />
+
+        <path
+          d="M680 300C540 400 470 500 340 520C220 540 175 440 120 330"
+          className="stroke-primary/[0.22] dark:stroke-primary/[0.25]"
+          strokeWidth="2"
+        />
+
+        <path
+          d="M670 260C530 365 460 460 330 480C215 498 165 395 110 285"
+          className="stroke-primary/[0.16] dark:stroke-primary/[0.18]"
+          strokeWidth="2"
+        />
+
+        <path
+          d="M660 220C535 320 450 420 325 440C230 455 170 350 115 245"
+          className="stroke-primary/[0.11] dark:stroke-primary/[0.14]"
+          strokeWidth="1.5"
+        />
+      </svg>
+
+      {/* Subtle center wave */}
+      <svg
+        className="absolute inset-x-0 bottom-0 h-[42%] w-full"
+        viewBox="0 0 1440 500"
+        preserveAspectRatio="none"
+        fill="none"
+      >
+        <path
+          d="M0 390C220 270 410 450 680 340C960 225 1170 310 1440 170V500H0Z"
+          className="fill-primary/[0.035] dark:fill-primary/[0.05]"
+        />
+      </svg>
+    </div>
+  );
+}
+
 export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   const { t } = useTranslation("vault");
   const [checking, setChecking] = useState(true);
@@ -233,7 +348,8 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
 
   if (needsTotp) {
     return (
-      <div className="relative flex h-screen items-center justify-center bg-background">
+      <div className="relative flex h-screen items-center justify-center overflow-hidden bg-background">
+        <BackgroundDecor />
         <TopBar />
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -309,7 +425,8 @@ export function UnlockScreen({ onUnlock }: UnlockScreenProps) {
   }
 
   return (
-    <div className="relative flex h-screen items-center justify-center bg-background">
+    <div className="relative flex h-screen items-center justify-center overflow-hidden bg-background">
+      <BackgroundDecor />
       <TopBar />
       <motion.div
         initial={{ opacity: 0, y: 12 }}
