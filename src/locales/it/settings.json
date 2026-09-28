@@ -147,5 +147,7 @@
     "backupCodesDoneButton": "Fatto",
     "backupCodesDownloadedToast": "Codici scaricati",
     "exportVerifyDescription": "Inserisci la tua password principale per continuare.",
-    "exportVerifyAndContinueButton": "Verifica e continua"
+    "exportVerifyAndContinueButton": "Verifica e continua",
+    "highContrastLabel": "Alto contrasto",
+    "highContrastDescription": "Aumenta il contrasto dei colori per rendere l'interfaccia più leggibile"
 }

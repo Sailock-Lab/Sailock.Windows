@@ -149,5 +149,7 @@
     "backupCodesDoneButton": "Gotowe",
     "backupCodesDownloadedToast": "Kody pobrane",
     "exportVerifyDescription": "Wprowadź hasło główne, aby kontynuować.",
-    "exportVerifyAndContinueButton": "Zweryfikuj i kontynuuj"
+    "exportVerifyAndContinueButton": "Zweryfikuj i kontynuuj",
+    "highContrastLabel": "Wysoki kontrast",
+    "highContrastDescription": "Zwiększa kontrast kolorów, aby interfejs był łatwiejszy do odczytania"
 }

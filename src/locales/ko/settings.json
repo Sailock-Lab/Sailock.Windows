@@ -146,5 +146,7 @@
     "backupCodesDoneButton": "완료",
     "backupCodesDownloadedToast": "코드가 다운로드되었습니다",
     "exportVerifyDescription": "계속하려면 마스터 비밀번호를 입력하세요.",
-    "exportVerifyAndContinueButton": "확인하고 계속하기"
+    "exportVerifyAndContinueButton": "확인하고 계속하기",
+    "highContrastLabel": "고대비",
+    "highContrastDescription": "색상 대비를 높여 인터페이스를 더 읽기 쉽게 만듭니다"
 }

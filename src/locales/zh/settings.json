@@ -146,5 +146,7 @@
     "backupCodesDoneButton": "完成",
     "backupCodesDownloadedToast": "代码已下载",
     "exportVerifyDescription": "请输入主密码以继续。",
-    "exportVerifyAndContinueButton": "验证并继续"
+    "exportVerifyAndContinueButton": "验证并继续",
+    "highContrastLabel": "高对比度",
+    "highContrastDescription": "提高颜色对比度,使界面更易于阅读"
 }

@@ -146,5 +146,7 @@
     "backupCodesDoneButton": "完了",
     "backupCodesDownloadedToast": "コードをダウンロードしました",
     "exportVerifyDescription": "続行するにはマスターパスワードを入力してください。",
-    "exportVerifyAndContinueButton": "確認して続行"
+    "exportVerifyAndContinueButton": "確認して続行",
+    "highContrastLabel": "ハイコントラスト",
+    "highContrastDescription": "色のコントラストを高めて、画面を読みやすくします"
 }

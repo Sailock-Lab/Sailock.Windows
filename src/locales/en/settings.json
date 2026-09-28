@@ -147,5 +147,7 @@
     "backupCodesDoneButton": "Done",
     "backupCodesDownloadedToast": "Codes downloaded",
     "exportVerifyDescription": "Enter your master password to continue.",
-    "exportVerifyAndContinueButton": "Verify and continue"
+    "exportVerifyAndContinueButton": "Verify and continue",
+    "highContrastLabel": "High contrast",
+"highContrastDescription": "Increases color contrast to make the interface easier to read"
 }

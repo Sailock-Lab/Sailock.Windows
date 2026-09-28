@@ -149,5 +149,7 @@
     "backupCodesDoneButton": "Готово",
     "backupCodesDownloadedToast": "Коды скачаны",
     "exportVerifyDescription": "Введите мастер-пароль, чтобы продолжить.",
-    "exportVerifyAndContinueButton": "Подтвердить и продолжить"
+    "exportVerifyAndContinueButton": "Подтвердить и продолжить",
+    "highContrastLabel": "Высокая контрастность",
+    "highContrastDescription": "Повышает контрастность цветов, чтобы интерфейс было легче читать"
 }

@@ -147,5 +147,7 @@
     "backupCodesDoneButton": "Fertig",
     "backupCodesDownloadedToast": "Codes heruntergeladen",
     "exportVerifyDescription": "Gib dein Master-Passwort ein, um fortzufahren.",
-    "exportVerifyAndContinueButton": "Bestätigen und fortfahren"
+    "exportVerifyAndContinueButton": "Bestätigen und fortfahren",
+    "highContrastLabel": "Hoher Kontrast",
+    "highContrastDescription": "Erhöht den Farbkontrast, damit die Oberfläche besser lesbar ist"
 }

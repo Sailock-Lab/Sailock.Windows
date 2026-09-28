@@ -146,5 +146,7 @@
     "backupCodesDownloadButton": "Downloaden",
     "backupCodesDoneButton": "Klaar",
     "exportVerifyDescription": "Voer je hoofdwachtwoord in om door te gaan.",
-    "exportVerifyAndContinueButton": "Verifiëren en doorgaan"
+    "exportVerifyAndContinueButton": "Verifiëren en doorgaan",
+    "highContrastLabel": "Hoog contrast",
+    "highContrastDescription": "Verhoogt het kleurcontrast zodat de interface beter leesbaar is"
 }
