@@ -257,8 +257,7 @@ function BackgroundDecor() {
           className="stroke-primary/[0.11] dark:stroke-primary/[0.14]"
           strokeWidth="1.5"
         />
-      </svg>feat(ui): make login theme/language switchers more visible, add symmetric background and responsive card scaling
-    </div>
+      </svg></div>
   );
 }
 

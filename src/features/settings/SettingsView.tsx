@@ -657,6 +657,8 @@ interface SettingsViewProps {
   onReduceMotionChange: (value: boolean) => void;
   textSize: TextSize;
   onTextSizeChange: (value: TextSize) => void;
+  highContrast: boolean;
+  onHighContrastChange: (value: boolean) => void;
 }
 
 export function SettingsView({
@@ -671,6 +673,8 @@ export function SettingsView({
   onReduceMotionChange,
   textSize,
   onTextSizeChange,
+  highContrast,
+  onHighContrastChange,
 }: SettingsViewProps) {
   const { t } = useTranslation("settings");
 
@@ -1041,6 +1045,13 @@ export function SettingsView({
                   <p className="text-xs text-muted-foreground">{t("reduceMotionDescription")}</p>
                 </div>
                 <Switch checked={reduceMotion} onCheckedChange={handleReduceMotionChange} />
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div>
+                  <p className="text-sm font-medium">{t("highContrastLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("highContrastDescription")}</p>
+                </div>
+                <Switch checked={highContrast} onCheckedChange={onHighContrastChange} />
               </div>
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>

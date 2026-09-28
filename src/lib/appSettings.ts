@@ -18,6 +18,7 @@ const KEYS = {
   autoUpdate: "sailock-auto-update",
   reduceMotion: "sailock-reduce-motion",
   textSize: "sailock-text-size",
+  highContrast: "sailock-high-contrast",
 };
 
 export function getStoredAutoLockDuration(): AutoLockDuration {

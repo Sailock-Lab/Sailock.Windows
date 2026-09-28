@@ -13,17 +13,8 @@ import { useActivity } from "@/hooks/useActivity";
 import { useAutoLock } from "@/hooks/useAutoLock";
 import { useLockOnMinimize } from "@/hooks/useLockOnMinimize";
 import { getStoredTheme, applyTheme } from "@/lib/theme";
-import { applyTextSize } from "@/lib/accessibility";
-import {
-  AutoLockDuration,
-  TextSize,
-  getStoredAutoLockDuration,
-  storeAutoLockDuration,
-  getStoredBool,
-  storeBool,
-  getStoredTextSize,
-  storeTextSize,
-} from "@/lib/appSettings";
+import { applyTextSize, applyContrast } from "@/lib/accessibility";
+import { AutoLockDuration, TextSize, getStoredAutoLockDuration, storeAutoLockDuration, getStoredBool, storeBool, getStoredTextSize, storeTextSize, } from "@/lib/appSettings";
 
 function App() {
   const [unlocked, setUnlocked] = useState(false);
@@ -34,11 +25,13 @@ function App() {
   const [autoUpdate, setAutoUpdateState] = useState<boolean>(() => getStoredBool("autoUpdate", true));
   const [reduceMotion, setReduceMotionState] = useState<boolean>(() => getStoredBool("reduceMotion", false));
   const [textSize, setTextSizeState] = useState<TextSize>(getStoredTextSize());
+  const [highContrast, setHighContrastState] = useState<boolean>(() => getStoredBool("highContrast", false));
   const { saveActivity } = useActivity();
 
   useEffect(() => {
     applyTheme(getStoredTheme());
     applyTextSize(getStoredTextSize());
+    applyContrast(getStoredBool("highContrast", false));
   }, []);
 
   useEffect(() => {
@@ -119,11 +112,16 @@ function App() {
     setReduceMotionState(value);
     storeBool("reduceMotion", value);
   };
-
   const handleTextSizeChange = (value: TextSize) => {
     setTextSizeState(value);
     storeTextSize(value);
     applyTextSize(value);
+  };
+
+  const handleHighContrastChange = (value: boolean) => {
+    setHighContrastState(value);
+    storeBool("highContrast", value);
+    applyContrast(value);
   };
 
   const renderView = () => {
@@ -153,6 +151,8 @@ function App() {
             onReduceMotionChange={handleReduceMotionChange}
             textSize={textSize}
             onTextSizeChange={handleTextSizeChange}
+            highContrast={highContrast}
+            onHighContrastChange={handleHighContrastChange}
           />
         );
     }

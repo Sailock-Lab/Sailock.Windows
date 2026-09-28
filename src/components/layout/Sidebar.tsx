@@ -25,9 +25,8 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
 
   return (
     <aside
-      className={`border-r bg-muted/30 p-4 flex flex-col gap-2 transition-all duration-300 ${
-        collapsed ? "w-20" : "w-56"
-      }`}
+      className={`border-r bg-muted/30 p-4 flex flex-col gap-2 transition-all duration-300 ${collapsed ? "w-20" : "w-56"
+        }`}
     >
       <div className={`flex items-center gap-2 mb-2 px-2 ${collapsed ? "justify-center" : ""}`}>
         <img src={logo} alt="Sailock" className="h-8 w-8 shrink-0" />
@@ -42,13 +41,11 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
           <Button
             key={id}
             variant={active === id ? "default" : "ghost"}
-            className={`gap-2 transition-all duration-200 ${
-              collapsed ? "justify-center px-0" : "justify-start"
-            } ${
-              active === id
+            className={`gap-2 transition-all duration-200 ${collapsed ? "justify-center px-0" : "justify-start"
+              } ${active === id
                 ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
                 : "hover:bg-muted hover:text-foreground hover:scale-[1.02]"
-            }`}
+              }`}
             onClick={() => onChange(id)}
             title={collapsed ? label : undefined}
           >
@@ -62,9 +59,8 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
 
       <Button
         variant="outline"
-        className={`gap-2 mt-auto transition-all duration-200 border-destructive/50 text-destructive hover:bg-destructive hover:text-white hover:border-destructive hover:scale-[1.02] ${
-          collapsed ? "justify-center px-0" : "justify-center"
-        }`}
+        className={`gap-2 mt-auto transition-all duration-200 border-destructive/50 text-destructive hover:bg-destructive hover:text-white hover:border-destructive hover:scale-[1.02] dark:high-contrast:hover:bg-[oklch(0.55_0.22_25)] ${collapsed ? "justify-center px-0" : "justify-center"
+          }`}
         onClick={onLock}
         title={collapsed ? t("lock") : undefined}
       >

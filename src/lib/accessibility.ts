@@ -9,3 +9,7 @@ const FONT_SIZES: Record<TextSize, string> = {
 export function applyTextSize(size: TextSize) {
   document.documentElement.style.fontSize = FONT_SIZES[size];
 }
+
+export function applyContrast(enabled: boolean) {
+  document.documentElement.classList.toggle("high-contrast", enabled);
+}
