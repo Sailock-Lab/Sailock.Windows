@@ -100,5 +100,7 @@
     "event_backupCodesGenerated": "Сгенерированы новые коды восстановления 2FA",
     "event_loginWithBackupCode": "Выполнен вход с помощью кода восстановления",
     "totpStepDescription": "Введите код из приложения-аутентификатора.",
-    "totpWrongCodeError": "Неверный код"
+    "totpWrongCodeError": "Неверный код",
+    "event_highContrastEnabled": "Высокая контрастность включена",
+    "event_highContrastDisabled": "Высокая контрастность выключена"
 }

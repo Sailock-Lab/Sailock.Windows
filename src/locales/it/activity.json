@@ -96,5 +96,7 @@
     "event_backupCodesGenerated": "Generati nuovi codici di recupero 2FA",
     "event_loginWithBackupCode": "Accesso effettuato con un codice di recupero",
     "totpStepDescription": "Inserisci il codice della tua app di autenticazione.",
-    "totpWrongCodeError": "Codice errato"
+    "totpWrongCodeError": "Codice errato",
+    "event_highContrastEnabled": "Alto contrasto attivato",
+    "event_highContrastDisabled": "Alto contrasto disattivato"
 }

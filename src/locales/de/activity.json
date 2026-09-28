@@ -96,5 +96,7 @@
     "event_backupCodesGenerated": "Neue 2FA-Wiederherstellungscodes generiert",
     "event_loginWithBackupCode": "Angemeldet mit einem Wiederherstellungscode",
     "totpStepDescription": "Gib den Code aus deiner Authenticator-App ein.",
-    "totpWrongCodeError": "Falscher Code"
+    "totpWrongCodeError": "Falscher Code",
+    "event_highContrastEnabled": "Hoher Kontrast aktiviert",
+    "event_highContrastDisabled": "Hoher Kontrast deaktiviert"
 }

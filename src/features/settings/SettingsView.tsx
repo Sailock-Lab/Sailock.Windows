@@ -777,6 +777,11 @@ export function SettingsView({
     saveActivity("edit", "autoUpdateToggled", "settings", { state: value ? "on" : "off" });
   };
 
+  const handleHighContrastChange = (value: boolean) => {
+    onHighContrastChange(value);
+    saveActivity("edit", value ? "highContrastEnabled" : "highContrastDisabled", "settings");
+  };
+
   const handleStartWithWindowsChange = async (value: boolean) => {
     try {
       if (value) {
@@ -1035,7 +1040,7 @@ export function SettingsView({
         <Card className="p-5 rounded-xl">
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
-<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-muted-foreground" aria-hidden="true"><circle cx="12" cy="12" r="10" strokeWidth="1.5" /><g transform="translate(3 3) scale(0.75)" strokeWidth="2"><path d="M12 10v4" /><path d="m6 8 6 2 6-2" /><path d="m9 20 3-6 3 6" /><circle cx="12" cy="5" r="1" /></g></svg>              {t("accessibilityCardTitle")}
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-muted-foreground" aria-hidden="true"><circle cx="12" cy="12" r="10" strokeWidth="1.5" /><g transform="translate(3 3) scale(0.75)" strokeWidth="2"><path d="M12 10v4" /><path d="m6 8 6 2 6-2" /><path d="m9 20 3-6 3 6" /><circle cx="12" cy="5" r="1" /></g></svg>              {t("accessibilityCardTitle")}
             </CardTitle>
             <CardDescription className="text-sm mb-4">{t("accessibilityCardDescription")}</CardDescription>
             <div className="space-y-3">
@@ -1051,8 +1056,7 @@ export function SettingsView({
                   <p className="text-sm font-medium">{t("highContrastLabel")}</p>
                   <p className="text-xs text-muted-foreground">{t("highContrastDescription")}</p>
                 </div>
-                <Switch checked={highContrast} onCheckedChange={onHighContrastChange} />
-              </div>
+                <Switch checked={highContrast} onCheckedChange={handleHighContrastChange} />              </div>
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
                   <p className="text-sm font-medium">{t("textSizeLabel")}</p>

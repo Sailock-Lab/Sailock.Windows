@@ -93,5 +93,7 @@
     "event_backupCodesGenerated": "新しい2FA復旧コードを生成しました",
     "event_loginWithBackupCode": "復旧コードを使用してログインしました",
     "totpStepDescription": "認証アプリのコードを入力してください。",
-    "totpWrongCodeError": "コードが正しくありません"
+    "totpWrongCodeError": "コードが正しくありません",
+    "event_highContrastEnabled": "ハイコントラストを有効にしました",
+    "event_highContrastDisabled": "ハイコントラストを無効にしました"
 }

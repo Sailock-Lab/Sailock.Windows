@@ -100,5 +100,7 @@
     "event_backupCodesGenerated": "Wygenerowano nowe kody odzyskiwania 2FA",
     "event_loginWithBackupCode": "Zalogowano za pomocą kodu odzyskiwania",
     "totpStepDescription": "Wprowadź kod z aplikacji uwierzytelniającej.",
-    "totpWrongCodeError": "Nieprawidłowy kod"
+    "totpWrongCodeError": "Nieprawidłowy kod",
+    "event_highContrastEnabled": "Wysoki kontrast włączony",
+    "event_highContrastDisabled": "Wysoki kontrast wyłączony"
 }

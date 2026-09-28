@@ -97,5 +97,7 @@
     "event_loginWithBackupCode": "Aangemeld met een herstelcode",
     "backupCodesDownloadedToast": "Codes gedownload",
     "totpStepDescription": "Voer de code van je authenticator-app in.",
-    "totpWrongCodeError": "Onjuiste code"
+    "totpWrongCodeError": "Onjuiste code",
+    "event_highContrastEnabled": "Hoog contrast ingeschakeld",
+    "event_highContrastDisabled": "Hoog contrast uitgeschakeld"
 }
