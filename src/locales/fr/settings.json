@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "Réduire dans la barre d'état",
     "minimizeToTrayDescription": "Enregistre la préférence ; l'intégration réelle est manquante",
     "autoUpdateLabel": "Rechercher les mises à jour automatiquement",
-    "autoUpdateDescription": "Au démarrage, Sailock consulte github.com pour voir si une nouvelle version existe et vous demande avant de l'installer. Aucune donnée de votre coffre n'est envoyée.",
+    "autoUpdateDescription": "Au démarrage de l’application, Sailock vérifiera si une nouvelle version est disponible. Nous te demanderons toujours confirmation avant de l’installer.",
     "importExportCardTitle": "Importer / Exporter des données",
     "importExportCardDescription": "Exportez une copie chiffrée de votre coffre-fort, ou ajoutez des données depuis un fichier exporté auparavant.",
     "exportDataLabel": "Exporter les données",

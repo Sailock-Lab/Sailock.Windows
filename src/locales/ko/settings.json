@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "트레이로 최소화",
     "minimizeToTrayDescription": "기본 설정은 저장되지만 실제 연동은 아직 없습니다",
     "autoUpdateLabel": "업데이트 자동 확인",
-    "autoUpdateDescription": "시작할 때 Sailock이 github.com에서 새 버전이 있는지 확인하고, 설치하기 전에 먼저 물어봅니다. 보관함 데이터는 전송되지 않습니다.",
+    "autoUpdateDescription": "앱을 시작할 때 Sailock이 새 버전이 있는지 확인합니다. 설치하기 전에 항상 먼저 확인을 요청합니다.",
     "importExportCardTitle": "데이터 가져오기/내보내기",
     "importExportCardDescription": "보관함의 암호화된 사본을 내보내거나 이전에 내보낸 파일에서 데이터를 추가하세요.",
     "exportDataLabel": "데이터 내보내기",

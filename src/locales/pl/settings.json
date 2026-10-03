@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "Minimalizuj do zasobnika systemowego",
     "minimizeToTrayDescription": "Zapisuje preferencję; brakuje rzeczywistej integracji",
     "autoUpdateLabel": "Automatycznie sprawdzaj aktualizacje",
-    "autoUpdateDescription": "Przy uruchomieniu Sailock sprawdza w github.com, czy jest nowa wersja, i pyta przed jej zainstalowaniem. Żadne dane z sejfu nie są wysyłane.",
+    "autoUpdateDescription": "Po uruchomieniu aplikacji Sailock sprawdzi, czy jest dostępna nowa wersja. Zawsze zapytamy Cię przed jej zainstalowaniem.",
     "importExportCardTitle": "Importuj / eksportuj dane",
     "importExportCardDescription": "Wyeksportuj zaszyfrowaną kopię swojego sejfu lub dodaj dane z wcześniej wyeksportowanego pliku.",
     "exportDataLabel": "Eksportuj dane",

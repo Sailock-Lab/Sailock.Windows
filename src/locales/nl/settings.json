@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "Minimaliseren naar systeemvak",
     "minimizeToTrayDescription": "Slaat de voorkeur op; echte integratie ontbreekt nog",
     "autoUpdateLabel": "Automatisch op updates controleren",
-    "autoUpdateDescription": "Bij het opstarten controleert Sailock op github.com of er een nieuwe versie is en vraagt het toestemming voordat die wordt geïnstalleerd. Er worden geen kluisgegevens verzonden.",
+    "autoUpdateDescription": "Bij het starten van de applicatie controleert Sailock of er een nieuwe versie beschikbaar is. We vragen altijd eerst om je toestemming voordat we deze installeren.",
     "importExportCardTitle": "Gegevens importeren/exporteren",
     "importExportCardDescription": "Exporteer een versleutelde kopie van je kluis, of voeg gegevens toe uit een eerder geëxporteerd bestand.",
     "exportDataLabel": "Gegevens exporteren",

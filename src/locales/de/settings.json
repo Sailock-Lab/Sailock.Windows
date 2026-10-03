@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "In die Taskleiste minimieren",
     "minimizeToTrayDescription": "Speichert die Einstellung; echte Integration fehlt noch",
     "autoUpdateLabel": "Automatisch nach Updates suchen",
-    "autoUpdateDescription": "Beim Start prüft Sailock auf github.com, ob eine neue Version verfügbar ist, und fragt vor der Installation nach. Es werden keine Tresordaten gesendet.",
+    "autoUpdateDescription": "Beim Start der Anwendung prüft Sailock, ob eine neue Version verfügbar ist. Wir fragen dich immer, bevor wir sie installieren.",
     "importExportCardTitle": "Daten importieren / exportieren",
     "importExportCardDescription": "Exportiere eine verschlüsselte Kopie deines Tresors oder füge Daten aus einer zuvor exportierten Datei hinzu.",
     "exportDataLabel": "Daten exportieren",

@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "最小化到系统托盘",
     "minimizeToTrayDescription": "保存该偏好设置；尚未实现真正的集成",
     "autoUpdateLabel": "自动检查更新",
-    "autoUpdateDescription": "启动时，Sailock 会访问 github.com 检查是否有新版本，并在安装前询问你。不会发送任何保险库数据。",
+    "autoUpdateDescription": "启动应用时，Sailock 会检查是否有新版本可用。安装前，我们一定会先征得你的同意。",
     "importExportCardTitle": "导入/导出数据",
     "importExportCardDescription": "导出保管库的加密副本，或从先前导出的文件添加数据。",
     "exportDataLabel": "导出数据",

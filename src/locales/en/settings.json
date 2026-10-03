@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "Minimize to tray",
     "minimizeToTrayDescription": "Saves the preference; real integration is missing",
     "autoUpdateLabel": "Check for updates automatically",
-    "autoUpdateDescription": "On startup, Sailock checks github.com for a new version and asks before installing it. No vault data is sent.",
+    "autoUpdateDescription": "When you start the application, Sailock will check if a new version is available. We’ll always ask you before installing it.",
     "importExportCardTitle": "Import / Export data",
     "importExportCardDescription": "Export an encrypted copy of your vault, or add data from a previously exported file.",
     "exportDataLabel": "Export data",

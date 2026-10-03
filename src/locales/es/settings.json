@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "Minimizar a la bandeja",
     "minimizeToTrayDescription": "Guarda la preferencia; falta la integración real",
     "autoUpdateLabel": "Buscar actualizaciones automáticamente",
-    "autoUpdateDescription": "Al iniciar, Sailock consulta github.com para ver si hay una versión nueva y te pregunta antes de instalarla. No se envía ningún dato de tu bóveda.",
+    "autoUpdateDescription": "Al iniciar la aplicación, Sailock comprobará si hay una nueva versión disponible. Siempre te preguntaremos antes de instalarla.",
     "importExportCardTitle": "Importar / Exportar datos",
     "importExportCardDescription": "Exporta una copia cifrada de tu bóveda, o añade datos desde un archivo exportado antes.",
     "exportDataLabel": "Exportar datos",

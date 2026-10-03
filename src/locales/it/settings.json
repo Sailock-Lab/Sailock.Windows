@@ -53,7 +53,7 @@
     "minimizeToTrayLabel": "Riduci nella barra delle applicazioni",
     "minimizeToTrayDescription": "Salva la preferenza; manca l'integrazione reale",
     "autoUpdateLabel": "Cerca aggiornamenti automaticamente",
-    "autoUpdateDescription": "All'avvio, Sailock controlla github.com per verificare se esiste una nuova versione e ti chiede conferma prima di installarla. Non viene inviato alcun dato della tua cassaforte.",
+    "autoUpdateDescription": "All’avvio dell’applicazione, Sailock controllerà se è disponibile una nuova versione. Ti chiederemo sempre conferma prima di installarla.",
     "importExportCardTitle": "Importa / Esporta dati",
     "importExportCardDescription": "Esporta una copia cifrata del tuo archivio, oppure aggiungi dati da un file esportato in precedenza.",
     "exportDataLabel": "Esporta dati",
