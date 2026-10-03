@@ -211,6 +211,52 @@ body,
   border-color: var(--destructive);
 }
 
+/* Alto contraste: tarjetas con recuadro visible.
+   Se quitan el ring y la sombra suaves del componente Card,
+   que en contraste alto solo añaden ruido visual. */
+.high-contrast [data-slot="card"] {
+  border-style: solid;
+  border-width: 1.5px;
+  border-color: var(--foreground);
+  box-shadow: none;
+}
+
+/* Paneles laterales de la bóveda (formulario y detalle de entrada):
+   usan "border-l", así que solo llevan borde en el lado izquierdo. */
+.high-contrast [data-slot="card"].border-l {
+  border-width: 0 0 0 1.5px;
+}
+
+/* Tarjeta de zona peligrosa (Ajustes): conserva el borde rojo. */
+.high-contrast [data-slot="card"][class*="border-destructive"] {
+  border-color: var(--destructive);
+}
+
+/* Alto contraste: letra más marcada.
+   Peso base 500 y un escalón más en los textos que ya eran medium. */
+.high-contrast body {
+  font-weight: 500;
+}
+
+.high-contrast .font-normal {
+  font-weight: 500;
+}
+
+.high-contrast .font-medium {
+  font-weight: 600;
+}
+
+/* Alto contraste: el texto secundario pierde la transparencia
+   y usa siempre el color pleno de --muted-foreground. */
+.high-contrast :is(
+  [class~="text-muted-foreground/50"],
+  [class~="text-muted-foreground/60"],
+  [class~="text-muted-foreground/70"],
+  [class~="text-muted-foreground/80"]
+) {
+  color: var(--muted-foreground);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
