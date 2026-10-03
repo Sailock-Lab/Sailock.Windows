@@ -137,5 +137,8 @@
     "vaultRootLabel": "Tresor",
     "moveToFolderTooltip": "In Ordner verschieben",
     "moveToFolderDialogTitle": "In Ordner verschieben",
-    "moveButton": "Verschieben"
+    "moveButton": "Verschieben",
+    "deleteAuthHint": "Gib zur Bestätigung dein Master-Passwort ein.",
+    "trashDialogTitle": "Papierkorb öffnen",
+    "trashDialogDescription": "Gib dein Master-Passwort ein, um die Elemente im Papierkorb anzuzeigen."
 }

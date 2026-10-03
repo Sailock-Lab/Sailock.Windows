@@ -137,5 +137,8 @@
     "vaultRootLabel": "保管庫",
     "moveToFolderTooltip": "フォルダに移動",
     "moveToFolderDialogTitle": "フォルダに移動",
-    "moveButton": "移動"
+    "moveButton": "移動",
+    "deleteAuthHint": "確認するには、マスターパスワードを入力してください。",
+    "trashDialogTitle": "ゴミ箱を開く",
+    "trashDialogDescription": "ゴミ箱の項目を表示するには、マスターパスワードを入力してください。"
 }

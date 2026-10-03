@@ -137,5 +137,8 @@
     "vaultRootLabel": "Хранилище",
     "moveToFolderTooltip": "Переместить в папку",
     "moveToFolderDialogTitle": "Переместить в папку",
-    "moveButton": "Переместить"
+    "moveButton": "Переместить",
+    "deleteAuthHint": "Для подтверждения введите мастер-пароль.",
+    "trashDialogTitle": "Открыть корзину",
+    "trashDialogDescription": "Введите мастер-пароль, чтобы просмотреть элементы в корзине."
 }

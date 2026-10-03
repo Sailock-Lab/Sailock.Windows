@@ -137,5 +137,8 @@
     "vaultRootLabel": "Cofre",
     "moveToFolderTooltip": "Mover para pasta",
     "moveToFolderDialogTitle": "Mover para pasta",
-    "moveButton": "Mover"
+    "moveButton": "Mover",
+    "deleteAuthHint": "Para confirmar, digite sua senha mestra.",
+    "trashDialogTitle": "Abrir a lixeira",
+    "trashDialogDescription": "Digite sua senha mestra para ver os itens da lixeira."
 }

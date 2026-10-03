@@ -137,5 +137,8 @@
     "vaultRootLabel": "Archivio",
     "moveToFolderTooltip": "Sposta in una cartella",
     "moveToFolderDialogTitle": "Sposta in una cartella",
-    "moveButton": "Sposta"
+    "moveButton": "Sposta",
+    "deleteAuthHint": "Per confermare, inserisci la password principale.",
+    "trashDialogTitle": "Apri il cestino",
+    "trashDialogDescription": "Inserisci la password principale per visualizzare gli elementi nel cestino."
 }

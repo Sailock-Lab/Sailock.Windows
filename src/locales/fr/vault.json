@@ -137,5 +137,8 @@
     "vaultRootLabel": "Coffre-fort",
     "moveToFolderTooltip": "Déplacer vers un dossier",
     "moveToFolderDialogTitle": "Déplacer vers un dossier",
-    "moveButton": "Déplacer"
+    "moveButton": "Déplacer",
+    "deleteAuthHint": "Pour confirmer, saisissez votre mot de passe principal.",
+    "trashDialogTitle": "Ouvrir la corbeille",
+    "trashDialogDescription": "Saisissez votre mot de passe principal pour afficher les éléments de la corbeille."
 }

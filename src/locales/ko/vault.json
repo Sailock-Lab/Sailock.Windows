@@ -137,5 +137,8 @@
     "vaultRootLabel": "보관함",
     "moveToFolderTooltip": "폴더로 이동",
     "moveToFolderDialogTitle": "폴더로 이동",
-    "moveButton": "이동"
+    "moveButton": "이동",
+    "deleteAuthHint": "확인하려면 마스터 비밀번호를 입력하세요.",
+    "trashDialogTitle": "휴지통 열기",
+    "trashDialogDescription": "휴지통의 항목을 보려면 마스터 비밀번호를 입력하세요."
 }

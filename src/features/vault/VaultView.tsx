@@ -10,17 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
   Plus,
   KeyRound,
   X,
@@ -48,6 +37,9 @@ import {
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import { useActivity } from "@/hooks/useActivity";
+
+// Código de error estable que devuelve el backend (Rust) cuando la contraseña maestra no es válida.
+const WRONG_PASSWORD_CODE = "INVALID_MASTER_PASSWORD";
 
 interface CustomFieldData {
   label: string;
@@ -290,6 +282,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const [renameValue, setRenameValue] = useState("");
   const [movingFolder, setMovingFolder] = useState<FolderData | null>(null);
   const [moveFolderTarget, setMoveFolderTarget] = useState<string>("root");
+  const [trashAuthOpen, setTrashAuthOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Entry | null>(null);
   const { saveActivity } = useActivity();
 
   const loadEntries = async () => {
@@ -372,14 +366,39 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     loadEntries();
   };
 
-  const handleDeletePermanently = async (id: string) => {
+  // Abrir el diálogo de contraseña maestra; el borrado real se hace al confirmarlo.
+  const handleRequestDeletePermanently = (id: string) => {
     const entry = entries.find((e) => e.id === id);
-    await invoke("delete_entry", { id });
-    if (entry) {
-      await saveActivity("delete", "entryDeletedForever", "vault", { name: entry.name });
-    }
+    if (entry) setDeleteTarget(entry);
+  };
+
+  // El backend vuelve a verificar la contraseña: si es incorrecta, delete_entry falla
+  // con WRONG_PASSWORD_CODE y el diálogo muestra el error sin borrar nada.
+  const handleConfirmDeletePermanently = async (masterPassword: string) => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    await invoke("delete_entry", { id: target.id, masterPassword });
+    setDeleteTarget(null);
     closePanel();
     loadEntries();
+    try {
+      await saveActivity("delete", "entryDeletedForever", "vault", { name: target.name });
+    } catch {
+      // El registro de actividad es secundario: la entrada ya se ha borrado.
+    }
+  };
+
+  // La papelera se abre solo tras verificar la contraseña maestra.
+  const handleOpenTrash = () => {
+    if (filter === "trash") return;
+    setTrashAuthOpen(true);
+  };
+
+  const handleConfirmTrashAccess = async (masterPassword: string) => {
+    const ok = await invoke<boolean>("verify_master_password", { masterPassword });
+    if (!ok) throw new Error(WRONG_PASSWORD_CODE);
+    setTrashAuthOpen(false);
+    setFilter("trash");
   };
 
   const handleCreateFolder = async () => {
@@ -505,7 +524,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               >
                 <Star className="h-3.5 w-3.5 mr-1" /> {t("filterFavorites")}
               </Button>
-              <Button variant={filter === "trash" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("trash")}>
+              <Button variant={filter === "trash" ? "secondary" : "ghost"} size="sm" onClick={handleOpenTrash}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("filterTrash")}
               </Button>
               <Select value={typeFilter} onValueChange={(v) => v && setTypeFilter(v)}>
@@ -875,7 +894,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 onEdit={() => setFormMode("edit")}
                 onTrash={() => handleTrash(selected.id)}
                 onRestore={() => handleRestore(selected.id)}
-                onDeletePermanently={() => handleDeletePermanently(selected.id)}
+                onDeletePermanently={() => handleRequestDeletePermanently(selected.id)}
                 onToggleFavorite={(e) => handleToggleFavorite(selected.id, e)}
                 onMoveToFolder={async (folderId) => {
                   await invoke("move_entry_to_folder", { id: selected.id, folderId });
@@ -891,7 +910,107 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
           </motion.div>
         )}
       </AnimatePresence>
+
+      <MasterPasswordDialog
+        open={trashAuthOpen}
+        title={t("trashDialogTitle")}
+        description={t("trashDialogDescription")}
+        confirmLabel={t("revealConfirmButton")}
+        onCancel={() => setTrashAuthOpen(false)}
+        onConfirm={handleConfirmTrashAccess}
+      />
+
+      <MasterPasswordDialog
+        open={deleteTarget !== null}
+        title={t("deleteConfirmTitle", { name: deleteTarget?.name ?? "" })}
+        description={`${t("deleteConfirmDescription")} ${t("deleteAuthHint")}`}
+        confirmLabel={t("deleteConfirmAction")}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDeletePermanently}
+      />
     </div>
+  );
+}
+
+// Diálogo reutilizable que pide la contraseña maestra antes de una acción sensible.
+// Quien lo usa decide qué hacer en onConfirm; si lanza un error, se muestra aquí.
+function MasterPasswordDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onCancel: () => void;
+  onConfirm: (masterPassword: string) => Promise<void>;
+}) {
+  const { t } = useTranslation("vault");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
+  const reset = () => {
+    setPassword("");
+    setError("");
+    setVerifying(false);
+  };
+
+  const handleCancel = () => {
+    reset();
+    onCancel();
+  };
+
+  const handleConfirm = async () => {
+    if (verifying) return;
+    if (!password) {
+      setError(t("revealPasswordRequiredError"));
+      return;
+    }
+    setVerifying(true);
+    setError("");
+    try {
+      await onConfirm(password);
+      reset();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message.includes(WRONG_PASSWORD_CODE) ? t("revealWrongPasswordError") : message);
+      setVerifying(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleCancel()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <Input
+            type="password"
+            placeholder={t("passwordPlaceholder")}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+            autoFocus
+          />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={handleCancel} disabled={verifying}>
+              {t("cancelButton")}
+            </Button>
+            <Button onClick={handleConfirm} disabled={verifying}>
+              {verifying ? t("revealVerifyingButton") : confirmLabel}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1423,21 +1542,9 @@ function EntryDetail({
             <Button variant="ghost" size="icon" onClick={onRestore} title={t("restoreTooltip")}>
               <RotateCcw className="h-4 w-4" />
             </Button>
-            <AlertDialog>
-              <AlertDialogTrigger render={<Button variant="ghost" size="icon" title={t("deleteForeverTooltip")} />}>
-                <Trash2 className="h-4 w-4" />
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("deleteConfirmTitle", { name: entry.name })}</AlertDialogTitle>
-                  <AlertDialogDescription>{t("deleteConfirmDescription")}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("deleteConfirmCancel")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={onDeletePermanently}>{t("deleteConfirmAction")}</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <Button variant="ghost" size="icon" onClick={onDeletePermanently} title={t("deleteForeverTooltip")}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </>
         ) : (
           <>

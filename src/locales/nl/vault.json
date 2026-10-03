@@ -137,5 +137,8 @@
     "vaultRootLabel": "Kluis",
     "moveToFolderTooltip": "Naar map verplaatsen",
     "moveToFolderDialogTitle": "Naar map verplaatsen",
-    "moveButton": "Verplaatsen"
+    "moveButton": "Verplaatsen",
+    "deleteAuthHint": "Voer ter bevestiging je hoofdwachtwoord in.",
+    "trashDialogTitle": "Prullenbak openen",
+    "trashDialogDescription": "Voer je hoofdwachtwoord in om de items in de prullenbak te bekijken."
 }

@@ -137,5 +137,8 @@
     "vaultRootLabel": "Vault",
     "moveToFolderTooltip": "Move to folder",
     "moveToFolderDialogTitle": "Move to folder",
-    "moveButton": "Move"
+    "moveButton": "Move",
+    "deleteAuthHint": "To confirm, enter your master password.",
+    "trashDialogTitle": "Open the trash",
+    "trashDialogDescription": "Enter your master password to view the items in the trash."
 }

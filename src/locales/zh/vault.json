@@ -137,5 +137,8 @@
     "vaultRootLabel": "保管库",
     "moveToFolderTooltip": "移动到文件夹",
     "moveToFolderDialogTitle": "移动到文件夹",
-    "moveButton": "移动"
+    "moveButton": "移动",
+    "deleteAuthHint": "请输入主密码以确认。",
+    "trashDialogTitle": "打开回收站",
+    "trashDialogDescription": "请输入主密码以查看回收站中的项目。"
 }

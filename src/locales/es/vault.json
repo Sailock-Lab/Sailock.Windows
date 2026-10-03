@@ -138,5 +138,8 @@
     "moveToFolderTooltip": "Mover a carpeta",
     "moveToFolderDialogTitle": "Mover a carpeta",
     "moveButton": "Mover",
-    "moveFolderDialogTitle": "Mover carpeta a"
+    "moveFolderDialogTitle": "Mover carpeta a",
+    "deleteAuthHint": "Para confirmar, introduce tu contraseña maestra.",
+    "trashDialogTitle": "Abrir la papelera",
+    "trashDialogDescription": "Introduce tu contraseña maestra para ver los elementos de la papelera."
 }

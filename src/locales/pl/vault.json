@@ -137,5 +137,8 @@
     "vaultRootLabel": "Sejf",
     "moveToFolderTooltip": "Przenieś do folderu",
     "moveToFolderDialogTitle": "Przenieś do folderu",
-    "moveButton": "Przenieś"
+    "moveButton": "Przenieś",
+    "deleteAuthHint": "Aby potwierdzić, wpisz hasło główne.",
+    "trashDialogTitle": "Otwórz kosz",
+    "trashDialogDescription": "Wpisz hasło główne, aby wyświetlić elementy w koszu."
 }

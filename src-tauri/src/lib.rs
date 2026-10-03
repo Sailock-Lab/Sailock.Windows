@@ -324,6 +324,7 @@ fn delete_entry(
     app_handle: tauri::AppHandle,
     state: tauri::State<VaultState>,
     id: String,
+    master_password: String,
 ) -> Result<(), String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
@@ -331,6 +332,16 @@ fn delete_entry(
     let path = vault_path(&app_handle);
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+
+    // El borrado permanente es irreversible, así que la contraseña maestra se exige aquí,
+    // en el backend: nunca te fíes solo de lo que el frontend diga que verificó.
+    // Se usa un código de error estable para que la interfaz lo traduzca.
+    let salt_bytes = B64.decode(&file.salt).map_err(|e| e.to_string())?;
+    let candidate_key = derive_key(&master_password, &salt_bytes);
+    if decrypt_entries(&candidate_key, &file.nonce, &file.ciphertext).is_err() {
+        return Err("INVALID_MASTER_PASSWORD".to_string());
+    }
+
     let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
 
     entries.retain(|e| e.id != id);
