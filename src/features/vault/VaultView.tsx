@@ -33,7 +33,6 @@ import {
   FolderPlus,
   Move,
   LucideIcon,
-  Home,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import { useActivity } from "@/hooks/useActivity";
