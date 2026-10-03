@@ -9,9 +9,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, } from "@/components/ui/alert-dialog";
-import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, KeyRound, Check } from "lucide-react";
+import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, KeyRound, Check, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
+import { checkForUpdates, useUpdater } from "@/hooks/useUpdater";
 import { CopyButton } from "@/components/CopyButton";
 import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
 import { AutoLockDuration, TextSize } from "@/lib/appSettings";
@@ -707,6 +708,7 @@ export function SettingsView({
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [backupCodesRemaining, setBackupCodesRemaining] = useState<number | null>(null);
   const { saveActivity } = useActivity();
+  const { status: updaterStatus } = useUpdater();
   const [appVersion, setAppVersion] = useState("");
   const [deleteStep, setDeleteStep] = useState<DeleteStep>("confirm");
   const [masterPassword, setMasterPassword] = useState("");
@@ -775,6 +777,17 @@ export function SettingsView({
   const handleAutoUpdateChange = (value: boolean) => {
     onAutoUpdateChange(value);
     saveActivity("edit", "autoUpdateToggled", "settings", { state: value ? "on" : "off" });
+  };
+
+  // Búsqueda manual: funciona aunque la comprobación automática esté desactivada.
+  // Si hay versión nueva, se abre el diálogo global (UpdateDialog) montado en la app.
+  const handleCheckForUpdates = async () => {
+    const result = await checkForUpdates({ manual: true });
+    if (result === "upToDate") {
+      toast.success(t("upToDateToast"));
+    } else if (result === "error") {
+      toast.error(t("updateCheckErrorToast"));
+    }
   };
 
   const handleHighContrastChange = (value: boolean) => {
@@ -1032,6 +1045,21 @@ export function SettingsView({
                   <p className="text-xs text-muted-foreground">{t("autoUpdateDescription")}</p>
                 </div>
                 <Switch checked={autoUpdate} onCheckedChange={handleAutoUpdateChange} />
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div>
+                  <p className="text-sm font-medium">{t("checkForUpdatesLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("checkForUpdatesDescription")}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCheckForUpdates}
+                  disabled={updaterStatus === "checking" || updaterStatus === "downloading"}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${updaterStatus === "checking" ? "animate-spin" : ""}`} />
+                  {updaterStatus === "checking" ? t("checkingForUpdatesButton") : t("checkForUpdatesButton")}
+                </Button>
               </div>
             </div>
           </div>

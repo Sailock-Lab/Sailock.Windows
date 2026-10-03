@@ -9,6 +9,7 @@ import { GeneratorView } from "@/features/generator/GeneratorView";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { ActivityView } from "@/features/activity/ActivityView";
 import { UnlockScreen } from "@/features/vault/UnlockScreen";
+import { UpdateChecker } from "@/components/UpdateDialog";
 import { useActivity } from "@/hooks/useActivity";
 import { useAutoLock } from "@/hooks/useAutoLock";
 import { useLockOnMinimize } from "@/hooks/useLockOnMinimize";
@@ -163,20 +164,25 @@ function App() {
       {!unlocked ? (
         <UnlockScreen onUnlock={() => setUnlocked(true)} />
       ) : (
-        <Layout active={active} onChange={setActive} onLock={() => handleLock()}>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={active}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
-              className="h-full"
-            >
-              {renderView()}
-            </motion.div>
-          </AnimatePresence>
-        </Layout>
+        <>
+          <Layout active={active} onChange={setActive} onLock={() => handleLock()}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
+                className="h-full"
+              >
+                {renderView()}
+              </motion.div>
+            </AnimatePresence>
+          </Layout>
+          {/* Aviso de actualización: solo con la bóveda desbloqueada. Si el ajuste está
+              desactivado, nunca se conecta por su cuenta. */}
+          <UpdateChecker enabled={autoUpdate} />
+        </>
       )}
     </MotionConfig>
   );
