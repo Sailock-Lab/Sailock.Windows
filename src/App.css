@@ -190,25 +190,25 @@ body,
   border-width: 1.5px;
 }
 
-/* Inputs y selects: borde visible y grosor consistente */
-[data-slot="input"],
-[data-slot="select-trigger"] {
+/* Alto contraste: inputs y selects con borde visible y grosor consistente.
+   Los colores salen de las variables de .high-contrast y .dark.high-contrast,
+   así que un solo bloque sirve para tema claro y oscuro. */
+.high-contrast [data-slot="input"],
+.high-contrast [data-slot="select-trigger"] {
+  background-color: var(--background);
   border-width: 1.5px;
   border-style: solid;
+  border-color: var(--foreground);
 }
 
-/* Tema claro (con o sin alto contraste): borde negro, fondo blanco */
-:root:not(.dark) [data-slot="input"],
-:root:not(.dark) [data-slot="select-trigger"] {
-  background-color: #ffffff;
-  border-color: #000000;
+.high-contrast [data-slot="input"]:focus-visible,
+.high-contrast [data-slot="select-trigger"]:focus-visible {
+  border-color: var(--ring);
 }
 
-/* Tema oscuro (con o sin alto contraste): borde blanco, fondo negro */
-.dark [data-slot="input"],
-.dark [data-slot="select-trigger"] {
-  background-color: #000000;
-  border-color: #ffffff;
+.high-contrast [data-slot="input"][aria-invalid="true"],
+.high-contrast [data-slot="select-trigger"][aria-invalid="true"] {
+  border-color: var(--destructive);
 }
 
 @layer base {
