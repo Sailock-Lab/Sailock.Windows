@@ -8,7 +8,7 @@ export interface UpdaterState {
   status: UpdaterStatus;
   version: string | null;
   currentVersion: string | null;
-  progress: number | null; // 0-100, o null si aún no se conoce el tamaño
+  progress: number | null;
   dialogOpen: boolean;
 }
 
@@ -55,18 +55,9 @@ function writeDismissedVersion(version: string) {
   try {
     localStorage.setItem(DISMISSED_KEY, version);
   } catch {
-    // Si no se puede guardar, simplemente se volverá a avisar en el próximo inicio.
   }
 }
 
-/**
- * Consulta si hay una versión nueva. Solo contacta con el endpoint configurado en
- * tauri.conf.json (el latest.json de GitHub Releases); no envía datos de la bóveda.
- *
- * - manual: true  -> lo ha pedido el usuario: siempre abre el diálogo si hay versión nueva.
- * - manual: false -> comprobación automática: no vuelve a avisar de una versión que el
- *                    usuario ya descartó con "Más tarde".
- */
 export async function checkForUpdates(options: { manual: boolean }): Promise<CheckResult> {
   if (state.status === "checking" || state.status === "downloading") return "busy";
 
@@ -93,21 +84,20 @@ export async function checkForUpdates(options: { manual: boolean }): Promise<Che
       dialogOpen: !alreadyDismissed,
     });
     return "available";
-  } catch {
+  } catch (error) {
+    console.error("[updater] check failed:", error);
     pendingUpdate = null;
     setState({ status: "idle", version: null, currentVersion: null, progress: null });
     return "error";
   }
 }
 
-/** Comprobación automática al iniciar: solo una vez por ejecución de la app. */
 export async function runAutomaticCheckOnce(): Promise<void> {
   if (automaticCheckDone) return;
   automaticCheckDone = true;
   await checkForUpdates({ manual: false });
 }
 
-/** Descarga, verifica la firma e instala. Devuelve false si algo falla. */
 export async function installUpdate(): Promise<boolean> {
   if (!pendingUpdate) return false;
 
@@ -128,21 +118,19 @@ export async function installUpdate(): Promise<boolean> {
         setState({ progress: 100 });
       }
     });
-  } catch {
+  } catch (error) {
+    console.error("[updater] install failed:", error);
     setState({ status: "available", progress: null });
     return false;
   }
 
-  // En Windows el instalador cierra la app por su cuenta; esto cubre el resto de casos.
   try {
     await relaunch();
   } catch {
-    // La actualización ya está instalada; se aplicará al abrir la app de nuevo.
   }
   return true;
 }
 
-/** "Más tarde": cierra el diálogo y recuerda la versión para no insistir en el próximo inicio. */
 export function dismissUpdate() {
   if (state.version) writeDismissedVersion(state.version);
   setState({ dialogOpen: false });
