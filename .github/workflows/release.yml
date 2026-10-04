@@ -48,6 +48,7 @@ jobs:
           releaseBody: "Download Sailock_*_x64-setup.exe (recommended) or the .msi installer below. The .sig files and latest.json are used by the in-app updater and are not needed for a manual install. If you already run Sailock 2.0.0 or later, the app will let you know about this version."
           releaseDraft: true
           prerelease: false
+          uploadUpdaterSignatures: false
 
       - name: Esperar antes del intento 2
         if: steps.build1.outcome == 'failure'
@@ -69,6 +70,7 @@ jobs:
           releaseBody: "Download Sailock_*_x64-setup.exe (recommended) or the .msi installer below. The .sig files and latest.json are used by the in-app updater and are not needed for a manual install. If you already run Sailock 2.0.0 or later, the app will let you know about this version."
           releaseDraft: true
           prerelease: false
+          uploadUpdaterSignatures: false
 
       - name: Esperar antes del intento 3
         if: steps.build1.outcome == 'failure' && steps.build2.outcome == 'failure'
@@ -88,3 +90,4 @@ jobs:
           releaseBody: "Download Sailock_*_x64-setup.exe (recommended) or the .msi installer below. The .sig files and latest.json are used by the in-app updater and are not needed for a manual install. If you already run Sailock 2.0.0 or later, the app will let you know about this version."
           releaseDraft: true
           prerelease: false
+          uploadUpdaterSignatures: false
