@@ -1,5 +1,10 @@
 name: Release
 
+# Se ejecuta al subir una etiqueta que sea solo la versión, sin "v" (por ejemplo 2.0.1).
+# La release se titula "Sailock v2.0.1": la "v" se añade solo en el título.
+# Compila el instalador de Windows, lo firma con la clave de actualizaciones,
+# y crea una release en BORRADOR con el instalador, las firmas (.sig) y latest.json.
+# Los usuarios solo reciben la actualización cuando publicas ese borrador.
 on:
   push:
     tags:
@@ -30,12 +35,60 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
+          # Guarda la caché aunque el trabajo falle más tarde (por ejemplo por un error
+          # temporal de GitHub al descargar WiX/NSIS): así el reintento no recompila todo.
           cache-on-failure: true
 
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
-      - name: Compilar, firmar y crear la release
+      # El empaquetado descarga WiX y NSIS desde GitHub, y a veces esas descargas devuelven
+      # errores temporales (502/503). Se reintenta hasta 3 veces en el mismo trabajo: Rust ya
+      # está compilado, así que cada reintento tarda poco. Se usa la descarga oficial de Tauri,
+      # que verifica el hash de las herramientas.
+      - name: Compilar, firmar y crear la release (intento 1)
+        id: build1
+        continue-on-error: true
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Sailock v${{ github.ref_name }}"
+          releaseBody: "Download the Windows installer below. If you already run Sailock 2.0.0 or later, the app will let you know about this version."
+          releaseDraft: true
+          prerelease: false
+
+      - name: Esperar antes del intento 2
+        if: steps.build1.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 30
+
+      - name: Compilar, firmar y crear la release (intento 2)
+        id: build2
+        if: steps.build1.outcome == 'failure'
+        continue-on-error: true
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Sailock v${{ github.ref_name }}"
+          releaseBody: "Download the Windows installer below. If you already run Sailock 2.0.0 or later, the app will let you know about this version."
+          releaseDraft: true
+          prerelease: false
+
+      - name: Esperar antes del intento 3
+        if: steps.build1.outcome == 'failure' && steps.build2.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 60
+
+      - name: Compilar, firmar y crear la release (intento 3)
+        if: steps.build1.outcome == 'failure' && steps.build2.outcome == 'failure'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
