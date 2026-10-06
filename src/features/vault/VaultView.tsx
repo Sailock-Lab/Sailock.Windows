@@ -1,14 +1,20 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
-import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Plus,
   KeyRound,
@@ -326,6 +332,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   });
 
   const selected = entries.find((e) => e.id === selectedId) ?? null;
+  // El popup de la entrada se abre al crear, editar o ver un registro.
   const panelOpen = formMode !== null || selectedId !== null;
 
   const closePanel = () => {
@@ -336,9 +343,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     onPrefillConsumed?.();
   };
 
-  const handleToggleFavorite = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const entry = entries.find((e) => e.id === id);
+  const handleToggleFavorite = async (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const entry = entries.find((x) => x.id === id);
     await invoke("toggle_favorite", { id });
     if (entry) {
       await saveActivity("edit", entry.favorite ? "favoriteRemoved" : "favoriteAdded", "vault", { name: entry.name });
@@ -465,6 +472,65 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
       </span>
     );
 
+  // Tarjetas de subcarpetas (misma pieza para la vista de lista y la de galería).
+  const renderSubfolders = (containerClassName: string) => (
+    <div className={containerClassName}>
+      {currentSubfolders.map((f) => (
+        <div
+          key={f.id}
+          onClick={() => setCurrentFolderId(f.id)}
+          className="group relative flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2 hover:bg-muted hover:border-primary/50 transition-colors cursor-pointer"
+        >
+          <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</span>
+          <div className="hidden group-hover:flex items-center gap-0.5 shrink-0 absolute right-1 top-1/2 -translate-y-1/2 bg-muted pl-1 rounded">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMovingFolder(f);
+                setMoveFolderTarget(f.parent_id ?? "root");
+              }}
+              title={t("moveToFolderTooltip")}
+            >
+              <Move className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                setRenamingFolder(f);
+                setRenameValue(f.name);
+              }}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteFolder(f.id);
+              }}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const typeBadgeLabel = (entryType?: string | null) =>
+    entryType
+      ? t(TEMPLATES.find((tp) => tp.id === entryType)?.labelKey ?? "templateUncategorized")
+      : t("templateUncategorized");
+
   return (
     <div>
       <h2 className="text-2xl font-bold mb-1">{t("title")}</h2>
@@ -588,61 +654,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             <p className="text-sm text-muted-foreground py-4">{search ? t("emptySearch") : t("emptyList")}</p>
           ) : viewMode === "list" ? (
             <div className="flex flex-col gap-1">
-              {currentSubfolders.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1">
-                  {currentSubfolders.map((f) => (
-                    <div
-                      key={f.id}
-                      onClick={() => setCurrentFolderId(f.id)}
-                      className="group relative flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2 hover:bg-muted hover:border-primary/50 transition-colors cursor-pointer"
-                    >
-                      <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</span>
-                      <div className="hidden group-hover:flex items-center gap-0.5 shrink-0 absolute right-1 top-1/2 -translate-y-1/2 bg-muted pl-1 rounded">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMovingFolder(f);
-                            setMoveFolderTarget(f.parent_id ?? "root");
-                          }}
-                          title={t("moveToFolderTooltip")}
-                        >
-                          <Move className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRenamingFolder(f);
-                            setRenameValue(f.name);
-                          }}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFolder(f.id);
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {currentSubfolders.length > 0 && visible.length > 0 && (
-                <div className="my-2 border-t" />
-              )}
+              {currentSubfolders.length > 0 &&
+                renderSubfolders("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
+              {currentSubfolders.length > 0 && visible.length > 0 && <div className="my-2 border-t" />}
               {visible.map((entry) => {
                 const Icon = entryIcon(entry.entry_type);
                 return (
@@ -662,7 +676,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium truncate">{entry.name}</p>
                         <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
-                          {entry.entry_type ? t(TEMPLATES.find((tp) => tp.id === entry.entry_type)?.labelKey ?? "templateUncategorized") : t("templateUncategorized")}
+                          {typeBadgeLabel(entry.entry_type)}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground truncate">
@@ -676,61 +690,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-              {currentSubfolders.length > 0 && (
-                <div className="col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1">
-                  {currentSubfolders.map((f) => (
-                    <div
-                      key={f.id}
-                      onClick={() => setCurrentFolderId(f.id)}
-                      className="group relative flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2 hover:bg-muted hover:border-primary/50 transition-colors cursor-pointer"
-                    >
-                      <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</span>
-                      <div className="hidden group-hover:flex items-center gap-0.5 shrink-0 absolute right-1 top-1/2 -translate-y-1/2 bg-muted pl-1 rounded">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMovingFolder(f);
-                            setMoveFolderTarget(f.parent_id ?? "root");
-                          }}
-                          title={t("moveToFolderTooltip")}
-                        >
-                          <Move className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRenamingFolder(f);
-                            setRenameValue(f.name);
-                          }}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFolder(f.id);
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {currentSubfolders.length > 0 && visible.length > 0 && (
-                <div className="col-span-full my-1 border-t" />
-              )}
+              {currentSubfolders.length > 0 &&
+                renderSubfolders("col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
+              {currentSubfolders.length > 0 && visible.length > 0 && <div className="col-span-full my-1 border-t" />}
               {visible.map((entry) => {
                 const Icon = entryIcon(entry.entry_type);
                 return (
@@ -752,7 +714,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                     <div>
                       <p className="text-sm font-medium truncate">{entry.name}</p>
                       <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded inline-block mt-1">
-                        {entry.entry_type ? t(TEMPLATES.find((tp) => tp.id === entry.entry_type)?.labelKey ?? "templateUncategorized") : t("templateUncategorized")}
+                        {typeBadgeLabel(entry.entry_type)}
                       </span>
                     </div>
                     <div className="text-[11px] text-muted-foreground mt-auto pt-2 border-t">
@@ -864,51 +826,72 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
         </DialogContent>
       </Dialog>
 
-      <AnimatePresence>
-        {panelOpen && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "tween", duration: 0.25, ease: "easeOut" }}
-            className="fixed inset-y-0 right-0 w-full max-w-md z-50"
-          >
-            {formMode === "create" && (
-              <EntryForm
-                initialPassword={pendingPassword ?? undefined}
-                template={selectedTemplate ?? TEMPLATES.find((tpl) => tpl.id === "custom")!}
-                defaultFolderId={currentFolderId}
-                onSaved={() => { setFormMode(null); setPendingPassword(null); setSelectedTemplate(null); loadEntries(); }}
-                onClose={closePanel}
-              />
-            )}
-            {formMode === "edit" && selected && (
-              <EntryForm initial={selected} onSaved={() => { setFormMode(null); loadEntries(); }} onClose={closePanel} />
-            )}
-            {formMode === null && selected && (
-              <EntryDetail
-                key={selected.id}
-                entry={selected}
-                folders={folders}
-                onEdit={() => setFormMode("edit")}
-                onTrash={() => handleTrash(selected.id)}
-                onRestore={() => handleRestore(selected.id)}
-                onDeletePermanently={() => handleRequestDeletePermanently(selected.id)}
-                onToggleFavorite={(e) => handleToggleFavorite(selected.id, e)}
-                onMoveToFolder={async (folderId) => {
-                  await invoke("move_entry_to_folder", { id: selected.id, folderId });
-                  await saveActivity("edit", "entryMoved", "vault", {
-                    name: selected.name,
-                    folder: folderId ? folderPath(folders, folderId) : t("vaultRootLabel"),
-                  });
-                  loadEntries();
-                }}
-                onClose={closePanel}
-              />
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Popup de la entrada: ver (detalle), crear y editar. */}
+      <Dialog open={panelOpen} onOpenChange={(isOpen) => !isOpen && closePanel()}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex max-h-[90vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
+        >
+          {formMode === "create" && (
+            <EntryForm
+              initialPassword={pendingPassword ?? undefined}
+              template={selectedTemplate ?? TEMPLATES.find((tpl) => tpl.id === "custom")!}
+              defaultFolderId={currentFolderId}
+              folders={folders}
+              onSaved={() => {
+                setFormMode(null);
+                setPendingPassword(null);
+                setSelectedTemplate(null);
+                onPrefillConsumed?.();
+                loadEntries();
+              }}
+              onClose={closePanel}
+            />
+          )}
+          {formMode === "edit" && selected && (
+            <EntryForm
+              initial={selected}
+              folders={folders}
+              onSaved={() => {
+                setFormMode(null);
+                loadEntries();
+              }}
+              onClose={closePanel}
+            />
+          )}
+          {formMode === null && selected && (
+            <EntryDetail
+              key={selected.id}
+              entry={selected}
+              folders={folders}
+              onEdit={() => setFormMode("edit")}
+              onTrash={() => handleTrash(selected.id)}
+              onRestore={() => handleRestore(selected.id)}
+              onDeletePermanently={() => handleRequestDeletePermanently(selected.id)}
+              onToggleFavorite={(e) => handleToggleFavorite(selected.id, e)}
+              onMoveToFolder={async (folderId) => {
+                await invoke("move_entry_to_folder", { id: selected.id, folderId });
+                await saveActivity("edit", "entryMoved", "vault", {
+                  name: selected.name,
+                  folder: folderId ? folderPath(folders, folderId) : t("vaultRootLabel"),
+                });
+                loadEntries();
+              }}
+              onClose={closePanel}
+            />
+          )}
+
+          {/* Va dentro del popup para que sea un diálogo anidado y no cierre el popup al interactuar. */}
+          <MasterPasswordDialog
+            open={deleteTarget !== null}
+            title={t("deleteConfirmTitle", { name: deleteTarget?.name ?? "" })}
+            description={`${t("deleteConfirmDescription")} ${t("deleteAuthHint")}`}
+            confirmLabel={t("deleteConfirmAction")}
+            onCancel={() => setDeleteTarget(null)}
+            onConfirm={handleConfirmDeletePermanently}
+          />
+        </DialogContent>
+      </Dialog>
 
       <MasterPasswordDialog
         open={trashAuthOpen}
@@ -917,15 +900,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
         confirmLabel={t("revealConfirmButton")}
         onCancel={() => setTrashAuthOpen(false)}
         onConfirm={handleConfirmTrashAccess}
-      />
-
-      <MasterPasswordDialog
-        open={deleteTarget !== null}
-        title={t("deleteConfirmTitle", { name: deleteTarget?.name ?? "" })}
-        description={`${t("deleteConfirmDescription")} ${t("deleteAuthHint")}`}
-        confirmLabel={t("deleteConfirmAction")}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={handleConfirmDeletePermanently}
       />
     </div>
   );
@@ -1120,11 +1094,13 @@ function CustomFieldValueInput({
   );
 }
 
+// Formulario de crear / editar. Se pinta dentro del popup (DialogContent) de VaultView.
 function EntryForm({
   initial,
   initialPassword,
   template,
   defaultFolderId,
+  folders,
   onSaved,
   onClose,
 }: {
@@ -1132,6 +1108,7 @@ function EntryForm({
   initialPassword?: string;
   template?: EntryTemplate;
   defaultFolderId?: string | null;
+  folders: FolderData[];
   onSaved: () => void;
   onClose: () => void;
 }) {
@@ -1145,6 +1122,11 @@ function EntryForm({
   const [website, setWebsite] = useState(initial?.website ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [totpSecret, setTotpSecret] = useState(initial?.totp_secret ?? "");
+  const [folderTarget, setFolderTarget] = useState<string>(
+    initial ? initial.folder_id ?? "root" : defaultFolderId ?? "root"
+  );
+  const [favorite, setFavorite] = useState(initial?.favorite ?? false);
+  const [saving, setSaving] = useState(false);
   const [customFields, setCustomFields] = useState<CustomFieldData[]>(() => {
     if (initial) {
       return (initial.custom_fields ?? []).map((f) => ({ ...f, field_type: normalizedFieldType(f.field_type) }));
@@ -1169,6 +1151,10 @@ function EntryForm({
   const nameLabel = !initial && activeTemplate ? t(activeTemplate.nameLabelKey) : t("fieldName");
   const notesLabel = !initial && activeTemplate?.id === "note" ? t("presetContent") : t("fieldNotes");
   const entryTypeToSave = initial ? initial.entry_type ?? null : activeTemplate ? activeTemplate.id : null;
+  const HeaderIcon = entryIcon(entryTypeToSave);
+  const headerTypeLabel = entryTypeToSave
+    ? t(TEMPLATES.find((tp) => tp.id === entryTypeToSave)?.labelKey ?? "templateUncategorized")
+    : t("templateUncategorized");
 
   const indexedFields = customFields.map((field, i) => ({ field, i }));
   const presetIndexed = indexedFields.filter((x) => x.field.is_preset);
@@ -1185,182 +1171,247 @@ function EntryForm({
   };
 
   const handleSave = async () => {
-    if (!name) return;
-    const payload = {
-      name,
-      folder: initial?.folder ?? null,
-      username: (showUsername ? username : "") || null,
-      password: (showPasswordField ? password : "") || null,
-      website: (showWebsite ? website : "") || null,
-      notes: notes || null,
-      customFields: customFields.filter((f) => f.is_preset || f.label.trim() !== ""),
-      totpSecret: (showTotp ? totpSecret : "").trim() || null,
-      entryType: entryTypeToSave,
-    };
-    if (initial) {
-      await invoke("update_entry", { id: initial.id, ...payload });
-      await saveActivity("edit", "entryEdited", "vault", { name });
-    } else {
-      await invoke("save_entry", { ...payload, folderId: defaultFolderId ?? null });
-      await saveActivity("create", "entryCreated", "vault", { name });
+    if (!name || saving) return;
+    setSaving(true);
+    try {
+      const folderId = folderTarget === "root" ? null : folderTarget;
+      const payload = {
+        name,
+        folder: initial?.folder ?? null,
+        username: (showUsername ? username : "") || null,
+        password: (showPasswordField ? password : "") || null,
+        website: (showWebsite ? website : "") || null,
+        notes: notes || null,
+        customFields: customFields.filter((f) => f.is_preset || f.label.trim() !== ""),
+        totpSecret: (showTotp ? totpSecret : "").trim() || null,
+        entryType: entryTypeToSave,
+      };
+      if (initial) {
+        await invoke("update_entry", { id: initial.id, ...payload });
+        if ((initial.folder_id ?? null) !== folderId) {
+          await invoke("move_entry_to_folder", { id: initial.id, folderId });
+        }
+        if (favorite !== initial.favorite) {
+          await invoke("toggle_favorite", { id: initial.id });
+        }
+        await saveActivity("edit", "entryEdited", "vault", { name });
+      } else {
+        // save_entry devuelve el id de la nueva entrada (ver el cambio en lib.rs).
+        const newId = await invoke<string | null>("save_entry", { ...payload, folderId });
+        if (favorite && newId) {
+          await invoke("toggle_favorite", { id: newId });
+        }
+        await saveActivity("create", "entryCreated", "vault", { name });
+      }
+      onSaved();
+    } catch (e) {
+      toast.error(String(e));
+      setSaving(false);
     }
-    onSaved();
   };
 
   return (
-    <Card className="h-full flex flex-col rounded-none border-l shadow-2xl">
-      <CardHeader className="flex flex-row items-center justify-between shrink-0">
-        <CardTitle>{initial ? t("formTitleEdit") : t("formTitleNew")}</CardTitle>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+    <>
+      <DialogHeader className="shrink-0 flex-row items-center gap-3 border-b px-6 py-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+          <HeaderIcon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <DialogTitle className="truncate text-base">
+            {initial ? t("formTitleEdit") : t("formTitleNew")}
+          </DialogTitle>
+          <DialogDescription className="mt-1 truncate text-xs">{headerTypeLabel}</DialogDescription>
+        </div>
+        <Button variant="ghost" size="icon" onClick={onClose} title={t("closeTooltip")}>
           <X className="h-4 w-4" />
         </Button>
-      </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto flex flex-col gap-3">
+      </DialogHeader>
+
+      <div className="flex-1 overflow-y-auto px-6 py-5">
         {initialPassword && !initial && (
-          <p className="text-xs text-muted-foreground bg-muted rounded p-2">{t("prefillNotice")}</p>
-        )}
-        <div>
-          <label className="text-sm font-medium block mb-1">{nameLabel}</label>
-          <Input
-            placeholder={t("fieldNamePlaceholder")}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus={!!initialPassword}
-          />
-        </div>
-
-        {showUsername && (
-          <div>
-            <label className="text-sm font-medium block mb-1">{t("fieldUsername")}</label>
-            <Input placeholder={t("optional")} value={username} onChange={(e) => setUsername(e.target.value)} />
-          </div>
+          <p className="mb-4 rounded bg-muted p-2 text-xs text-muted-foreground">{t("prefillNotice")}</p>
         )}
 
-        {showPasswordField && (
-          <div>
-            <label className="text-sm font-medium block mb-1">{t("fieldPassword")}</label>
-            <div className="relative">
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Columna izquierda: información básica */}
+          <section className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold">{t("sectionBasicInfo")}</h3>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">{nameLabel}</label>
               <Input
-                placeholder={t("optional")}
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pr-10"
+                placeholder={t("fieldNamePlaceholder")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
             </div>
-          </div>
-        )}
 
-        {showWebsite && (
-          <div>
-            <label className="text-sm font-medium block mb-1">{t("fieldWebsite")}</label>
-            <Input placeholder={t("optional")} value={website} onChange={(e) => setWebsite(e.target.value)} />
-          </div>
-        )}
+            {showUsername && (
+              <div>
+                <label className="mb-1 block text-sm font-medium">{t("fieldUsername")}</label>
+                <Input placeholder={t("optional")} value={username} onChange={(e) => setUsername(e.target.value)} />
+              </div>
+            )}
 
-        {showTotp && (
-          <div>
-            <label className="text-sm font-medium block mb-1">{t("fieldTotpSecret")}</label>
-            <Input
-              placeholder={t("fieldTotpPlaceholder")}
-              value={totpSecret}
-              onChange={(e) => setTotpSecret(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground mt-1">{t("fieldTotpHint")}</p>
-          </div>
-        )}
+            {showPasswordField && (
+              <div>
+                <label className="mb-1 block text-sm font-medium">{t("fieldPassword")}</label>
+                <div className="relative">
+                  <Input
+                    placeholder={t("optional")}
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+            )}
 
-        {presetIndexed.map(({ field, i }) => {
-          const isSecurityTypeField = field.preset_key === "presetSecurityType";
-          return (
-            <div key={i}>
-              <label className="text-sm font-medium block mb-1">{field.label}</label>
-              {isSecurityTypeField ? (
-                <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("customFieldValuePlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
-                    <SelectItem value="WPA3">WPA3</SelectItem>
-                    <SelectItem value="WEP">WEP</SelectItem>
-                    <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
-              )}
-            </div>
-          );
-        })}
-
-        <div>
-          <label className="text-sm font-medium block mb-1">{notesLabel}</label>
-          <textarea
-            placeholder={t("optional")}
-            className="border rounded p-2 bg-transparent text-sm min-h-20 w-full"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">{t("customFieldsLabel")}</label>
-            <Button variant="ghost" size="sm" onClick={addCustomField}>
-              <Plus className="h-4 w-4 mr-1" /> {t("addFieldButton")}
-            </Button>
-          </div>
-          {customIndexed.length === 0 && (
-            <p className="text-xs text-muted-foreground">{t("customFieldsEmptyHint")}</p>
-          )}
-          {customIndexed.map(({ field, i }) => (
-            <div key={i} className="border rounded-md p-2 flex flex-col gap-2">
-              <div className="flex gap-2 items-center">
+            {showTotp && (
+              <div>
+                <label className="mb-1 block text-sm font-medium">{t("fieldTotpSecret")}</label>
                 <Input
-                  placeholder={t("customFieldNamePlaceholder")}
-                  value={field.label}
-                  onChange={(e) => updateCustomField(i, "label", e.target.value)}
-                  className="flex-1"
+                  placeholder={t("fieldTotpPlaceholder")}
+                  value={totpSecret}
+                  onChange={(e) => setTotpSecret(e.target.value)}
                 />
-                <Select
-                  value={normalizedFieldType(field.field_type)}
-                  onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
-                >
-                  <SelectTrigger className="w-28">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
-                    <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
-                    <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
-                    <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
-                  <X className="h-4 w-4" />
+                <p className="mt-1 text-xs text-muted-foreground">{t("fieldTotpHint")}</p>
+              </div>
+            )}
+
+            {presetIndexed.map(({ field, i }) => {
+              const isSecurityTypeField = field.preset_key === "presetSecurityType";
+              return (
+                <div key={i}>
+                  <label className="mb-1 block text-sm font-medium">{field.label}</label>
+                  {isSecurityTypeField ? (
+                    <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("customFieldValuePlaceholder")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
+                        <SelectItem value="WPA3">WPA3</SelectItem>
+                        <SelectItem value="WEP">WEP</SelectItem>
+                        <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+                  )}
+                </div>
+              );
+            })}
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">{t("folderLabel")}</label>
+              <Select value={folderTarget} onValueChange={(v) => v && setFolderTarget(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="root">{t("vaultRootLabel")}</SelectItem>
+                  {folders.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {folderPath(folders, f.id)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </section>
+
+          {/* Columna derecha: opciones, notas y campos personalizados */}
+          <section className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold">{t("sectionOptions")}</h3>
+
+            {showWebsite && (
+              <div>
+                <label className="mb-1 block text-sm font-medium">{t("fieldWebsite")}</label>
+                <Input placeholder={t("optional")} value={website} onChange={(e) => setWebsite(e.target.value)} />
+              </div>
+            )}
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">{notesLabel}</label>
+              <textarea
+                placeholder={t("optional")}
+                className="min-h-28 w-full rounded border bg-transparent p-2 text-sm"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">{t("customFieldsLabel")}</label>
+                <Button variant="ghost" size="sm" onClick={addCustomField}>
+                  <Plus className="mr-1 h-4 w-4" /> {t("addFieldButton")}
                 </Button>
               </div>
-              <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+              {customIndexed.length === 0 && (
+                <p className="text-xs text-muted-foreground">{t("customFieldsEmptyHint")}</p>
+              )}
+              {customIndexed.map(({ field, i }) => (
+                <div key={i} className="flex flex-col gap-2 rounded-md border p-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder={t("customFieldNamePlaceholder")}
+                      value={field.label}
+                      onChange={(e) => updateCustomField(i, "label", e.target.value)}
+                      className="flex-1"
+                    />
+                    <Select
+                      value={normalizedFieldType(field.field_type)}
+                      onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
+                    >
+                      <SelectTrigger className="w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
+                        <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
+                        <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
+                        <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+                </div>
+              ))}
             </div>
-          ))}
+          </section>
         </div>
+      </div>
 
-        <div className="flex gap-2 pt-2">
-          <Button onClick={handleSave}>{initial ? t("saveChangesButton") : t("saveButton")}</Button>
-          <Button variant="ghost" onClick={onClose}>
+      <DialogFooter className="shrink-0 items-center border-t px-6 py-4 sm:justify-between">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <Star className={`h-4 w-4 ${favorite ? "fill-current text-yellow-500" : ""}`} />
+          {t("markFavorite")}
+          <Switch checked={favorite} onCheckedChange={setFavorite} />
+        </label>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>
             {t("cancelButton")}
           </Button>
+          <Button onClick={handleSave} disabled={!name || saving}>
+            {initial ? t("saveChangesButton") : t("saveButton")}
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+      </DialogFooter>
+    </>
   );
 }
 
@@ -1369,6 +1420,7 @@ interface RevealRequest {
   customFieldIndex?: number;
 }
 
+// Vista de solo lectura de un registro. Se pinta dentro del popup (DialogContent) de VaultView.
 function EntryDetail({
   entry,
   folders,
@@ -1494,16 +1546,22 @@ function EntryDetail({
   const presetFields = indexedFields.filter((x) => x.field.is_preset);
   const customFields = indexedFields.filter((x) => !x.field.is_preset);
 
+  const HeaderIcon = entryIcon(entry.entry_type);
+  const typeLabel = entry.entry_type
+    ? t(TEMPLATES.find((tp) => tp.id === entry.entry_type)?.labelKey ?? "templateUncategorized")
+    : t("templateUncategorized");
+  const folderLabel = entry.folder_id ? folderPath(folders, entry.folder_id) : t("vaultRootLabel");
+
   const renderFieldRow = (field: CustomFieldData, i: number) => {
     const type = normalizedFieldType(field.field_type);
     return (
-      <div key={i}>
-        <p className="text-muted-foreground text-xs mb-1">{field.label}</p>
+      <div key={i} className="rounded-md border bg-muted/30 p-3">
+        <p className="mb-1 text-xs text-muted-foreground">{field.label}</p>
         {type === "boolean" ? (
           <p>{field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}</p>
         ) : type === "password" ? (
           <div className="flex items-center gap-1">
-            <p className="font-mono mr-1">{visibleCustomFields[i] ? field.value : "•".repeat(10)}</p>
+            <p className="mr-1 font-mono">{visibleCustomFields[i] ? field.value : "•".repeat(10)}</p>
             <Button
               variant="ghost"
               size="icon"
@@ -1526,113 +1584,134 @@ function EntryDetail({
             </Button>
           </div>
         ) : (
-          <p>{field.value}</p>
+          <p className="break-words">{field.value}</p>
         )}
       </div>
     );
   };
 
   return (
-    <Card className="h-full flex flex-col rounded-none border-l shadow-2xl"><CardHeader className="flex flex-row items-center justify-between shrink-0">
-      <CardTitle>{entry.name}</CardTitle>
-      <div className="flex gap-1">
-        {entry.trashed ? (
-          <>
-            <Button variant="ghost" size="icon" onClick={onRestore} title={t("restoreTooltip")}>
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={onDeletePermanently} title={t("deleteForeverTooltip")}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button variant="ghost" size="icon" onClick={onToggleFavorite} title={t("favoriteTooltip")}>
-              <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => {
-                setMoveTarget(entry.folder_id ?? "root");
-                setMoveOpen(true);
-              }}
-              title={t("moveToFolderTooltip")}
-            >
-              <Move className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={onEdit} title={t("editTooltip")}>
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={onTrash} title={t("trashTooltip")}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </>
-        )}
-        <Button variant="ghost" size="icon" onClick={onClose} title={t("closeTooltip")}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
-    </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto flex flex-col gap-3 text-sm">
-        {entry.username && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">{t("detailUsername")}</p>
-            <p>{entry.username}</p>
-          </div>
-        )}
-        {entry.password && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">{t("detailPassword")}</p>
-            <div className="flex items-center gap-1">
-              <p className="font-mono mr-1">{showPassword ? entry.password : "•".repeat(10)}</p>
+    <>
+      <DialogHeader className="shrink-0 flex-row items-center gap-3 border-b px-6 py-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+          <HeaderIcon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <DialogTitle className="truncate text-base">{entry.name}</DialogTitle>
+          <DialogDescription className="mt-1 truncate text-xs">
+            {typeLabel} · {folderLabel}
+          </DialogDescription>
+        </div>
+        <div className="flex shrink-0 gap-1">
+          {entry.trashed ? (
+            <>
+              <Button variant="ghost" size="icon" onClick={onRestore} title={t("restoreTooltip")}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={onDeletePermanently} title={t("deleteForeverTooltip")}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="icon" onClick={onToggleFavorite} title={t("favoriteTooltip")}>
+                <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={handleToggleShow}
-                title={showPassword ? t("hideButton") : t("showButton")}
+                onClick={() => {
+                  setMoveTarget(entry.folder_id ?? "root");
+                  setMoveOpen(true);
+                }}
+                title={t("moveToFolderTooltip")}
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <Move className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={handleCopyClick} title={t("copyTooltip")}>
-                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              <Button variant="ghost" size="icon" onClick={onEdit} title={t("editTooltip")}>
+                <Pencil className="h-4 w-4" />
               </Button>
+              <Button variant="ghost" size="icon" onClick={onTrash} title={t("trashTooltip")}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <Button variant="ghost" size="icon" onClick={onClose} title={t("closeTooltip")}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </DialogHeader>
+
+      <div className="flex-1 overflow-y-auto px-6 py-5 text-sm">
+        <div className="grid gap-3 md:grid-cols-2">
+          {entry.username && (
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="mb-1 text-xs text-muted-foreground">{t("detailUsername")}</p>
+              <p className="break-words">{entry.username}</p>
             </div>
-          </div>
-        )}
-        {entry.totp_secret && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">{t("detailTotp")}</p>
-            <TotpDisplay secret={entry.totp_secret} accountName={entry.name} />
-          </div>
-        )}
-        {entry.website && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">{t("detailWebsite")}</p>
-            <p className="text-primary">{entry.website}</p>
-          </div>
-        )}
-        {entry.notes && (
-          <div>
-            <p className="text-muted-foreground text-xs mb-1">
-              {entry.entry_type === "note" ? t("presetContent") : t("detailNotes")}
-            </p>
-            <p>{entry.notes}</p>
-          </div>
-        )}
-        {presetFields.map(({ field, i }) => renderFieldRow(field, i))}
+          )}
+          {entry.password && (
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="mb-1 text-xs text-muted-foreground">{t("detailPassword")}</p>
+              <div className="flex items-center gap-1">
+                <p className="mr-1 font-mono">{showPassword ? entry.password : "•".repeat(10)}</p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleToggleShow}
+                  title={showPassword ? t("hideButton") : t("showButton")}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleCopyClick} title={t("copyTooltip")}>
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          )}
+          {entry.totp_secret && (
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="mb-1 text-xs text-muted-foreground">{t("detailTotp")}</p>
+              <TotpDisplay secret={entry.totp_secret} accountName={entry.name} />
+            </div>
+          )}
+          {entry.website && (
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="mb-1 text-xs text-muted-foreground">{t("detailWebsite")}</p>
+              <p className="break-words text-primary">{entry.website}</p>
+            </div>
+          )}
+          {presetFields.map(({ field, i }) => renderFieldRow(field, i))}
+          {entry.notes && (
+            <div className="rounded-md border bg-muted/30 p-3 md:col-span-2">
+              <p className="mb-1 text-xs text-muted-foreground">
+                {entry.entry_type === "note" ? t("presetContent") : t("detailNotes")}
+              </p>
+              <p className="whitespace-pre-wrap break-words">{entry.notes}</p>
+            </div>
+          )}
+        </div>
 
         {customFields.length > 0 && (
-          <div className="pt-3 border-t">
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+          <div className="mt-5 border-t pt-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {t("customFieldsLabel")}
             </p>
-            <div className="flex flex-col gap-3">
+            <div className="grid gap-3 md:grid-cols-2">
               {customFields.map(({ field, i }) => renderFieldRow(field, i))}
             </div>
           </div>
         )}
-      </CardContent>
+      </div>
+
+      <DialogFooter className="shrink-0 border-t px-6 py-3 text-xs text-muted-foreground sm:justify-between">
+        <span>
+          {t("createdLabel")}: {formatDate(entry.created_at)}
+        </span>
+        <span>
+          {t("editedLabel")}: {formatDate(entry.updated_at)}
+        </span>
+      </DialogFooter>
 
       <Dialog open={revealRequest !== null} onOpenChange={(isOpen) => !isOpen && closeRevealDialog()}>
         <DialogContent className="max-w-sm">
@@ -1687,6 +1766,6 @@ function EntryDetail({
           </div>
         </DialogContent>
       </Dialog>
-    </Card>
+    </>
   );
 }

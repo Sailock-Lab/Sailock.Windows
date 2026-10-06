@@ -222,7 +222,7 @@ fn save_entry(
     custom_fields: Vec<CustomField>,
     totp_secret: Option<String>,
     entry_type: Option<String>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
 
@@ -232,8 +232,9 @@ fn save_entry(
     let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
 
     let now = now_millis();
+    let new_id = now.to_string();
     entries.push(Entry {
-        id: now.to_string(),
+        id: new_id.clone(),
         name,
         folder,
         folder_id,
@@ -259,7 +260,7 @@ fn save_entry(
     let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
     fs::write(&path, json).map_err(|e| e.to_string())?;
 
-    Ok(())
+    Ok(new_id)
 }
 
 #[tauri::command]
