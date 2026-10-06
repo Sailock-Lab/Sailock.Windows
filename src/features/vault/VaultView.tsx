@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -38,27 +37,42 @@ import {
   Folder,
   FolderPlus,
   Move,
+  History,
   LucideIcon,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
+import {
+  CustomFieldData,
+  EntryAvatar,
+  FIELD_TYPES,
+  FIELD_TYPE_KEYS,
+  FieldPlainValue,
+  FieldType,
+  FieldValueInput,
+  LogoPicker,
+  UrlValue,
+  isValueCompatible,
+  normalizedFieldType,
+  useOpenUrl,
+} from "@/components/EntryFields";
 import { useActivity } from "@/hooks/useActivity";
 
 // Código de error estable que devuelve el backend (Rust) cuando la contraseña maestra no es válida.
 const WRONG_PASSWORD_CODE = "INVALID_MASTER_PASSWORD";
-
-interface CustomFieldData {
-  label: string;
-  value: string;
-  field_type: string; // "text" | "password" | "number" | "boolean"
-  is_preset?: boolean;
-  preset_key?: string | null;
-}
 
 interface FolderData {
   id: string;
   name: string;
   parent_id: string | null;
   created_at: number;
+}
+
+// Evento del historial de un registro. Nunca guarda valores, solo qué cambió.
+interface HistoryEvent {
+  timestamp: number;
+  action: string;
+  field?: string | null; // etiqueta del campo, o "builtin:<clave>" para los campos fijos
+  extra?: string | null; // p. ej. el nombre nuevo de un campo o la carpeta de destino
 }
 
 interface Entry {
@@ -73,6 +87,8 @@ interface Entry {
   custom_fields?: CustomFieldData[];
   totp_secret?: string | null;
   entry_type?: string | null;
+  logo?: string | null; // imagen subida por el usuario (data URL pequeña)
+  history?: HistoryEvent[];
   favorite: boolean;
   trashed: boolean;
   created_at: number;
@@ -84,12 +100,18 @@ type Filter = "all" | "favorites" | "trash";
 type SearchCategory = "all" | "name" | "contact" | "website" | "custom";
 type ViewMode = "list" | "gallery";
 
-function normalizedFieldType(type: string | undefined): "text" | "password" | "number" | "boolean" {
-  return type === "password" || type === "number" || type === "boolean" ? type : "text";
-}
-
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatDateTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleString(undefined, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function matchesSearch(entry: Entry, term: string, category: SearchCategory): boolean {
@@ -139,9 +161,60 @@ function folderPath(folders: FolderData[], id: string): string {
   return trail.join(" / ");
 }
 
+// ---------- Historial: texto legible de cada evento ----------
+
+// Campos fijos del registro -> clave de traducción de su nombre
+const BUILTIN_FIELD_KEYS: Record<string, string> = {
+  name: "fieldName",
+  username: "detailUsername",
+  password: "detailPassword",
+  website: "detailWebsite",
+  notes: "detailNotes",
+  totp: "detailTotp",
+};
+
+type TFn = (key: string, options?: Record<string, unknown>) => string;
+
+function describeHistory(t: TFn, ev: HistoryEvent): string {
+  // Las etiquetas y carpetas son texto del usuario: sin escapado HTML.
+  const opts = (values: Record<string, string>) => ({ ...values, interpolation: { escapeValue: false } });
+  const field = ev.field?.startsWith("builtin:")
+    ? t(BUILTIN_FIELD_KEYS[ev.field.slice(8)] ?? "fieldName")
+    : ev.field ?? "";
+
+  switch (ev.action) {
+    case "created":
+      return t("historyCreated");
+    case "field_modified":
+      return t("historyFieldModified", opts({ field }));
+    case "field_added":
+      return t("historyFieldAdded", opts({ field }));
+    case "field_removed":
+      return t("historyFieldRemoved", opts({ field }));
+    case "field_renamed":
+      return t("historyFieldRenamed", opts({ from: field, to: ev.extra ?? "" }));
+    case "field_type_changed":
+      return t("historyFieldTypeChanged", opts({ field }));
+    case "logo_changed":
+      return t("historyLogoChanged");
+    case "moved":
+      return ev.extra ? t("historyMoved", opts({ folder: ev.extra })) : t("historyMovedRoot");
+    case "trashed":
+      return t("historyTrashed");
+    case "restored":
+      return t("historyRestored");
+    case "favorite_added":
+      return t("historyFavoriteAdded");
+    case "favorite_removed":
+      return t("historyFavoriteRemoved");
+    default:
+      return ev.action;
+  }
+}
+
 interface TemplateFieldPreset {
   labelKey: string;
-  type: "text" | "password" | "number" | "boolean";
+  type: FieldType;
 }
 
 interface EntryTemplate {
@@ -179,7 +252,7 @@ const TEMPLATES: EntryTemplate[] = [
     showTotp: false,
     presetFields: [
       { labelKey: "presetIdDocument", type: "password" },
-      { labelKey: "presetDateOfBirth", type: "text" },
+      { labelKey: "presetDateOfBirth", type: "date" },
       { labelKey: "presetNationality", type: "text" },
       { labelKey: "presetAddress", type: "text" },
       { labelKey: "presetCity", type: "text" },
@@ -657,73 +730,63 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               {currentSubfolders.length > 0 &&
                 renderSubfolders("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
               {currentSubfolders.length > 0 && visible.length > 0 && <div className="my-2 border-t" />}
-              {visible.map((entry) => {
-                const Icon = entryIcon(entry.entry_type);
-                return (
-                  <button
-                    key={entry.id}
-                    onClick={() => {
-                      setSelectedId(entry.id);
-                      setFormMode(null);
-                    }}
-                    className={`group flex items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${selectedId === entry.id ? "bg-muted" : ""
-                      }`}
-                  >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
-                      <Icon className="h-4 w-4" />
+              {visible.map((entry) => (
+                <button
+                  key={entry.id}
+                  onClick={() => {
+                    setSelectedId(entry.id);
+                    setFormMode(null);
+                  }}
+                  className={`group flex items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${selectedId === entry.id ? "bg-muted" : ""
+                    }`}
+                >
+                  <EntryAvatar name={entry.name} logo={entry.logo} className="h-9 w-9" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">{entry.name}</p>
+                      <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
+                        {typeBadgeLabel(entry.entry_type)}
+                      </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{entry.name}</p>
-                        <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
-                          {typeBadgeLabel(entry.entry_type)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {t("editedLabel")}: {formatDate(entry.updated_at)}
-                      </p>
-                    </div>
-                    {renderFavoriteStar(entry)}
-                  </button>
-                );
-              })}
+                    <p className="text-xs text-muted-foreground truncate">
+                      {t("editedLabel")}: {formatDate(entry.updated_at)}
+                    </p>
+                  </div>
+                  {renderFavoriteStar(entry)}
+                </button>
+              ))}
             </div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
               {currentSubfolders.length > 0 &&
                 renderSubfolders("col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
               {currentSubfolders.length > 0 && visible.length > 0 && <div className="col-span-full my-1 border-t" />}
-              {visible.map((entry) => {
-                const Icon = entryIcon(entry.entry_type);
-                return (
-                  <button
-                    key={entry.id}
-                    onClick={() => {
-                      setSelectedId(entry.id);
-                      setFormMode(null);
-                    }}
-                    className={`group flex flex-col gap-1.5 rounded-lg border p-2.5 text-left hover:border-primary hover:bg-muted/50 transition-colors ${selectedId === entry.id ? "border-primary bg-muted/50" : ""
-                      }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground shrink-0">
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      {renderFavoriteStar(entry)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium truncate">{entry.name}</p>
-                      <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded inline-block mt-1">
-                        {typeBadgeLabel(entry.entry_type)}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-muted-foreground mt-auto pt-2 border-t">
-                      <p>{t("createdLabel")}: {formatDate(entry.created_at)}</p>
-                      <p>{t("editedLabel")}: {formatDate(entry.updated_at)}</p>
-                    </div>
-                  </button>
-                );
-              })}
+              {visible.map((entry) => (
+                <button
+                  key={entry.id}
+                  onClick={() => {
+                    setSelectedId(entry.id);
+                    setFormMode(null);
+                  }}
+                  className={`group flex flex-col gap-1.5 rounded-lg border p-2.5 text-left hover:border-primary hover:bg-muted/50 transition-colors ${selectedId === entry.id ? "border-primary bg-muted/50" : ""
+                    }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <EntryAvatar name={entry.name} logo={entry.logo} className="h-8 w-8" textClassName="text-xs" />
+                    {renderFavoriteStar(entry)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium truncate">{entry.name}</p>
+                    <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded inline-block mt-1">
+                      {typeBadgeLabel(entry.entry_type)}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-auto pt-2 border-t">
+                    <p>{t("createdLabel")}: {formatDate(entry.created_at)}</p>
+                    <p>{t("editedLabel")}: {formatDate(entry.updated_at)}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           )}
         </CardContent>
@@ -1031,69 +1094,6 @@ function TotpDisplay({ secret, accountName }: { secret: string; accountName: str
   );
 }
 
-function CustomFieldValueInput({
-  field,
-  onChange,
-}: {
-  field: CustomFieldData;
-  onChange: (value: string) => void;
-}) {
-  const { t } = useTranslation("vault");
-  const [visible, setVisible] = useState(false);
-  const type = normalizedFieldType(field.field_type);
-
-  if (type === "boolean") {
-    return (
-      <div className="flex items-center gap-2">
-        <Switch checked={field.value === "true"} onCheckedChange={(v) => onChange(v ? "true" : "false")} />
-        <span className="text-sm text-muted-foreground">
-          {field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}
-        </span>
-      </div>
-    );
-  }
-
-  if (type === "number") {
-    return (
-      <Input
-        type="number"
-        placeholder={t("customFieldValuePlaceholder")}
-        value={field.value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    );
-  }
-
-  if (type === "password") {
-    return (
-      <div className="relative">
-        <Input
-          type={visible ? "text" : "password"}
-          placeholder={t("customFieldValuePlaceholder")}
-          value={field.value}
-          onChange={(e) => onChange(e.target.value)}
-          className="pr-10"
-        />
-        <button
-          type="button"
-          onClick={() => setVisible(!visible)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-        >
-          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <Input
-      placeholder={t("customFieldValuePlaceholder")}
-      value={field.value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
-}
-
 // Formulario de crear / editar. Se pinta dentro del popup (DialogContent) de VaultView.
 function EntryForm({
   initial,
@@ -1122,6 +1122,7 @@ function EntryForm({
   const [website, setWebsite] = useState(initial?.website ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [totpSecret, setTotpSecret] = useState(initial?.totp_secret ?? "");
+  const [logo, setLogo] = useState<string | null>(initial?.logo ?? null);
   const [folderTarget, setFolderTarget] = useState<string>(
     initial ? initial.folder_id ?? "root" : defaultFolderId ?? "root"
   );
@@ -1158,15 +1159,23 @@ function EntryForm({
 
   const indexedFields = customFields.map((field, i) => ({ field, i }));
   const presetIndexed = indexedFields.filter((x) => x.field.is_preset);
-  const customIndexed = indexedFields.filter((x) => !x.field.is_preset);
+  const extraIndexed = indexedFields.filter((x) => !x.field.is_preset);
 
-  const addCustomField = () => {
+  const addExtraField = () => {
     setCustomFields([...customFields, { label: "", value: "", field_type: "text", is_preset: false, preset_key: null }]);
   };
-  const updateCustomField = (index: number, key: "label" | "value" | "field_type", val: string) => {
+  const updateField = (index: number, key: "label" | "value", val: string) => {
     setCustomFields(customFields.map((f, i) => (i === index ? { ...f, [key]: val } : f)));
   };
-  const removeCustomField = (index: number) => {
+  // Al cambiar de tipo se vacía el valor si el nuevo tipo no puede reutilizarlo (p. ej. texto -> fecha).
+  const updateFieldType = (index: number, type: FieldType) => {
+    setCustomFields(
+      customFields.map((f, i) =>
+        i === index ? { ...f, field_type: type, value: isValueCompatible(f.field_type, type) ? f.value : "" } : f
+      )
+    );
+  };
+  const removeField = (index: number) => {
     setCustomFields(customFields.filter((_, i) => i !== index));
   };
 
@@ -1185,6 +1194,7 @@ function EntryForm({
         customFields: customFields.filter((f) => f.is_preset || f.label.trim() !== ""),
         totpSecret: (showTotp ? totpSecret : "").trim() || null,
         entryType: entryTypeToSave,
+        logo: logo ?? null,
       };
       if (initial) {
         await invoke("update_entry", { id: initial.id, ...payload });
@@ -1196,7 +1206,7 @@ function EntryForm({
         }
         await saveActivity("edit", "entryEdited", "vault", { name });
       } else {
-        // save_entry devuelve el id de la nueva entrada (ver el cambio en lib.rs).
+        // save_entry devuelve el id de la nueva entrada.
         const newId = await invoke<string | null>("save_entry", { ...payload, folderId });
         if (favorite && newId) {
           await invoke("toggle_favorite", { id: newId });
@@ -1236,6 +1246,8 @@ function EntryForm({
           {/* Columna izquierda: información básica */}
           <section className="flex flex-col gap-3">
             <h3 className="text-sm font-semibold">{t("sectionBasicInfo")}</h3>
+
+            <LogoPicker name={name} logo={logo} onChange={setLogo} />
 
             <div>
               <label className="mb-1 block text-sm font-medium">{nameLabel}</label>
@@ -1294,7 +1306,7 @@ function EntryForm({
                 <div key={i}>
                   <label className="mb-1 block text-sm font-medium">{field.label}</label>
                   {isSecurityTypeField ? (
-                    <Select value={field.value} onValueChange={(v) => v && updateCustomField(i, "value", v)}>
+                    <Select value={field.value} onValueChange={(v) => v && updateField(i, "value", v)}>
                       <SelectTrigger>
                         <SelectValue placeholder={t("customFieldValuePlaceholder")} />
                       </SelectTrigger>
@@ -1306,7 +1318,7 @@ function EntryForm({
                       </SelectContent>
                     </Select>
                   ) : (
-                    <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+                    <FieldValueInput field={field} onChange={(val) => updateField(i, "value", val)} />
                   )}
                 </div>
               );
@@ -1330,7 +1342,7 @@ function EntryForm({
             </div>
           </section>
 
-          {/* Columna derecha: opciones, notas y campos personalizados */}
+          {/* Columna derecha: opciones, notas y campos adicionales */}
           <section className="flex flex-col gap-3">
             <h3 className="text-sm font-semibold">{t("sectionOptions")}</h3>
 
@@ -1351,57 +1363,61 @@ function EntryForm({
               />
             </div>
 
+            {/* Al crear, los campos extra se añaden sin más; al editar se agrupan como "campos adicionales". */}
             <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">{t("customFieldsLabel")}</label>
-                <Button variant="ghost" size="sm" onClick={addCustomField}>
-                  <Plus className="mr-1 h-4 w-4" /> {t("addFieldButton")}
-                </Button>
-              </div>
-              {customIndexed.length === 0 && (
-                <p className="text-xs text-muted-foreground">{t("customFieldsEmptyHint")}</p>
+              {initial && extraIndexed.length > 0 && (
+                <label className="text-sm font-medium">{t("additionalFieldsLabel")}</label>
               )}
-              {customIndexed.map(({ field, i }) => (
+              {extraIndexed.map(({ field, i }) => (
                 <div key={i} className="flex flex-col gap-2 rounded-md border p-2">
                   <div className="flex items-center gap-2">
                     <Input
                       placeholder={t("customFieldNamePlaceholder")}
                       value={field.label}
-                      onChange={(e) => updateCustomField(i, "label", e.target.value)}
+                      onChange={(e) => updateField(i, "label", e.target.value)}
                       className="flex-1"
                     />
                     <Select
                       value={normalizedFieldType(field.field_type)}
-                      onValueChange={(v) => v && updateCustomField(i, "field_type", v)}
+                      onValueChange={(v) => v && updateFieldType(i, v as FieldType)}
                     >
-                      <SelectTrigger className="w-28">
+                      <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="text">{t("fieldTypeText")}</SelectItem>
-                        <SelectItem value="password">{t("fieldTypePassword")}</SelectItem>
-                        <SelectItem value="number">{t("fieldTypeNumber")}</SelectItem>
-                        <SelectItem value="boolean">{t("fieldTypeBoolean")}</SelectItem>
+                        {FIELD_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {t(FIELD_TYPE_KEYS[type])}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    <Button variant="ghost" size="icon" onClick={() => removeCustomField(i)}>
+                    <Button variant="ghost" size="icon" onClick={() => removeField(i)}>
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <CustomFieldValueInput field={field} onChange={(val) => updateCustomField(i, "value", val)} />
+                  <FieldValueInput field={field} onChange={(val) => updateField(i, "value", val)} />
                 </div>
               ))}
+              <Button variant="ghost" size="sm" className="self-start" onClick={addExtraField}>
+                <Plus className="mr-1 h-4 w-4" /> {t("addFieldButton")}
+              </Button>
             </div>
           </section>
         </div>
       </div>
 
       <DialogFooter className="shrink-0 items-center border-t px-6 py-4 sm:justify-between">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => setFavorite(!favorite)}
+          aria-pressed={favorite}
+          title={favorite ? t("removeFromFavorites") : t("addToFavorites")}
+        >
           <Star className={`h-4 w-4 ${favorite ? "fill-current text-yellow-500" : ""}`} />
-          {t("markFavorite")}
-          <Switch checked={favorite} onCheckedChange={setFavorite} />
-        </label>
+        </Button>
         <div className="flex gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving}>
             {t("cancelButton")}
@@ -1443,6 +1459,7 @@ function EntryDetail({
   onClose: () => void;
 }) {
   const { t } = useTranslation("vault");
+  const { requestOpen, dialog: openUrlDialog } = useOpenUrl();
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [visibleCustomFields, setVisibleCustomFields] = useState<Record<number, boolean>>({});
@@ -1453,6 +1470,7 @@ function EntryDetail({
   const [revealVerifying, setRevealVerifying] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<string>("root");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const closeRevealDialog = () => {
     setRevealRequest(null);
@@ -1544,22 +1562,21 @@ function EntryDetail({
 
   const indexedFields = (entry.custom_fields ?? []).map((field, i) => ({ field, i }));
   const presetFields = indexedFields.filter((x) => x.field.is_preset);
-  const customFields = indexedFields.filter((x) => !x.field.is_preset);
+  const extraFields = indexedFields.filter((x) => !x.field.is_preset);
 
-  const HeaderIcon = entryIcon(entry.entry_type);
   const typeLabel = entry.entry_type
     ? t(TEMPLATES.find((tp) => tp.id === entry.entry_type)?.labelKey ?? "templateUncategorized")
     : t("templateUncategorized");
   const folderLabel = entry.folder_id ? folderPath(folders, entry.folder_id) : t("vaultRootLabel");
+  // Del más reciente al más antiguo (los eventos se guardan en orden cronológico).
+  const historyEvents = [...(entry.history ?? [])].reverse();
 
   const renderFieldRow = (field: CustomFieldData, i: number) => {
     const type = normalizedFieldType(field.field_type);
     return (
       <div key={i} className="rounded-md border bg-muted/30 p-3">
         <p className="mb-1 text-xs text-muted-foreground">{field.label}</p>
-        {type === "boolean" ? (
-          <p>{field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}</p>
-        ) : type === "password" ? (
+        {type === "password" ? (
           <div className="flex items-center gap-1">
             <p className="mr-1 font-mono">{visibleCustomFields[i] ? field.value : "•".repeat(10)}</p>
             <Button
@@ -1584,7 +1601,7 @@ function EntryDetail({
             </Button>
           </div>
         ) : (
-          <p className="break-words">{field.value}</p>
+          <FieldPlainValue field={field} onOpenUrl={requestOpen} />
         )}
       </div>
     );
@@ -1593,9 +1610,7 @@ function EntryDetail({
   return (
     <>
       <DialogHeader className="shrink-0 flex-row items-center gap-3 border-b px-6 py-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
-          <HeaderIcon className="h-5 w-5" />
-        </div>
+        <EntryAvatar name={entry.name} logo={entry.logo} className="h-10 w-10" textClassName="text-base" />
         <div className="min-w-0 flex-1">
           <DialogTitle className="truncate text-base">{entry.name}</DialogTitle>
           <DialogDescription className="mt-1 truncate text-xs">
@@ -1605,6 +1620,9 @@ function EntryDetail({
         <div className="flex shrink-0 gap-1">
           {entry.trashed ? (
             <>
+              <Button variant="ghost" size="icon" onClick={() => setHistoryOpen(true)} title={t("historyTooltip")}>
+                <History className="h-4 w-4" />
+              </Button>
               <Button variant="ghost" size="icon" onClick={onRestore} title={t("restoreTooltip")}>
                 <RotateCcw className="h-4 w-4" />
               </Button>
@@ -1616,6 +1634,9 @@ function EntryDetail({
             <>
               <Button variant="ghost" size="icon" onClick={onToggleFavorite} title={t("favoriteTooltip")}>
                 <Star className={`h-4 w-4 ${entry.favorite ? "fill-current text-yellow-500" : ""}`} />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setHistoryOpen(true)} title={t("historyTooltip")}>
+                <History className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -1678,7 +1699,7 @@ function EntryDetail({
           {entry.website && (
             <div className="rounded-md border bg-muted/30 p-3">
               <p className="mb-1 text-xs text-muted-foreground">{t("detailWebsite")}</p>
-              <p className="break-words text-primary">{entry.website}</p>
+              <UrlValue value={entry.website} onOpen={requestOpen} />
             </div>
           )}
           {presetFields.map(({ field, i }) => renderFieldRow(field, i))}
@@ -1692,13 +1713,11 @@ function EntryDetail({
           )}
         </div>
 
-        {customFields.length > 0 && (
+        {extraFields.length > 0 && (
           <div className="mt-5 border-t pt-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {t("customFieldsLabel")}
-            </p>
+            <p className="mb-3 text-xs font-semibold text-muted-foreground">{t("additionalFieldsLabel")}</p>
             <div className="grid gap-3 md:grid-cols-2">
-              {customFields.map(({ field, i }) => renderFieldRow(field, i))}
+              {extraFields.map(({ field, i }) => renderFieldRow(field, i))}
             </div>
           </div>
         )}
@@ -1712,6 +1731,29 @@ function EntryDetail({
           {t("editedLabel")}: {formatDate(entry.updated_at)}
         </span>
       </DialogFooter>
+
+      {openUrlDialog}
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("historyDialogTitle")}</DialogTitle>
+            <DialogDescription>{t("historyDialogDescription")}</DialogDescription>
+          </DialogHeader>
+          {historyEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("historyEmpty")}</p>
+          ) : (
+            <ol className="flex max-h-80 flex-col gap-3 overflow-y-auto pr-1">
+              {historyEvents.map((ev, i) => (
+                <li key={i} className="border-l-2 pl-3">
+                  <p className="text-sm">{describeHistory(t as TFn, ev)}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateTime(ev.timestamp)}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={revealRequest !== null} onOpenChange={(isOpen) => !isOpen && closeRevealDialog()}>
         <DialogContent className="max-w-sm">

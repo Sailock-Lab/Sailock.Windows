@@ -20,12 +20,40 @@ fn default_field_type() -> String {
 struct CustomField {
     label: String,
     value: String,
+    // "text" | "password" | "number" | "boolean" | "date" | "time" | "url"
     #[serde(default = "default_field_type")]
     field_type: String,
     #[serde(default)]
     is_preset: bool,
     #[serde(default)]
     preset_key: Option<String>,
+}
+
+// Evento del historial de un registro. NUNCA guarda valores (contraseñas, notas...),
+// solo qué cambió y cuándo. Vive dentro del propio registro, cifrado con el vault.
+// No existe ningún comando para borrarlo: solo desaparece si se borra el registro.
+#[derive(Serialize, Deserialize, Clone)]
+struct HistoryEvent {
+    timestamp: u64,
+    // "created" | "field_modified" | "field_added" | "field_removed" | "field_renamed"
+    // | "field_type_changed" | "logo_changed" | "moved" | "trashed" | "restored"
+    // | "favorite_added" | "favorite_removed"
+    action: String,
+    // Etiqueta del campo, o "builtin:<clave>" para los campos fijos (name, username, ...)
+    #[serde(default)]
+    field: Option<String>,
+    // Dato extra: nombre nuevo de un campo renombrado, o carpeta de destino
+    #[serde(default)]
+    extra: Option<String>,
+}
+
+fn history_event(action: &str, field: Option<&str>, extra: Option<&str>) -> HistoryEvent {
+    HistoryEvent {
+        timestamp: now_millis(),
+        action: action.to_string(),
+        field: field.map(|s| s.to_string()),
+        extra: extra.map(|s| s.to_string()),
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -45,12 +73,130 @@ struct Entry {
     totp_secret: Option<String>,
     #[serde(default)]
     entry_type: Option<String>,
+    // Imagen que sube el usuario, ya reducida por el frontend (data URL).
+    #[serde(default)]
+    logo: Option<String>,
+    #[serde(default)]
+    history: Vec<HistoryEvent>,
     #[serde(default)]
     favorite: bool,
     #[serde(default)]
     trashed: bool,
     created_at: u64,
     updated_at: u64,
+}
+
+// Tope de tamaño del logo (el frontend lo reduce a 128x128, pesa unos pocos KB)
+const MAX_LOGO_LEN: usize = 150_000;
+
+fn sanitize_logo(logo: Option<String>) -> Result<Option<String>, String> {
+    match logo {
+        None => Ok(None),
+        Some(l) if l.is_empty() => Ok(None),
+        Some(l) => {
+            if !l.starts_with("data:image/") {
+                return Err("Formato de logo no válido".into());
+            }
+            if l.len() > MAX_LOGO_LEN {
+                return Err("El logo es demasiado grande".into());
+            }
+            Ok(Some(l))
+        }
+    }
+}
+
+// Compara el registro guardado con los datos nuevos y devuelve qué cambió.
+// Solo registra QUÉ campo cambió, nunca su valor.
+fn diff_entry(
+    old: &Entry,
+    name: &str,
+    username: &Option<String>,
+    password: &Option<String>,
+    website: &Option<String>,
+    notes: &Option<String>,
+    totp_secret: &Option<String>,
+    custom_fields: &[CustomField],
+    logo: &Option<String>,
+) -> Vec<HistoryEvent> {
+    let mut events: Vec<HistoryEvent> = Vec::new();
+
+    if old.name != name {
+        events.push(history_event("field_modified", Some("builtin:name"), None));
+    }
+    if old.username != *username {
+        events.push(history_event("field_modified", Some("builtin:username"), None));
+    }
+    if old.password != *password {
+        events.push(history_event("field_modified", Some("builtin:password"), None));
+    }
+    if old.website != *website {
+        events.push(history_event("field_modified", Some("builtin:website"), None));
+    }
+    if old.notes != *notes {
+        events.push(history_event("field_modified", Some("builtin:notes"), None));
+    }
+    if old.totp_secret != *totp_secret {
+        events.push(history_event("field_modified", Some("builtin:totp"), None));
+    }
+    if old.logo != *logo {
+        events.push(history_event("logo_changed", None, None));
+    }
+
+    // Campos extra y de plantilla: primero se emparejan por etiqueta
+    let mut old_used = vec![false; old.custom_fields.len()];
+    let mut new_matched = vec![false; custom_fields.len()];
+
+    for (ni, nf) in custom_fields.iter().enumerate() {
+        let found = (0..old.custom_fields.len())
+            .find(|&oi| !old_used[oi] && old.custom_fields[oi].label == nf.label);
+        if let Some(oi) = found {
+            old_used[oi] = true;
+            new_matched[ni] = true;
+            let of = &old.custom_fields[oi];
+            if of.field_type != nf.field_type {
+                events.push(history_event("field_type_changed", Some(&nf.label), None));
+            }
+            if of.value != nf.value {
+                events.push(history_event("field_modified", Some(&nf.label), None));
+            }
+        }
+    }
+
+    // Los que no se han emparejado: renombrado (mismo tipo y mismo valor), añadido o eliminado
+    let mut old_left: Vec<usize> = (0..old.custom_fields.len())
+        .filter(|&oi| !old_used[oi])
+        .collect();
+
+    for ni in 0..custom_fields.len() {
+        if new_matched[ni] {
+            continue;
+        }
+        let nf = &custom_fields[ni];
+        let rename_pos = old_left.iter().position(|&oi| {
+            let of = &old.custom_fields[oi];
+            of.field_type == nf.field_type && of.value == nf.value
+        });
+        if let Some(pos) = rename_pos {
+            let oi = old_left.remove(pos);
+            events.push(history_event(
+                "field_renamed",
+                Some(&old.custom_fields[oi].label),
+                Some(&nf.label),
+            ));
+        } else {
+            events.push(history_event("field_added", Some(&nf.label), None));
+        }
+    }
+
+    for oi in old_left {
+        events.push(history_event(
+            "field_removed",
+            Some(&old.custom_fields[oi].label),
+            None,
+        ));
+    }
+
+    events
 }
 
 #[derive(Serialize, Deserialize)]
@@ -222,9 +368,11 @@ fn save_entry(
     custom_fields: Vec<CustomField>,
     totp_secret: Option<String>,
     entry_type: Option<String>,
+    logo: Option<String>,
 ) -> Result<String, String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
+    let logo = sanitize_logo(logo)?;
 
     let path = vault_path(&app_handle);
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -245,6 +393,8 @@ fn save_entry(
         custom_fields,
         totp_secret,
         entry_type,
+        logo,
+        history: vec![history_event("created", None, None)],
         favorite: false,
         trashed: false,
         created_at: now,
@@ -277,9 +427,11 @@ fn update_entry(
     custom_fields: Vec<CustomField>,
     totp_secret: Option<String>,
     entry_type: Option<String>,
+    logo: Option<String>,
 ) -> Result<(), String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
+    let logo = sanitize_logo(logo)?;
 
     let path = vault_path(&app_handle);
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -290,6 +442,19 @@ fn update_entry(
     let mut found = false;
     for entry in entries.iter_mut() {
         if entry.id == id {
+            // Se calcula qué ha cambiado ANTES de sobrescribir los datos
+            let events = diff_entry(
+                entry,
+                &name,
+                &username,
+                &password,
+                &website,
+                &notes,
+                &totp_secret,
+                &custom_fields,
+                &logo,
+            );
+
             entry.name = name.clone();
             entry.folder = folder.clone();
             entry.username = username.clone();
@@ -299,6 +464,8 @@ fn update_entry(
             entry.custom_fields = custom_fields.clone();
             entry.totp_secret = totp_secret.clone();
             entry.entry_type = entry_type.clone();
+            entry.logo = logo.clone();
+            entry.history.extend(events);
             entry.updated_at = now;
             found = true;
             break;
@@ -376,6 +543,12 @@ fn toggle_favorite(
     for entry in entries.iter_mut() {
         if entry.id == id {
             entry.favorite = !entry.favorite;
+            let action = if entry.favorite {
+                "favorite_added"
+            } else {
+                "favorite_removed"
+            };
+            entry.history.push(history_event(action, None, None));
             entry.updated_at = now_millis();
             break;
         }
@@ -410,6 +583,7 @@ fn trash_entry(
     for entry in entries.iter_mut() {
         if entry.id == id {
             entry.trashed = true;
+            entry.history.push(history_event("trashed", None, None));
             entry.updated_at = now_millis();
             break;
         }
@@ -444,6 +618,7 @@ fn restore_entry(
     for entry in entries.iter_mut() {
         if entry.id == id {
             entry.trashed = false;
+            entry.history.push(history_event("restored", None, None));
             entry.updated_at = now_millis();
             break;
         }
@@ -539,6 +714,8 @@ fn save_backup_batch(
         ],
         totp_secret: None,
         entry_type: None,
+        logo: None,
+        history: vec![history_event("created", None, None)],
         folder_id: None,
         favorite: false,
         trashed: false,
@@ -1401,6 +1578,14 @@ fn move_entry_to_folder(
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
 
+    // Nombre de la carpeta de destino para el historial (None = raíz de la bóveda)
+    let folder_name: Option<String> = folder_id.as_ref().and_then(|fid| {
+        read_folders(&app_handle, &key)
+            .into_iter()
+            .find(|f| &f.id == fid)
+            .map(|f| f.name)
+    });
+
     let path = vault_path(&app_handle);
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
@@ -1410,6 +1595,9 @@ fn move_entry_to_folder(
     for entry in entries.iter_mut() {
         if entry.id == id {
             entry.folder_id = folder_id.clone();
+            entry
+                .history
+                .push(history_event("moved", None, folder_name.as_deref()));
             entry.updated_at = now_millis();
             found = true;
             break;
