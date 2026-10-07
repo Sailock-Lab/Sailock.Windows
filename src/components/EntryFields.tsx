@@ -5,17 +5,18 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
-import { Eye, EyeOff, ExternalLink, ImagePlus, X } from "lucide-react";
+import { Eye, EyeOff, ExternalLink, ImagePlus, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // ---------- Tipos de campo ----------
 
-export type FieldType = "text" | "password" | "number" | "boolean" | "date" | "time" | "url";
+export type FieldType = "text" | "password" | "number" | "boolean" | "date" | "time" | "url" | "select";
 
-export const FIELD_TYPES: FieldType[] = ["text", "password", "number", "boolean", "date", "time", "url"];
+export const FIELD_TYPES: FieldType[] = ["text", "password", "number", "boolean", "date", "time", "url", "select"];
 
 // Clave de traducción (namespace "vault") de cada tipo
 export const FIELD_TYPE_KEYS: Record<FieldType, string> = {
@@ -26,6 +27,7 @@ export const FIELD_TYPE_KEYS: Record<FieldType, string> = {
   date: "fieldTypeDate",
   time: "fieldTypeTime",
   url: "fieldTypeUrl",
+  select: "fieldTypeSelect",
 };
 
 export interface CustomFieldData {
@@ -34,6 +36,7 @@ export interface CustomFieldData {
   field_type: string; // uno de FIELD_TYPES
   is_preset?: boolean;
   preset_key?: string | null;
+  options?: string[]; // solo para el tipo "select": opciones definidas por el usuario para este campo
 }
 
 export function normalizedFieldType(type: string | undefined): FieldType {
@@ -116,6 +119,27 @@ export function FieldValueInput({
     );
   }
 
+  if (type === "select") {
+    const options = field.options ?? [];
+    if (options.length === 0) {
+      return <p className="text-xs text-muted-foreground">{t("selectNoOptions")}</p>;
+    }
+    return (
+      <Select value={field.value} onValueChange={(v) => v && onChange(v)}>
+        <SelectTrigger>
+          <SelectValue placeholder={t("selectPlaceholder")} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
   if (type === "number") {
     return (
       <Input
@@ -181,6 +205,66 @@ export function FieldValueInput({
       value={field.value}
       onChange={(e) => onChange(e.target.value)}
     />
+  );
+}
+
+// ---------- Editor de opciones de un campo de lista desplegable ----------
+
+export function OptionsEditor({
+  options,
+  onChange,
+}: {
+  options: string[];
+  onChange: (options: string[]) => void;
+}) {
+  const { t } = useTranslation("vault");
+  const [draft, setDraft] = useState("");
+
+  const add = () => {
+    const value = draft.trim();
+    if (!value) return;
+    if (!options.some((o) => o.toLowerCase() === value.toLowerCase())) {
+      onChange([...options, value]);
+    }
+    setDraft("");
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-medium text-muted-foreground">{t("selectOptionsLabel")}</label>
+      <div className="flex gap-2">
+        <Input
+          value={draft}
+          placeholder={t("selectOptionPlaceholder")}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+        <Button type="button" variant="outline" size="icon" onClick={add}>
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+      {options.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {options.map((option) => (
+            <span key={option} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs">
+              {option}
+              <button
+                type="button"
+                onClick={() => onChange(options.filter((o) => o !== option))}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -324,7 +408,16 @@ export function FieldPlainValue({
   return <p className="break-words">{field.value}</p>;
 }
 
-// ---------- Avatar del registro: imagen del usuario o inicial ----------
+// ---------- Avatar del registro: icono del tipo, inicial o imagen del usuario ----------
+
+export type AvatarMode = "type" | "initial" | "image";
+
+// Sin modo guardado: con imagen se muestra la imagen, sin ella el icono del tipo.
+export function resolveAvatarMode(mode: string | null | undefined, logo: string | null | undefined): AvatarMode {
+  if (mode === "image") return logo ? "image" : "type";
+  if (mode === "type" || mode === "initial") return mode;
+  return logo ? "image" : "type";
+}
 
 function hueFromName(name: string): number {
   let h = 0;
@@ -332,28 +425,47 @@ function hueFromName(name: string): number {
   return h;
 }
 
+type IconComponent = React.ComponentType<{ className?: string }>;
+
 export function EntryAvatar({
   name,
   logo,
+  mode,
+  icon: Icon,
   className = "h-9 w-9",
   textClassName = "text-sm",
+  iconClassName = "h-4 w-4",
 }: {
   name: string;
   logo?: string | null;
+  mode?: string | null;
+  icon: IconComponent;
   className?: string;
   textClassName?: string;
+  iconClassName?: string;
 }) {
-  if (logo) {
+  const resolved = resolveAvatarMode(mode, logo);
+
+  if (resolved === "image" && logo) {
     return <img src={logo} alt="" draggable={false} className={`${className} shrink-0 rounded-md object-cover`} />;
   }
-  const initial = (Array.from(name.trim())[0] ?? "?").toUpperCase();
-  const hue = hueFromName(name);
+
+  if (resolved === "initial") {
+    const initial = (Array.from(name.trim())[0] ?? "?").toUpperCase();
+    const hue = hueFromName(name);
+    return (
+      <div
+        className={`${className} ${textClassName} flex shrink-0 items-center justify-center rounded-md font-semibold`}
+        style={{ backgroundColor: `hsl(${hue} 55% 50% / 0.15)`, color: `hsl(${hue} 55% 42%)` }}
+      >
+        {initial}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`${className} ${textClassName} flex shrink-0 items-center justify-center rounded-md font-semibold`}
-      style={{ backgroundColor: `hsl(${hue} 55% 50% / 0.15)`, color: `hsl(${hue} 55% 42%)` }}
-    >
-      {initial}
+    <div className={`${className} flex shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground`}>
+      <Icon className={iconClassName} />
     </div>
   );
 }
@@ -385,24 +497,42 @@ async function fileToLogoDataUrl(file: File, size = 128): Promise<string> {
   }
 }
 
-export function LogoPicker({
+export function AvatarPicker({
   name,
+  icon,
   logo,
+  mode,
   onChange,
 }: {
   name: string;
+  icon: IconComponent;
   logo: string | null;
-  onChange: (logo: string | null) => void;
+  mode: AvatarMode;
+  onChange: (next: { logo: string | null; mode: AvatarMode }) => void;
 }) {
   const { t } = useTranslation("vault");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const options: { id: AvatarMode; label: string }[] = [
+    { id: "type", label: t("avatarType") },
+    { id: "initial", label: t("avatarInitial") },
+    { id: "image", label: t("avatarImage") },
+  ];
+
+  const choose = (id: AvatarMode) => {
+    if (id === "image" && !logo) {
+      inputRef.current?.click(); // sin imagen todavía: se pide una
+      return;
+    }
+    onChange({ logo, mode: id });
+  };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     try {
-      onChange(await fileToLogoDataUrl(file));
+      onChange({ logo: await fileToLogoDataUrl(file), mode: "image" });
     } catch {
       toast.error(t("logoInvalid"));
     }
@@ -410,21 +540,42 @@ export function LogoPicker({
 
   return (
     <div className="flex items-center gap-3">
-      <EntryAvatar name={name} logo={logo} className="h-14 w-14" textClassName="text-xl" />
+      <EntryAvatar name={name} logo={logo} mode={mode} icon={icon} className="h-14 w-14" textClassName="text-xl" iconClassName="h-6 w-6" />
       <div className="flex flex-col gap-1.5">
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
-            <ImagePlus className="mr-1 h-4 w-4" />
-            {logo ? t("logoChange") : t("logoUpload")}
-          </Button>
-          {logo && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => onChange(null)}>
+        <div className="inline-flex self-start rounded-md border p-0.5">
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={mode === option.id}
+              onClick={() => choose(option.id)}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                mode === option.id ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        {logo ? (
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+              <ImagePlus className="mr-1 h-4 w-4" />
+              {t("logoChange")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onChange({ logo: null, mode: mode === "image" ? "type" : mode })}
+            >
               <X className="mr-1 h-4 w-4" />
               {t("logoRemove")}
             </Button>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">{t("logoHint")}</p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">{t("avatarHint")}</p>
+        )}
       </div>
       <input
         ref={inputRef}

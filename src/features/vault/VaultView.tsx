@@ -38,10 +38,16 @@ import {
   FolderPlus,
   Move,
   History,
+  Tags,
+  ArrowUp,
+  ArrowDown,
+  Settings2,
   LucideIcon,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import {
+  AvatarMode,
+  AvatarPicker,
   CustomFieldData,
   EntryAvatar,
   FIELD_TYPES,
@@ -49,12 +55,21 @@ import {
   FieldPlainValue,
   FieldType,
   FieldValueInput,
-  LogoPicker,
+  OptionsEditor,
   UrlValue,
   isValueCompatible,
   normalizedFieldType,
+  resolveAvatarMode,
   useOpenUrl,
 } from "@/components/EntryFields";
+import {
+  EMPTY_TAXONOMY,
+  TagPicker,
+  Taxonomy,
+  TaxonomyDialog,
+  TaxonomyItem,
+  TaxonomyKind,
+} from "@/components/EntryTaxonomy";
 import { useActivity } from "@/hooks/useActivity";
 
 // Código de error estable que devuelve el backend (Rust) cuando la contraseña maestra no es válida.
@@ -88,6 +103,9 @@ interface Entry {
   totp_secret?: string | null;
   entry_type?: string | null;
   logo?: string | null; // imagen subida por el usuario (data URL pequeña)
+  avatar_mode?: string | null; // "type" | "initial" | "image"
+  tag_ids?: string[]; // etiquetas (varias)
+  category_id?: string | null; // categoría (una)
   history?: HistoryEvent[];
   favorite: boolean;
   trashed: boolean;
@@ -171,6 +189,8 @@ const BUILTIN_FIELD_KEYS: Record<string, string> = {
   website: "detailWebsite",
   notes: "detailNotes",
   totp: "detailTotp",
+  tags: "tagsLabel",
+  category: "categoryLabel",
 };
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
@@ -197,6 +217,10 @@ function describeHistory(t: TFn, ev: HistoryEvent): string {
       return t("historyFieldTypeChanged", opts({ field }));
     case "logo_changed":
       return t("historyLogoChanged");
+    case "avatar_changed":
+      return t("historyAvatarChanged");
+    case "field_options_changed":
+      return t("historyOptionsChanged", opts({ field }));
     case "moved":
       return ev.extra ? t("historyMoved", opts({ folder: ev.extra })) : t("historyMovedRoot");
     case "trashed":
@@ -239,7 +263,7 @@ const TEMPLATES: EntryTemplate[] = [
     showPassword: true,
     showWebsite: true,
     showTotp: true,
-    presetFields: [{ labelKey: "presetEmail", type: "text" }],
+    presetFields: [],
   },
   {
     id: "identity",
@@ -362,6 +386,10 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const [moveFolderTarget, setMoveFolderTarget] = useState<string>("root");
   const [trashAuthOpen, setTrashAuthOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Entry | null>(null);
+  const [taxonomy, setTaxonomy] = useState<Taxonomy>(EMPTY_TAXONOMY);
+  const [taxonomyOpen, setTaxonomyOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
   const { saveActivity } = useActivity();
 
   const loadEntries = async () => {
@@ -374,9 +402,15 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     setFolders(result);
   };
 
+  const loadTaxonomy = async () => {
+    const result = await invoke<Taxonomy>("load_taxonomy");
+    setTaxonomy(result);
+  };
+
   useEffect(() => {
     loadEntries();
     loadFolders();
+    loadTaxonomy();
   }, []);
 
   useEffect(() => {
@@ -388,7 +422,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     }
   }, [prefillPassword]);
 
-  const browsingMode = filter === "all" && !search;
+  // Con un filtro de categoría o etiqueta se busca en toda la bóveda, no solo en la carpeta actual.
+  const browsingMode = filter === "all" && !search && categoryFilter === "all" && tagFilter === "all";
   const breadcrumbTrail = buildBreadcrumb(folders, currentFolderId);
   const currentSubfolders = browsingMode ? folders.filter((f) => f.parent_id === currentFolderId) : [];
 
@@ -400,6 +435,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
       const entryTypeKey = e.entry_type || "uncategorized";
       if (entryTypeKey !== typeFilter) return false;
     }
+    if (categoryFilter !== "all" && e.category_id !== categoryFilter) return false;
+    if (tagFilter !== "all" && !(e.tag_ids ?? []).includes(tagFilter)) return false;
     if (browsingMode && (e.folder_id ?? null) !== currentFolderId) return false;
     return matchesSearch(e, search, searchCategory);
   });
@@ -533,6 +570,57 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     }
   };
 
+  // ---------- Etiquetas y categorías ----------
+
+  const handleCreateTaxonomyItem = async (kind: TaxonomyKind, name: string): Promise<TaxonomyItem | null> => {
+    const list = kind === "tag" ? taxonomy.tags : taxonomy.categories;
+    const existing = list.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
+    if (existing) return existing;
+    try {
+      const item = await invoke<TaxonomyItem>("create_taxonomy_item", { kind, name });
+      setTaxonomy((prev) =>
+        kind === "tag"
+          ? { ...prev, tags: [...prev.tags, item] }
+          : { ...prev, categories: [...prev.categories, item] }
+      );
+      return item;
+    } catch (e) {
+      toast.error(String(e));
+      return null;
+    }
+  };
+
+  const handleRenameTaxonomyItem = async (kind: TaxonomyKind, id: string, name: string): Promise<boolean> => {
+    try {
+      await invoke("rename_taxonomy_item", { kind, id, name });
+      await loadTaxonomy();
+      return true;
+    } catch (e) {
+      toast.error(String(e));
+      return false;
+    }
+  };
+
+  const handleDeleteTaxonomyItem = async (kind: TaxonomyKind, id: string): Promise<void> => {
+    try {
+      await invoke("delete_taxonomy_item", { kind, id });
+      await loadTaxonomy();
+      await loadEntries(); // los registros que la usaban ya no la tienen
+      if (kind === "tag" && tagFilter === id) setTagFilter("all");
+      if (kind === "category" && categoryFilter === id) setCategoryFilter("all");
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
+
+  // Se pasa tal cual al formulario, que puede crear y gestionar etiquetas y categorías sin salir del popup.
+  const taxonomyProps = {
+    taxonomy,
+    onCreateTaxonomyItem: handleCreateTaxonomyItem,
+    onRenameTaxonomyItem: handleRenameTaxonomyItem,
+    onDeleteTaxonomyItem: handleDeleteTaxonomyItem,
+  };
+
   const renderFavoriteStar = (entry: Entry) =>
     !entry.trashed && (
       <span
@@ -599,6 +687,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     </div>
   );
 
+  const categoryName = (entry: Entry) => taxonomy.categories.find((c) => c.id === entry.category_id)?.name;
+
   const typeBadgeLabel = (entryType?: string | null) =>
     entryType
       ? t(TEMPLATES.find((tp) => tp.id === entryType)?.labelKey ?? "templateUncategorized")
@@ -620,6 +710,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 <FolderPlus className="h-4 w-4 mr-1" /> {t("newFolderButton")}
               </Button>
             )}
+            <Button size="sm" variant="outline" onClick={() => setTaxonomyOpen(true)}>
+              <Tags className="h-4 w-4 mr-1" /> {t("manageTaxonomyButton")}
+            </Button>
             <Button size="sm" onClick={() => setTemplatePickerOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> {t("newButton")}
             </Button>
@@ -679,6 +772,36 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                   <SelectItem value="uncategorized">{t("templateUncategorized")}</SelectItem>
                 </SelectContent>
               </Select>
+              {taxonomy.categories.length > 0 && (
+                <Select value={categoryFilter} onValueChange={(v) => v && setCategoryFilter(v)}>
+                  <SelectTrigger className="w-44 h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("filterAllCategories")}</SelectItem>
+                    {taxonomy.categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {taxonomy.tags.length > 0 && (
+                <Select value={tagFilter} onValueChange={(v) => v && setTagFilter(v)}>
+                  <SelectTrigger className="w-44 h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("filterAllTags")}</SelectItem>
+                    {taxonomy.tags.map((tg) => (
+                      <SelectItem key={tg.id} value={tg.id}>
+                        {tg.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="flex gap-1 shrink-0">
               <Button
@@ -740,13 +863,24 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                   className={`group flex items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${selectedId === entry.id ? "bg-muted" : ""
                     }`}
                 >
-                  <EntryAvatar name={entry.name} logo={entry.logo} className="h-9 w-9" />
+                  <EntryAvatar
+                    name={entry.name}
+                    logo={entry.logo}
+                    mode={entry.avatar_mode}
+                    icon={entryIcon(entry.entry_type)}
+                    className="h-9 w-9"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium truncate">{entry.name}</p>
                       <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
                         {typeBadgeLabel(entry.entry_type)}
                       </span>
+                      {categoryName(entry) && (
+                        <span className="max-w-28 truncate text-[10px] border text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
+                          {categoryName(entry)}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
                       {t("editedLabel")}: {formatDate(entry.updated_at)}
@@ -772,7 +906,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                     }`}
                 >
                   <div className="flex items-start justify-between">
-                    <EntryAvatar name={entry.name} logo={entry.logo} className="h-8 w-8" textClassName="text-xs" />
+                    <EntryAvatar
+                      name={entry.name}
+                      logo={entry.logo}
+                      mode={entry.avatar_mode}
+                      icon={entryIcon(entry.entry_type)}
+                      className="h-8 w-8"
+                      textClassName="text-xs"
+                    />
                     {renderFavoriteStar(entry)}
                   </div>
                   <div>
@@ -780,6 +921,11 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                     <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded inline-block mt-1">
                       {typeBadgeLabel(entry.entry_type)}
                     </span>
+                    {categoryName(entry) && (
+                      <span className="ml-1 mt-1 inline-block max-w-24 truncate align-bottom text-[10px] border text-muted-foreground px-1.5 py-0.5 rounded">
+                        {categoryName(entry)}
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-muted-foreground mt-auto pt-2 border-t">
                     <p>{t("createdLabel")}: {formatDate(entry.created_at)}</p>
@@ -889,6 +1035,15 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
         </DialogContent>
       </Dialog>
 
+      <TaxonomyDialog
+        open={taxonomyOpen}
+        onOpenChange={setTaxonomyOpen}
+        taxonomy={taxonomy}
+        onCreate={handleCreateTaxonomyItem}
+        onRename={handleRenameTaxonomyItem}
+        onDelete={handleDeleteTaxonomyItem}
+      />
+
       {/* Popup de la entrada: ver (detalle), crear y editar. */}
       <Dialog open={panelOpen} onOpenChange={(isOpen) => !isOpen && closePanel()}>
         <DialogContent
@@ -901,6 +1056,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               template={selectedTemplate ?? TEMPLATES.find((tpl) => tpl.id === "custom")!}
               defaultFolderId={currentFolderId}
               folders={folders}
+              {...taxonomyProps}
               onSaved={() => {
                 setFormMode(null);
                 setPendingPassword(null);
@@ -915,6 +1071,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             <EntryForm
               initial={selected}
               folders={folders}
+              {...taxonomyProps}
               onSaved={() => {
                 setFormMode(null);
                 loadEntries();
@@ -927,6 +1084,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               key={selected.id}
               entry={selected}
               folders={folders}
+              taxonomy={taxonomy}
               onEdit={() => setFormMode("edit")}
               onTrash={() => handleTrash(selected.id)}
               onRestore={() => handleRestore(selected.id)}
@@ -1095,15 +1253,26 @@ function TotpDisplay({ secret, accountName }: { secret: string; accountName: str
 }
 
 // Formulario de crear / editar. Se pinta dentro del popup (DialogContent) de VaultView.
+interface TaxonomyProps {
+  taxonomy: Taxonomy;
+  onCreateTaxonomyItem: (kind: TaxonomyKind, name: string) => Promise<TaxonomyItem | null>;
+  onRenameTaxonomyItem: (kind: TaxonomyKind, id: string, name: string) => Promise<boolean>;
+  onDeleteTaxonomyItem: (kind: TaxonomyKind, id: string) => Promise<void>;
+}
+
 function EntryForm({
   initial,
   initialPassword,
   template,
   defaultFolderId,
   folders,
+  taxonomy,
+  onCreateTaxonomyItem,
+  onRenameTaxonomyItem,
+  onDeleteTaxonomyItem,
   onSaved,
   onClose,
-}: {
+}: TaxonomyProps & {
   initial?: Entry;
   initialPassword?: string;
   template?: EntryTemplate;
@@ -1123,6 +1292,10 @@ function EntryForm({
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [totpSecret, setTotpSecret] = useState(initial?.totp_secret ?? "");
   const [logo, setLogo] = useState<string | null>(initial?.logo ?? null);
+  const [avatarMode, setAvatarMode] = useState<AvatarMode>(resolveAvatarMode(initial?.avatar_mode, initial?.logo));
+  const [tagIds, setTagIds] = useState<string[]>(initial?.tag_ids ?? []);
+  const [categoryId, setCategoryId] = useState<string>(initial?.category_id ?? "none");
+  const [taxonomyOpen, setTaxonomyOpen] = useState(false);
   const [folderTarget, setFolderTarget] = useState<string>(
     initial ? initial.folder_id ?? "root" : defaultFolderId ?? "root"
   );
@@ -1160,9 +1333,32 @@ function EntryForm({
   const indexedFields = customFields.map((field, i) => ({ field, i }));
   const presetIndexed = indexedFields.filter((x) => x.field.is_preset);
   const extraIndexed = indexedFields.filter((x) => !x.field.is_preset);
+  // Si una etiqueta o categoría se elimina mientras el formulario está abierto, deja de contar.
+  const validTagIds = tagIds.filter((id) => taxonomy.tags.some((tg) => tg.id === id));
+  const effectiveCategory = taxonomy.categories.some((c) => c.id === categoryId) ? categoryId : "none";
 
   const addExtraField = () => {
-    setCustomFields([...customFields, { label: "", value: "", field_type: "text", is_preset: false, preset_key: null }]);
+    setCustomFields([
+      ...customFields,
+      { label: "", value: "", field_type: "text", is_preset: false, preset_key: null, options: [] },
+    ]);
+  };
+  // Si se quita la opción elegida en un campo de lista, el valor se vacía.
+  const updateFieldOptions = (index: number, options: string[]) => {
+    setCustomFields(
+      customFields.map((f, i) =>
+        i === index ? { ...f, options, value: options.includes(f.value) ? f.value : "" } : f
+      )
+    );
+  };
+  // Sube o baja un campo adicional una posición (los de la plantilla mantienen su sitio).
+  const moveExtraField = (pos: number, direction: -1 | 1) => {
+    const from = extraIndexed[pos]?.i;
+    const to = extraIndexed[pos + direction]?.i;
+    if (from === undefined || to === undefined) return;
+    const next = [...customFields];
+    [next[from], next[to]] = [next[to], next[from]];
+    setCustomFields(next);
   };
   const updateField = (index: number, key: "label" | "value", val: string) => {
     setCustomFields(customFields.map((f, i) => (i === index ? { ...f, [key]: val } : f)));
@@ -1191,10 +1387,15 @@ function EntryForm({
         password: (showPasswordField ? password : "") || null,
         website: (showWebsite ? website : "") || null,
         notes: notes || null,
-        customFields: customFields.filter((f) => f.is_preset || f.label.trim() !== ""),
+        customFields: customFields
+          .filter((f) => f.is_preset || f.label.trim() !== "")
+          .map((f) => ({ ...f, options: normalizedFieldType(f.field_type) === "select" ? f.options ?? [] : [] })),
         totpSecret: (showTotp ? totpSecret : "").trim() || null,
         entryType: entryTypeToSave,
         logo: logo ?? null,
+        avatarMode,
+        tagIds: validTagIds,
+        categoryId: effectiveCategory === "none" ? null : effectiveCategory,
       };
       if (initial) {
         await invoke("update_entry", { id: initial.id, ...payload });
@@ -1247,7 +1448,16 @@ function EntryForm({
           <section className="flex flex-col gap-3">
             <h3 className="text-sm font-semibold">{t("sectionBasicInfo")}</h3>
 
-            <LogoPicker name={name} logo={logo} onChange={setLogo} />
+            <AvatarPicker
+              name={name}
+              icon={HeaderIcon}
+              logo={logo}
+              mode={avatarMode}
+              onChange={(next) => {
+                setLogo(next.logo);
+                setAvatarMode(next.mode);
+              }}
+            />
 
             <div>
               <label className="mb-1 block text-sm font-medium">{nameLabel}</label>
@@ -1354,6 +1564,44 @@ function EntryForm({
             )}
 
             <div>
+              <label className="mb-1 block text-sm font-medium">{t("categoryLabel")}</label>
+              <div className="flex gap-2">
+                <Select value={effectiveCategory} onValueChange={(v) => v && setCategoryId(v)}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("categoryNone")}</SelectItem>
+                    {taxonomy.categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setTaxonomyOpen(true)}
+                  title={t("manageTaxonomyButton")}
+                >
+                  <Settings2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">{t("tagsLabel")}</label>
+              <TagPicker
+                tags={taxonomy.tags}
+                selectedIds={validTagIds}
+                onChange={setTagIds}
+                onCreate={(name) => onCreateTaxonomyItem("tag", name)}
+              />
+            </div>
+
+            <div>
               <label className="mb-1 block text-sm font-medium">{notesLabel}</label>
               <textarea
                 placeholder={t("optional")}
@@ -1368,9 +1616,9 @@ function EntryForm({
               {initial && extraIndexed.length > 0 && (
                 <label className="text-sm font-medium">{t("additionalFieldsLabel")}</label>
               )}
-              {extraIndexed.map(({ field, i }) => (
+              {extraIndexed.map(({ field, i }, pos) => (
                 <div key={i} className="flex flex-col gap-2 rounded-md border p-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <Input
                       placeholder={t("customFieldNamePlaceholder")}
                       value={field.label}
@@ -1381,7 +1629,7 @@ function EntryForm({
                       value={normalizedFieldType(field.field_type)}
                       onValueChange={(v) => v && updateFieldType(i, v as FieldType)}
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-36">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1392,10 +1640,35 @@ function EntryForm({
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button variant="ghost" size="icon" onClick={() => removeField(i)}>
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <div className="flex shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={pos === 0}
+                        onClick={() => moveExtraField(pos, -1)}
+                        title={t("moveFieldUp")}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        disabled={pos === extraIndexed.length - 1}
+                        onClick={() => moveExtraField(pos, 1)}
+                        title={t("moveFieldDown")}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeField(i)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
+                  {normalizedFieldType(field.field_type) === "select" && (
+                    <OptionsEditor options={field.options ?? []} onChange={(options) => updateFieldOptions(i, options)} />
+                  )}
                   <FieldValueInput field={field} onChange={(val) => updateField(i, "value", val)} />
                 </div>
               ))}
@@ -1427,6 +1700,15 @@ function EntryForm({
           </Button>
         </div>
       </DialogFooter>
+
+      <TaxonomyDialog
+        open={taxonomyOpen}
+        onOpenChange={setTaxonomyOpen}
+        taxonomy={taxonomy}
+        onCreate={onCreateTaxonomyItem}
+        onRename={onRenameTaxonomyItem}
+        onDelete={onDeleteTaxonomyItem}
+      />
     </>
   );
 }
@@ -1440,6 +1722,7 @@ interface RevealRequest {
 function EntryDetail({
   entry,
   folders,
+  taxonomy,
   onEdit,
   onTrash,
   onRestore,
@@ -1450,6 +1733,7 @@ function EntryDetail({
 }: {
   entry: Entry;
   folders: FolderData[];
+  taxonomy: Taxonomy;
   onEdit: () => void;
   onTrash: () => void;
   onRestore: () => void;
@@ -1570,6 +1854,10 @@ function EntryDetail({
   const folderLabel = entry.folder_id ? folderPath(folders, entry.folder_id) : t("vaultRootLabel");
   // Del más reciente al más antiguo (los eventos se guardan en orden cronológico).
   const historyEvents = [...(entry.history ?? [])].reverse();
+  const entryCategory = taxonomy.categories.find((c) => c.id === entry.category_id);
+  const entryTags = (entry.tag_ids ?? [])
+    .map((id) => taxonomy.tags.find((tg) => tg.id === id))
+    .filter((tg): tg is TaxonomyItem => !!tg);
 
   const renderFieldRow = (field: CustomFieldData, i: number) => {
     const type = normalizedFieldType(field.field_type);
@@ -1610,7 +1898,15 @@ function EntryDetail({
   return (
     <>
       <DialogHeader className="shrink-0 flex-row items-center gap-3 border-b px-6 py-4">
-        <EntryAvatar name={entry.name} logo={entry.logo} className="h-10 w-10" textClassName="text-base" />
+        <EntryAvatar
+          name={entry.name}
+          logo={entry.logo}
+          mode={entry.avatar_mode}
+          icon={entryIcon(entry.entry_type)}
+          className="h-10 w-10"
+          textClassName="text-base"
+          iconClassName="h-5 w-5"
+        />
         <div className="min-w-0 flex-1">
           <DialogTitle className="truncate text-base">{entry.name}</DialogTitle>
           <DialogDescription className="mt-1 truncate text-xs">
@@ -1664,6 +1960,18 @@ function EntryDetail({
       </DialogHeader>
 
       <div className="flex-1 overflow-y-auto px-6 py-5 text-sm">
+        {(entryCategory || entryTags.length > 0) && (
+          <div className="mb-4 flex flex-wrap items-center gap-1.5">
+            {entryCategory && (
+              <span className="rounded-full border px-2 py-0.5 text-xs">{entryCategory.name}</span>
+            )}
+            {entryTags.map((tg) => (
+              <span key={tg.id} className="rounded-full bg-secondary px-2 py-0.5 text-xs">
+                {tg.name}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="grid gap-3 md:grid-cols-2">
           {entry.username && (
             <div className="rounded-md border bg-muted/30 p-3">

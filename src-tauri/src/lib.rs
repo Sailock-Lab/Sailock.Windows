@@ -20,13 +20,16 @@ fn default_field_type() -> String {
 struct CustomField {
     label: String,
     value: String,
-    // "text" | "password" | "number" | "boolean" | "date" | "time" | "url"
+    // "text" | "password" | "number" | "boolean" | "date" | "time" | "url" | "select"
     #[serde(default = "default_field_type")]
     field_type: String,
     #[serde(default)]
     is_preset: bool,
     #[serde(default)]
     preset_key: Option<String>,
+    // Solo para el tipo "select": opciones que define el usuario para ESE campo de ESE registro
+    #[serde(default)]
+    options: Vec<String>,
 }
 
 // Evento del historial de un registro. NUNCA guarda valores (contraseñas, notas...),
@@ -36,7 +39,7 @@ struct CustomField {
 struct HistoryEvent {
     timestamp: u64,
     // "created" | "field_modified" | "field_added" | "field_removed" | "field_renamed"
-    // | "field_type_changed" | "logo_changed" | "moved" | "trashed" | "restored"
+    // | "field_type_changed" | "field_options_changed" | "avatar_changed" | "moved" | "trashed" | "restored"
     // | "favorite_added" | "favorite_removed"
     action: String,
     // Etiqueta del campo, o "builtin:<clave>" para los campos fijos (name, username, ...)
@@ -76,6 +79,14 @@ struct Entry {
     // Imagen que sube el usuario, ya reducida por el frontend (data URL).
     #[serde(default)]
     logo: Option<String>,
+    // Cómo se muestra el registro: "type" (icono del tipo) | "initial" | "image"
+    #[serde(default)]
+    avatar_mode: Option<String>,
+    // Ids de etiquetas (varias) y de categoría (una) de la lista global del vault
+    #[serde(default)]
+    tag_ids: Vec<String>,
+    #[serde(default)]
+    category_id: Option<String>,
     #[serde(default)]
     history: Vec<HistoryEvent>,
     #[serde(default)]
@@ -105,48 +116,54 @@ fn sanitize_logo(logo: Option<String>) -> Result<Option<String>, String> {
     }
 }
 
-// Compara el registro guardado con los datos nuevos y devuelve qué cambió.
-// Solo registra QUÉ campo cambió, nunca su valor.
-fn diff_entry(
-    old: &Entry,
-    name: &str,
-    username: &Option<String>,
-    password: &Option<String>,
-    website: &Option<String>,
-    notes: &Option<String>,
-    totp_secret: &Option<String>,
-    custom_fields: &[CustomField],
-    logo: &Option<String>,
-) -> Vec<HistoryEvent> {
+fn sanitize_avatar_mode(mode: Option<String>) -> Option<String> {
+    mode.filter(|m| m == "type" || m == "initial" || m == "image")
+}
+
+// Compara el registro guardado con la versión nueva y devuelve qué cambió.
+// Solo registra QUÉ cambió, nunca los valores.
+fn diff_entries(old: &Entry, new: &Entry) -> Vec<HistoryEvent> {
     let mut events: Vec<HistoryEvent> = Vec::new();
 
-    if old.name != name {
+    if old.name != new.name {
         events.push(history_event("field_modified", Some("builtin:name"), None));
     }
-    if old.username != *username {
+    if old.username != new.username {
         events.push(history_event("field_modified", Some("builtin:username"), None));
     }
-    if old.password != *password {
+    if old.password != new.password {
         events.push(history_event("field_modified", Some("builtin:password"), None));
     }
-    if old.website != *website {
+    if old.website != new.website {
         events.push(history_event("field_modified", Some("builtin:website"), None));
     }
-    if old.notes != *notes {
+    if old.notes != new.notes {
         events.push(history_event("field_modified", Some("builtin:notes"), None));
     }
-    if old.totp_secret != *totp_secret {
+    if old.totp_secret != new.totp_secret {
         events.push(history_event("field_modified", Some("builtin:totp"), None));
     }
-    if old.logo != *logo {
-        events.push(history_event("logo_changed", None, None));
+    if old.logo != new.logo || old.avatar_mode != new.avatar_mode {
+        events.push(history_event("avatar_changed", None, None));
+    }
+
+    let mut old_tags = old.tag_ids.clone();
+    old_tags.sort();
+    let mut new_tags = new.tag_ids.clone();
+    new_tags.sort();
+    if old_tags != new_tags {
+        events.push(history_event("field_modified", Some("builtin:tags"), None));
+    }
+    if old.category_id != new.category_id {
+        events.push(history_event("field_modified", Some("builtin:category"), None));
     }
 
     // Campos extra y de plantilla: primero se emparejan por etiqueta
+    let new_fields = &new.custom_fields;
     let mut old_used = vec![false; old.custom_fields.len()];
-    let mut new_matched = vec![false; custom_fields.len()];
+    let mut new_matched = vec![false; new_fields.len()];
 
-    for (ni, nf) in custom_fields.iter().enumerate() {
+    for (ni, nf) in new_fields.iter().enumerate() {
         let found = (0..old.custom_fields.len())
             .find(|&oi| !old_used[oi] && old.custom_fields[oi].label == nf.label);
         if let Some(oi) = found {
@@ -155,6 +172,9 @@ fn diff_entry(
             let of = &old.custom_fields[oi];
             if of.field_type != nf.field_type {
                 events.push(history_event("field_type_changed", Some(&nf.label), None));
+            }
+            if of.options != nf.options {
+                events.push(history_event("field_options_changed", Some(&nf.label), None));
             }
             if of.value != nf.value {
                 events.push(history_event("field_modified", Some(&nf.label), None));
@@ -167,11 +187,11 @@ fn diff_entry(
         .filter(|&oi| !old_used[oi])
         .collect();
 
-    for ni in 0..custom_fields.len() {
+    for ni in 0..new_fields.len() {
         if new_matched[ni] {
             continue;
         }
-        let nf = &custom_fields[ni];
+        let nf = &new_fields[ni];
         let rename_pos = old_left.iter().position(|&oi| {
             let of = &old.custom_fields[oi];
             of.field_type == nf.field_type && of.value == nf.value
@@ -369,10 +389,15 @@ fn save_entry(
     totp_secret: Option<String>,
     entry_type: Option<String>,
     logo: Option<String>,
+    avatar_mode: Option<String>,
+    tag_ids: Vec<String>,
+    category_id: Option<String>,
 ) -> Result<String, String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
     let logo = sanitize_logo(logo)?;
+    let avatar_mode = sanitize_avatar_mode(avatar_mode);
+    let (tag_ids, category_id) = clean_taxonomy_refs(&app_handle, &key, tag_ids, category_id);
 
     let path = vault_path(&app_handle);
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -394,6 +419,9 @@ fn save_entry(
         totp_secret,
         entry_type,
         logo,
+        avatar_mode,
+        tag_ids,
+        category_id,
         history: vec![history_event("created", None, None)],
         favorite: false,
         trashed: false,
@@ -428,10 +456,15 @@ fn update_entry(
     totp_secret: Option<String>,
     entry_type: Option<String>,
     logo: Option<String>,
+    avatar_mode: Option<String>,
+    tag_ids: Vec<String>,
+    category_id: Option<String>,
 ) -> Result<(), String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
     let logo = sanitize_logo(logo)?;
+    let avatar_mode = sanitize_avatar_mode(avatar_mode);
+    let (tag_ids, category_id) = clean_taxonomy_refs(&app_handle, &key, tag_ids, category_id);
 
     let path = vault_path(&app_handle);
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
@@ -442,31 +475,25 @@ fn update_entry(
     let mut found = false;
     for entry in entries.iter_mut() {
         if entry.id == id {
-            // Se calcula qué ha cambiado ANTES de sobrescribir los datos
-            let events = diff_entry(
-                entry,
-                &name,
-                &username,
-                &password,
-                &website,
-                &notes,
-                &totp_secret,
-                &custom_fields,
-                &logo,
-            );
-
-            entry.name = name.clone();
-            entry.folder = folder.clone();
-            entry.username = username.clone();
-            entry.password = password.clone();
-            entry.website = website.clone();
-            entry.notes = notes.clone();
-            entry.custom_fields = custom_fields.clone();
-            entry.totp_secret = totp_secret.clone();
-            entry.entry_type = entry_type.clone();
-            entry.logo = logo.clone();
-            entry.history.extend(events);
-            entry.updated_at = now;
+            // Se construye la versión nueva y se calcula qué ha cambiado antes de guardarla
+            let mut updated = entry.clone();
+            updated.name = name.clone();
+            updated.folder = folder.clone();
+            updated.username = username.clone();
+            updated.password = password.clone();
+            updated.website = website.clone();
+            updated.notes = notes.clone();
+            updated.custom_fields = custom_fields.clone();
+            updated.totp_secret = totp_secret.clone();
+            updated.entry_type = entry_type.clone();
+            updated.logo = logo.clone();
+            updated.avatar_mode = avatar_mode.clone();
+            updated.tag_ids = tag_ids.clone();
+            updated.category_id = category_id.clone();
+            let events = diff_entries(entry, &updated);
+            updated.history.extend(events);
+            updated.updated_at = now;
+            *entry = updated;
             found = true;
             break;
         }
@@ -689,6 +716,7 @@ fn save_backup_batch(
                 field_type: "text".to_string(),
                 is_preset: false,
                 preset_key: None,
+                options: Vec::new(),
             },
             CustomField {
                 label: "Longitud".to_string(),
@@ -696,6 +724,7 @@ fn save_backup_batch(
                 field_type: "text".to_string(),
                 is_preset: false,
                 preset_key: None,
+                options: Vec::new(),
             },
             CustomField {
                 label: "Número de códigos".to_string(),
@@ -703,6 +732,7 @@ fn save_backup_batch(
                 field_type: "text".to_string(),
                 is_preset: false,
                 preset_key: None,
+                options: Vec::new(),
             },
             CustomField {
                 label: "Códigos".to_string(),
@@ -710,11 +740,15 @@ fn save_backup_batch(
                 field_type: "text".to_string(),
                 is_preset: false,
                 preset_key: None,
+                options: Vec::new(),
             },
         ],
         totp_secret: None,
         entry_type: None,
         logo: None,
+        avatar_mode: None,
+        tag_ids: Vec::new(),
+        category_id: None,
         history: vec![history_event("created", None, None)],
         folder_id: None,
         favorite: false,
@@ -779,6 +813,10 @@ fn delete_vault(
     let folders_file = folders_path(&app_handle);
     if folders_file.exists() {
         let _ = fs::remove_file(&folders_file);
+    }
+    let taxonomy_file = taxonomy_path(&app_handle);
+    if taxonomy_file.exists() {
+        let _ = fs::remove_file(&taxonomy_file);
     }
 
     *state.key.lock().unwrap() = None;
@@ -861,9 +899,19 @@ fn import_vault(
         local_entries = Vec::new();
     }
 
+    let local_taxonomy = read_taxonomy(&app_handle, &local_key);
     let base_time = now_millis();
     for (i, mut entry) in final_imported.into_iter().enumerate() {
         entry.id = format!("{}-{}", base_time, i);
+        // Las etiquetas y categorías no viajan en el archivo: solo se conservan las que existan aquí
+        entry
+            .tag_ids
+            .retain(|t| local_taxonomy.tags.iter().any(|x| &x.id == t));
+        if let Some(c) = &entry.category_id {
+            if !local_taxonomy.categories.iter().any(|x| &x.id == c) {
+                entry.category_id = None;
+            }
+        }
         local_entries.push(entry);
     }
 
@@ -1619,6 +1667,255 @@ fn move_entry_to_folder(
     Ok(())
 }
 
+// ---------- Etiquetas y categorías (reutilizables entre registros) ----------
+
+#[derive(Serialize, Deserialize, Clone)]
+struct TaxonomyItem {
+    id: String,
+    name: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+struct Taxonomy {
+    #[serde(default)]
+    tags: Vec<TaxonomyItem>,
+    #[serde(default)]
+    categories: Vec<TaxonomyItem>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TaxonomyFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn taxonomy_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("taxonomy.json")
+}
+
+fn read_taxonomy(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> Taxonomy {
+    let path = taxonomy_path(app_handle);
+    if !path.exists() {
+        return Taxonomy::default();
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return Taxonomy::default(),
+    };
+    let file: TaxonomyFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return Taxonomy::default(),
+    };
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return Taxonomy::default(),
+    };
+    let nonce_bytes = match B64.decode(&file.nonce) {
+        Ok(n) => n,
+        Err(_) => return Taxonomy::default(),
+    };
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = match B64.decode(&file.ciphertext) {
+        Ok(c) => c,
+        Err(_) => return Taxonomy::default(),
+    };
+    match cipher.decrypt(nonce, ciphertext.as_ref()) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => Taxonomy::default(),
+    }
+}
+
+fn write_taxonomy(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+    taxonomy: &Taxonomy,
+) -> Result<(), String> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let plaintext = serde_json::to_vec(taxonomy).map_err(|e| e.to_string())?;
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext.as_ref())
+        .map_err(|e| e.to_string())?;
+    let file = TaxonomyFile {
+        nonce: B64.encode(nonce_bytes),
+        ciphertext: B64.encode(ciphertext),
+    };
+    let json = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;
+    fs::write(taxonomy_path(app_handle), json).map_err(|e| e.to_string())
+}
+
+fn taxonomy_items<'a>(
+    taxonomy: &'a mut Taxonomy,
+    kind: &str,
+) -> Result<&'a mut Vec<TaxonomyItem>, String> {
+    match kind {
+        "tag" => Ok(&mut taxonomy.tags),
+        "category" => Ok(&mut taxonomy.categories),
+        _ => Err("Tipo de elemento no válido".into()),
+    }
+}
+
+fn clean_taxonomy_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("El nombre no puede estar vacío".into());
+    }
+    if trimmed.chars().count() > 40 {
+        return Err("El nombre es demasiado largo (máximo 40 caracteres)".into());
+    }
+    Ok(trimmed.to_string())
+}
+
+// Quita de un registro las etiquetas y la categoría que ya no existan (y las repetidas)
+fn clean_taxonomy_refs(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+    tag_ids: Vec<String>,
+    category_id: Option<String>,
+) -> (Vec<String>, Option<String>) {
+    let taxonomy = read_taxonomy(app_handle, key);
+    let mut clean: Vec<String> = Vec::new();
+    for t in tag_ids {
+        if taxonomy.tags.iter().any(|x| x.id == t) && !clean.contains(&t) {
+            clean.push(t);
+        }
+    }
+    let category = category_id.filter(|c| taxonomy.categories.iter().any(|x| &x.id == c));
+    (clean, category)
+}
+
+#[tauri::command]
+fn load_taxonomy(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Taxonomy, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(read_taxonomy(&app_handle, &key))
+}
+
+// kind: "tag" | "category"
+#[tauri::command]
+fn create_taxonomy_item(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    kind: String,
+    name: String,
+) -> Result<TaxonomyItem, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let name = clean_taxonomy_name(&name)?;
+    let mut taxonomy = read_taxonomy(&app_handle, &key);
+    let items = taxonomy_items(&mut taxonomy, &kind)?;
+    if items
+        .iter()
+        .any(|i| i.name.to_lowercase() == name.to_lowercase())
+    {
+        return Err("Ya existe un elemento con ese nombre".into());
+    }
+
+    let mut n = now_millis();
+    while items.iter().any(|i| i.id == n.to_string()) {
+        n += 1;
+    }
+    let item = TaxonomyItem {
+        id: n.to_string(),
+        name,
+    };
+    items.push(item.clone());
+    write_taxonomy(&app_handle, &key, &taxonomy)?;
+    Ok(item)
+}
+
+#[tauri::command]
+fn rename_taxonomy_item(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    kind: String,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let name = clean_taxonomy_name(&name)?;
+    let mut taxonomy = read_taxonomy(&app_handle, &key);
+    let items = taxonomy_items(&mut taxonomy, &kind)?;
+    if items
+        .iter()
+        .any(|i| i.id != id && i.name.to_lowercase() == name.to_lowercase())
+    {
+        return Err("Ya existe un elemento con ese nombre".into());
+    }
+    match items.iter_mut().find(|i| i.id == id) {
+        Some(item) => item.name = name,
+        None => return Err("No se encontró el elemento".into()),
+    }
+    write_taxonomy(&app_handle, &key, &taxonomy)
+}
+
+// Al eliminar una etiqueta o categoría se quita también de los registros que la usaban
+#[tauri::command]
+fn delete_taxonomy_item(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    kind: String,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut taxonomy = read_taxonomy(&app_handle, &key);
+    {
+        let items = taxonomy_items(&mut taxonomy, &kind)?;
+        let before = items.len();
+        items.retain(|i| i.id != id);
+        if items.len() == before {
+            return Err("No se encontró el elemento".into());
+        }
+    }
+    write_taxonomy(&app_handle, &key, &taxonomy)?;
+
+    let path = vault_path(&app_handle);
+    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let mut entries = decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+
+    let mut changed = false;
+    for entry in entries.iter_mut() {
+        if kind == "tag" {
+            let before = entry.tag_ids.len();
+            entry.tag_ids.retain(|t| t != &id);
+            if entry.tag_ids.len() != before {
+                changed = true;
+            }
+        } else if entry.category_id.as_deref() == Some(id.as_str()) {
+            entry.category_id = None;
+            changed = true;
+        }
+    }
+
+    if changed {
+        let (nonce, ciphertext) = encrypt_entries(&key, &entries);
+        let new_file = VaultFile {
+            salt: file.salt,
+            nonce,
+            ciphertext,
+        };
+        let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+        fs::write(&path, json).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // ---------- Activity Log ----------
 #[derive(Serialize, Deserialize, Clone)]
 struct ActivityEntry {
@@ -1761,6 +2058,10 @@ pub fn run() {
             delete_folder,
             move_entry_to_folder,
             move_folder,
+            load_taxonomy,
+            create_taxonomy_item,
+            rename_taxonomy_item,
+            delete_taxonomy_item,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
