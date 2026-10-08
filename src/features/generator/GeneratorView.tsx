@@ -679,7 +679,16 @@ function PassphraseGenerator({ historyHook }: { historyHook: ReturnType<typeof u
           <div className="border-t pt-4">
             <SectionTitle icon={<LayoutGrid className="h-4 w-4" />}>{t("formatTitle")}</SectionTitle>
             <OptionRow label={t("separatorLabel")}>
-              <Select value={separator} onValueChange={(v) => v && setSeparator(v)}>
+              <Select
+                value={separator}
+                onValueChange={(v) => v && setSeparator(v)}
+                items={[
+                  { value: "-", label: t("separatorDash") },
+                  { value: "_", label: t("separatorUnderscore") },
+                  { value: ".", label: t("separatorDot") },
+                  { value: " ", label: t("separatorSpace") },
+                ]}
+              >
                 <SelectTrigger className="w-32 max-w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -877,7 +886,11 @@ function BackupCodesGenerator() {
           </Field>
 
           <Field icon={<LayoutGrid className="h-4 w-4" />} label={t("presetLabel")} hint={presetDescriptions[presetId]}>
-            <Select value={presetId} onValueChange={applyPreset}>
+            <Select
+              value={presetId}
+              onValueChange={applyPreset}
+              items={PRESETS.map((p) => ({ value: p.id, label: presetLabels[p.id] }))}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder={t("presetPlaceholder")} />
               </SelectTrigger>
@@ -904,7 +917,15 @@ function BackupCodesGenerator() {
                 <NumberStepper value={length} onChange={setLength} min={4} max={32} />
               </OptionRow>
               <OptionRow label={t("alphabetLabel")}>
-                <Select value={alphabet} onValueChange={(v) => v && setAlphabet(v as typeof alphabet)}>
+                <Select
+                  value={alphabet}
+                  onValueChange={(v) => v && setAlphabet(v as typeof alphabet)}
+                  items={[
+                    { value: "digits", label: t("alphabetDigits") },
+                    { value: "letters", label: t("alphabetLetters") },
+                    { value: "alphanumeric", label: t("alphabetAlphanumeric") },
+                  ]}
+                >
                   <SelectTrigger className="w-32 max-w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -928,7 +949,15 @@ function BackupCodesGenerator() {
             <SectionTitle icon={<LayoutGrid className="h-4 w-4" />}>{t("formatTitle")}</SectionTitle>
             <div className="flex flex-col gap-3">
               <OptionRow label={t("groupSeparatorLabel")}>
-                <Select value={separator} onValueChange={(v) => v && setSeparator(v as typeof separator)}>
+                <Select
+                  value={separator}
+                  onValueChange={(v) => v && setSeparator(v as typeof separator)}
+                  items={[
+                    { value: "dash", label: t("groupSeparatorDash") },
+                    { value: "space", label: t("groupSeparatorSpace") },
+                    { value: "none", label: t("groupSeparatorNone") },
+                  ]}
+                >
                   <SelectTrigger className="w-32 max-w-full">
                     <SelectValue />
                   </SelectTrigger>

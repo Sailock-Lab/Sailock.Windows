@@ -236,6 +236,15 @@ function describeHistory(t: TFn, ev: HistoryEvent): string {
   }
 }
 
+// Base UI muestra el VALOR del desplegable ("root", un id numérico...) salvo que le des la lista
+// de {value, label} en la prop `items`: con ella, SelectValue pinta la etiqueta ya traducida.
+function folderSelectItems(folders: FolderData[], rootLabel: string) {
+  return [
+    { value: "root", label: rootLabel },
+    ...folders.map((f) => ({ value: f.id, label: folderPath(folders, f.id) })),
+  ];
+}
+
 interface TemplateFieldPreset {
   labelKey: string;
   type: FieldType;
@@ -729,7 +738,17 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 className="pl-8"
               />
             </div>
-            <Select value={searchCategory} onValueChange={(v) => v && setSearchCategory(v as SearchCategory)}>
+            <Select
+              value={searchCategory}
+              onValueChange={(v) => v && setSearchCategory(v as SearchCategory)}
+              items={[
+                { value: "all", label: t("searchAll") },
+                { value: "name", label: t("searchName") },
+                { value: "contact", label: t("searchContact") },
+                { value: "website", label: t("searchWebsite") },
+                { value: "custom", label: t("searchCustom") },
+              ]}
+            >
               <SelectTrigger className="w-44">
                 <SelectValue />
               </SelectTrigger>
@@ -758,7 +777,15 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               <Button variant={filter === "trash" ? "secondary" : "ghost"} size="sm" onClick={handleOpenTrash}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("filterTrash")}
               </Button>
-              <Select value={typeFilter} onValueChange={(v) => v && setTypeFilter(v)}>
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => v && setTypeFilter(v)}
+                items={[
+                  { value: "all", label: t("typeFilterAll") },
+                  ...TEMPLATES.map((tpl) => ({ value: tpl.id, label: t(tpl.labelKey) })),
+                  { value: "uncategorized", label: t("templateUncategorized") },
+                ]}
+              >
                 <SelectTrigger className="w-40 h-9">
                   <SelectValue />
                 </SelectTrigger>
@@ -773,7 +800,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 </SelectContent>
               </Select>
               {taxonomy.categories.length > 0 && (
-                <Select value={categoryFilter} onValueChange={(v) => v && setCategoryFilter(v)}>
+                <Select
+                  value={categoryFilter}
+                  onValueChange={(v) => v && setCategoryFilter(v)}
+                  items={[
+                    { value: "all", label: t("filterAllCategories") },
+                    ...taxonomy.categories.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                >
                   <SelectTrigger className="w-44 h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -788,7 +822,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 </Select>
               )}
               {taxonomy.tags.length > 0 && (
-                <Select value={tagFilter} onValueChange={(v) => v && setTagFilter(v)}>
+                <Select
+                  value={tagFilter}
+                  onValueChange={(v) => v && setTagFilter(v)}
+                  items={[
+                    { value: "all", label: t("filterAllTags") },
+                    ...taxonomy.tags.map((tg) => ({ value: tg.id, label: tg.name })),
+                  ]}
+                >
                   <SelectTrigger className="w-44 h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -979,7 +1020,11 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             <DialogTitle>{t("moveFolderDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
-            <Select value={moveFolderTarget} onValueChange={(v) => v && setMoveFolderTarget(v)}>
+            <Select
+              value={moveFolderTarget}
+              onValueChange={(v) => v && setMoveFolderTarget(v)}
+              items={folderSelectItems(folders, t("vaultRootLabel"))}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -1536,7 +1581,11 @@ function EntryForm({
 
             <div>
               <label className="mb-1 block text-sm font-medium">{t("folderLabel")}</label>
-              <Select value={folderTarget} onValueChange={(v) => v && setFolderTarget(v)}>
+              <Select
+                value={folderTarget}
+                onValueChange={(v) => v && setFolderTarget(v)}
+                items={folderSelectItems(folders, t("vaultRootLabel"))}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -1566,7 +1615,14 @@ function EntryForm({
             <div>
               <label className="mb-1 block text-sm font-medium">{t("categoryLabel")}</label>
               <div className="flex gap-2">
-                <Select value={effectiveCategory} onValueChange={(v) => v && setCategoryId(v)}>
+                <Select
+                  value={effectiveCategory}
+                  onValueChange={(v) => v && setCategoryId(v)}
+                  items={[
+                    { value: "none", label: t("categoryNone") },
+                    ...taxonomy.categories.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                >
                   <SelectTrigger className="flex-1">
                     <SelectValue />
                   </SelectTrigger>
@@ -1628,6 +1684,7 @@ function EntryForm({
                     <Select
                       value={normalizedFieldType(field.field_type)}
                       onValueChange={(v) => v && updateFieldType(i, v as FieldType)}
+                      items={FIELD_TYPES.map((type) => ({ value: type, label: t(FIELD_TYPE_KEYS[type]) }))}
                     >
                       <SelectTrigger className="w-36">
                         <SelectValue />
@@ -2092,7 +2149,11 @@ function EntryDetail({
             <DialogTitle>{t("moveToFolderDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
-            <Select value={moveTarget} onValueChange={(v) => v && setMoveTarget(v)}>
+            <Select
+              value={moveTarget}
+              onValueChange={(v) => v && setMoveTarget(v)}
+              items={folderSelectItems(folders, t("vaultRootLabel"))}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

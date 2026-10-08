@@ -578,7 +578,9 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
               </div>
               <div>
                 <Label>{t("importModeLabel")}</Label>
-                <Select value={mode} onValueChange={(v) => v && setMode(v as ImportMode)}>
+                <Select
+                  value={mode}
+                  onValueChange={(v) => v && setMode(v as ImportMode)} items={(Object.keys(modeLabels) as ImportMode[]).map((key) => ({ value: key, label: modeLabels[key], }))}>
                   <SelectTrigger className="mt-1">
                     <SelectValue />
                   </SelectTrigger>
@@ -894,7 +896,7 @@ export function SettingsView({
               </CardTitle>
               <CardDescription className="text-sm">{t("themeCardDescription")}</CardDescription>
             </div>
-            <Select value={theme} onValueChange={handleThemeChange}>
+            <Select value={theme} onValueChange={handleThemeChange} items={Object.entries(THEME_LABELS).map(([key, label]) => ({ value: key as Theme, label: (<span className="flex items-center gap-2"> {THEME_ICONS[key as Theme]} {label} </span>), }))}>
               <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue />
               </SelectTrigger>
@@ -921,7 +923,7 @@ export function SettingsView({
               </CardTitle>
               <CardDescription className="text-sm">{t("languageCardDescription")}</CardDescription>
             </div>
-            <Select value={language} onValueChange={handleLanguageChange}>
+            <Select value={language} onValueChange={handleLanguageChange} items={Object.entries(LANGUAGE_LABELS).map(([key, label]) => ({ value: key, label }))}            >
               <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue />
               </SelectTrigger>
@@ -1001,7 +1003,7 @@ export function SettingsView({
                   <p className="text-sm font-medium">{t("autoLockIntervalLabel")}</p>
                   <p className="text-xs text-muted-foreground">{t("autoLockIntervalDescription")}</p>
                 </div>
-                <Select value={autoLockDuration} onValueChange={handleAutoLockChange}>
+                <Select value={autoLockDuration} onValueChange={handleAutoLockChange} items={Object.entries(AUTO_LOCK_LABELS).map(([key, label]) => ({ value: key as AutoLockDuration, label, }))}>
                   <SelectTrigger className="w-[160px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -1090,7 +1092,9 @@ export function SettingsView({
                   <p className="text-sm font-medium">{t("textSizeLabel")}</p>
                   <p className="text-xs text-muted-foreground">{t("textSizeDescription")}</p>
                 </div>
-                <Select value={textSize} onValueChange={handleTextSizeChange}>
+                <Select
+                  value={textSize}
+                  onValueChange={handleTextSizeChange} items={Object.entries(TEXT_SIZE_LABELS).map(([key, label]) => ({ value: key as TextSize, label, }))}>
                   <SelectTrigger className="w-[140px]">
                     <SelectValue />
                   </SelectTrigger>

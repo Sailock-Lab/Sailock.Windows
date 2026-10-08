@@ -376,7 +376,30 @@ export function ActivityView() {
           <CardContent className="pt-0">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
               <div className="flex flex-wrap gap-2">
-                <Select value={filter} onValueChange={(v) => v && setFilter(v as ActivityType | "all")}>
+                <Select
+                  value={filter}
+                  onValueChange={(v) => v && setFilter(v as ActivityType | "all")}
+                  items={[
+                    {
+                      value: "all",
+                      label: (
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-gray-400" />
+                          {t("filterAllLabel")}
+                        </span>
+                      ),
+                    },
+                    ...Object.entries(TYPE_LABELS).map(([key, label]) => ({
+                      value: key as ActivityType,
+                      label: (
+                        <span className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${TYPE_COLORS[key as ActivityType]}`} />
+                          {label}
+                        </span>
+                      ),
+                    })),
+                  ]}
+                >
                   <SelectTrigger className="w-[160px] h-9">
                     <SelectValue placeholder={t("filterTypePlaceholder")} />
                   </SelectTrigger>
