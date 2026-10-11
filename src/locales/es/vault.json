@@ -141,7 +141,7 @@
     "deleteAuthHint": "Para confirmar, introduce tu contraseña maestra.",
     "trashDialogTitle": "Abrir la papelera",
     "trashDialogDescription": "Introduce tu contraseña maestra para ver los elementos de la papelera.",
-     "sectionBasicInfo": "Información básica",
+    "sectionBasicInfo": "Información básica",
     "sectionOptions": "Opciones",
     "folderLabel": "Carpeta",
     "addToFavorites": "Añadir a favoritos",
@@ -206,5 +206,7 @@
     "historyTrashed": "Enviado a la papelera",
     "historyRestored": "Restaurado de la papelera",
     "historyFavoriteAdded": "Añadido a favoritos",
-    "historyFavoriteRemoved": "Quitado de favoritos"
+    "historyFavoriteRemoved": "Quitado de favoritos",
+    "historySensitivityChanged": "Se cambió la visibilidad del campo «{{field}}»",
+    "historyConfigChanged": "Se cambiaron los ajustes del campo «{{field}}»"
 }

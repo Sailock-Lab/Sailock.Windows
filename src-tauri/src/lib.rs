@@ -30,6 +30,23 @@ struct CustomField {
     // Solo para el tipo "select": opciones que define el usuario para ESE campo de ESE registro
     #[serde(default)]
     options: Vec<String>,
+    // El valor se oculta por defecto y pide la contraseña maestra para verse (barrera de interfaz)
+    #[serde(default)]
+    sensitive: bool,
+    // Ajustes propios de cada tipo (decimales, país, mínimo/máximo...). Cada tipo define los suyos.
+    #[serde(default)]
+    config: Option<serde_json::Value>,
+}
+
+// Campo de texto simple y sin plantilla. Usa los valores por defecto para el resto,
+// así añadir campos nuevos a CustomField no obliga a tocar cada sitio que lo crea.
+fn plain_field(label: &str, value: String) -> CustomField {
+    CustomField {
+        label: label.to_string(),
+        value,
+        field_type: "text".to_string(),
+        ..Default::default()
+    }
 }
 
 // Evento del historial de un registro. NUNCA guarda valores (contraseñas, notas...),
@@ -39,7 +56,8 @@ struct CustomField {
 struct HistoryEvent {
     timestamp: u64,
     // "created" | "field_modified" | "field_added" | "field_removed" | "field_renamed"
-    // | "field_type_changed" | "field_options_changed" | "avatar_changed" | "moved" | "trashed" | "restored"
+    // | "field_type_changed" | "field_options_changed" | "field_sensitivity_changed"
+    // | "field_config_changed" | "avatar_changed" | "moved" | "trashed" | "restored"
     // | "favorite_added" | "favorite_removed"
     action: String,
     // Etiqueta del campo, o "builtin:<clave>" para los campos fijos (name, username, ...)
@@ -129,13 +147,25 @@ fn diff_entries(old: &Entry, new: &Entry) -> Vec<HistoryEvent> {
         events.push(history_event("field_modified", Some("builtin:name"), None));
     }
     if old.username != new.username {
-        events.push(history_event("field_modified", Some("builtin:username"), None));
+        events.push(history_event(
+            "field_modified",
+            Some("builtin:username"),
+            None,
+        ));
     }
     if old.password != new.password {
-        events.push(history_event("field_modified", Some("builtin:password"), None));
+        events.push(history_event(
+            "field_modified",
+            Some("builtin:password"),
+            None,
+        ));
     }
     if old.website != new.website {
-        events.push(history_event("field_modified", Some("builtin:website"), None));
+        events.push(history_event(
+            "field_modified",
+            Some("builtin:website"),
+            None,
+        ));
     }
     if old.notes != new.notes {
         events.push(history_event("field_modified", Some("builtin:notes"), None));
@@ -155,7 +185,11 @@ fn diff_entries(old: &Entry, new: &Entry) -> Vec<HistoryEvent> {
         events.push(history_event("field_modified", Some("builtin:tags"), None));
     }
     if old.category_id != new.category_id {
-        events.push(history_event("field_modified", Some("builtin:category"), None));
+        events.push(history_event(
+            "field_modified",
+            Some("builtin:category"),
+            None,
+        ));
     }
 
     // Campos extra y de plantilla: primero se emparejan por etiqueta
@@ -174,7 +208,21 @@ fn diff_entries(old: &Entry, new: &Entry) -> Vec<HistoryEvent> {
                 events.push(history_event("field_type_changed", Some(&nf.label), None));
             }
             if of.options != nf.options {
-                events.push(history_event("field_options_changed", Some(&nf.label), None));
+                events.push(history_event(
+                    "field_options_changed",
+                    Some(&nf.label),
+                    None,
+                ));
+            }
+            if of.sensitive != nf.sensitive {
+                events.push(history_event(
+                    "field_sensitivity_changed",
+                    Some(&nf.label),
+                    None,
+                ));
+            }
+            if of.config != nf.config {
+                events.push(history_event("field_config_changed", Some(&nf.label), None));
             }
             if of.value != nf.value {
                 events.push(history_event("field_modified", Some(&nf.label), None));
@@ -710,38 +758,10 @@ fn save_backup_batch(
             batch.codes.join("\n")
         )),
         custom_fields: vec![
-            CustomField {
-                label: "Alfabeto".to_string(),
-                value: batch.alphabet,
-                field_type: "text".to_string(),
-                is_preset: false,
-                preset_key: None,
-                options: Vec::new(),
-            },
-            CustomField {
-                label: "Longitud".to_string(),
-                value: batch.length.to_string(),
-                field_type: "text".to_string(),
-                is_preset: false,
-                preset_key: None,
-                options: Vec::new(),
-            },
-            CustomField {
-                label: "Número de códigos".to_string(),
-                value: batch.count.to_string(),
-                field_type: "text".to_string(),
-                is_preset: false,
-                preset_key: None,
-                options: Vec::new(),
-            },
-            CustomField {
-                label: "Códigos".to_string(),
-                value: batch.codes.join(", "),
-                field_type: "text".to_string(),
-                is_preset: false,
-                preset_key: None,
-                options: Vec::new(),
-            },
+            plain_field("Alfabeto", batch.alphabet),
+            plain_field("Longitud", batch.length.to_string()),
+            plain_field("Número de códigos", batch.count.to_string()),
+            plain_field("Códigos", batch.codes.join(", ")),
         ],
         totp_secret: None,
         entry_type: None,
@@ -1129,9 +1149,9 @@ fn build_totp(secret_input: &str, account_name: &str) -> Result<TOTP, String> {
         return Err("El secreto está vacío".into());
     }
 
-    let bytes = Secret::Encoded(normalized)
-        .to_bytes()
-        .map_err(|_| "El secreto no es un código base32 válido (solo letras A-Z y números 2-7)".to_string())?;
+    let bytes = Secret::Encoded(normalized).to_bytes().map_err(|_| {
+        "El secreto no es un código base32 válido (solo letras A-Z y números 2-7)".to_string()
+    })?;
 
     Ok(TOTP::new_unchecked(
         algorithm,
