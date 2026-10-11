@@ -1076,20 +1076,72 @@ fn clear_generator_history(
 
 use totp_rs::{Algorithm, Secret, TOTP};
 
-// Reconstruye el mismo objeto TOTP cada vez a partir del secreto guardado —
-// nunca guardamos el código en sí, solo el secreto, y lo recalculamos al vuelo.
-fn build_totp(secret_base32: &str, account_name: &str) -> Result<TOTP, String> {
-    let secret = Secret::Encoded(secret_base32.to_string());
-    TOTP::new(
-        Algorithm::SHA1,
-        6,
+// Sección TOTP en registro
+fn build_totp(secret_input: &str, account_name: &str) -> Result<TOTP, String> {
+    let mut secret_text = secret_input.trim().to_string();
+    let mut algorithm = Algorithm::SHA1;
+    let mut digits: usize = 6;
+    let mut step: u64 = 30;
+
+    if secret_text.to_lowercase().starts_with("otpauth://") {
+        let query = secret_text
+            .split_once('?')
+            .map(|(_, q)| q.to_string())
+            .ok_or("La URL otpauth no incluye parámetros")?;
+        let mut found_secret: Option<String> = None;
+        for pair in query.split('&') {
+            let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
+            match key.to_lowercase().as_str() {
+                "secret" => found_secret = Some(value.to_string()),
+                "algorithm" => {
+                    algorithm = match value.to_uppercase().as_str() {
+                        "SHA256" => Algorithm::SHA256,
+                        "SHA512" => Algorithm::SHA512,
+                        _ => Algorithm::SHA1,
+                    }
+                }
+                "digits" => {
+                    if let Ok(d) = value.parse::<usize>() {
+                        if (6..=8).contains(&d) {
+                            digits = d;
+                        }
+                    }
+                }
+                "period" => {
+                    if let Ok(p) = value.parse::<u64>() {
+                        if p > 0 {
+                            step = p;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        secret_text = found_secret.ok_or("La URL otpauth no incluye el secreto")?;
+    }
+
+    let normalized: String = secret_text
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != '-' && *c != '=')
+        .collect::<String>()
+        .to_uppercase();
+    if normalized.is_empty() {
+        return Err("El secreto está vacío".into());
+    }
+
+    let bytes = Secret::Encoded(normalized)
+        .to_bytes()
+        .map_err(|_| "El secreto no es un código base32 válido (solo letras A-Z y números 2-7)".to_string())?;
+
+    Ok(TOTP::new_unchecked(
+        algorithm,
+        digits,
         1,
-        30,
-        secret.to_bytes().map_err(|e| e.to_string())?,
+        step,
+        bytes,
         Some("Sailock".to_string()),
         account_name.to_string(),
-    )
-    .map_err(|e| e.to_string())
+    ))
 }
 
 // Crea un secreto nuevo, aleatorio, de 160 bits — se usa una sola vez al configurar el 2FA
