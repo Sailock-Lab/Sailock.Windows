@@ -262,6 +262,11 @@ export function isValueCompatible(from: string | undefined, to: FieldType): bool
   return !!getFieldType(from).textLike && !!FIELD_TYPE_REGISTRY[to].textLike;
 }
 
+// Un campo es sensible si se marcó así o si es de tipo contraseña (siempre lo ha sido).
+export function isFieldSensitive(field: CustomFieldData): boolean {
+  return !!field.sensitive || normalizedFieldType(field.field_type) === "password";
+}
+
 // ---------- Entrada de valor según el tipo (formularios) ----------
 
 export function FieldValueInput({

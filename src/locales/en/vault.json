@@ -140,7 +140,7 @@
     "deleteAuthHint": "To confirm, enter your master password.",
     "trashDialogTitle": "Open the trash",
     "trashDialogDescription": "Enter your master password to view the items in the trash.",
-        "sectionBasicInfo": "Basic information",
+    "sectionBasicInfo": "Basic information",
     "sectionOptions": "Options",
     "folderLabel": "Folder",
     "addToFavorites": "Add to favorites",
@@ -204,6 +204,7 @@
     "historyMovedRoot": "Moved to the vault root",
     "historyTrashed": "Moved to trash",
     "historyRestored": "Restored from trash",
-    "historyFavoriteAdded": "Added to favorites",
-    "historyFavoriteRemoved": "Removed from favorites"
+    "historySensitivityChanged": "Se cambió la visibilidad del campo «{{field}}»",
+    "historyConfigChanged": "Se cambiaron los ajustes del campo «{{field}}»",
+    "fieldSensitiveLabel": "Ocultar valor por defecto"
 }

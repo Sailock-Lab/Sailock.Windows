@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,7 @@ import {
   FieldValueInput,
   OptionsEditor,
   UrlValue,
+  isFieldSensitive,
   isValueCompatible,
   normalizedFieldType,
   resolveAvatarMode,
@@ -221,6 +223,10 @@ function describeHistory(t: TFn, ev: HistoryEvent): string {
       return t("historyAvatarChanged");
     case "field_options_changed":
       return t("historyOptionsChanged", opts({ field }));
+    case "field_sensitivity_changed":
+      return t("historySensitivityChanged", opts({ field }));
+    case "field_config_changed":
+      return t("historyConfigChanged", opts({ field }));
     case "moved":
       return ev.extra ? t("historyMoved", opts({ folder: ev.extra })) : t("historyMovedRoot");
     case "trashed":
@@ -1412,9 +1418,20 @@ function EntryForm({
   const updateFieldType = (index: number, type: FieldType) => {
     setCustomFields(
       customFields.map((f, i) =>
-        i === index ? { ...f, field_type: type, value: isValueCompatible(f.field_type, type) ? f.value : "" } : f
+        i === index
+          ? {
+              ...f,
+              field_type: type,
+              // Un campo que ya era sensible (p. ej. de tipo contraseña) no pasa a verse al cambiar de tipo.
+              sensitive: isFieldSensitive(f),
+              value: isValueCompatible(f.field_type, type) ? f.value : "",
+            }
+          : f
       )
     );
+  };
+  const updateFieldSensitive = (index: number, sensitive: boolean) => {
+    setCustomFields(customFields.map((f, i) => (i === index ? { ...f, sensitive } : f)));
   };
   const removeField = (index: number) => {
     setCustomFields(customFields.filter((_, i) => i !== index));
@@ -1726,6 +1743,14 @@ function EntryForm({
                   {normalizedFieldType(field.field_type) === "select" && (
                     <OptionsEditor options={field.options ?? []} onChange={(options) => updateFieldOptions(i, options)} />
                   )}
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={isFieldSensitive(field)}
+                      disabled={normalizedFieldType(field.field_type) === "password"}
+                      onCheckedChange={(v) => updateFieldSensitive(i, v)}
+                    />
+                    <span className="text-xs text-muted-foreground">{t("fieldSensitiveLabel")}</span>
+                  </div>
                   <FieldValueInput field={field} onChange={(val) => updateField(i, "value", val)} />
                 </div>
               ))}
@@ -1917,13 +1942,19 @@ function EntryDetail({
     .filter((tg): tg is TaxonomyItem => !!tg);
 
   const renderFieldRow = (field: CustomFieldData, i: number) => {
-    const type = normalizedFieldType(field.field_type);
+    const sensitive = isFieldSensitive(field);
     return (
       <div key={i} className="rounded-md border bg-muted/30 p-3">
         <p className="mb-1 text-xs text-muted-foreground">{field.label}</p>
-        {type === "password" ? (
+        {sensitive ? (
           <div className="flex items-center gap-1">
-            <p className="mr-1 font-mono">{visibleCustomFields[i] ? field.value : "•".repeat(10)}</p>
+            <div className="mr-1 min-w-0 font-mono">
+              {visibleCustomFields[i] ? (
+                <FieldPlainValue field={field} onOpenUrl={requestOpen} />
+              ) : (
+                "•".repeat(10)
+              )}
+            </div>
             <Button
               variant="ghost"
               size="icon"
