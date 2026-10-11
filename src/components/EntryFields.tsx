@@ -1,11 +1,11 @@
-// src/components/EntryFields.tsx
-// Piezas reutilizables de la Bóveda: tipos de campo, avatar/logo del registro
-// y apertura segura de enlaces en el navegador.
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
-import { Eye, EyeOff, ExternalLink, ImagePlus, Plus, X } from "lucide-react";
+import {
+  Calendar, Clock, Eye, EyeOff, ExternalLink, Hash, ImagePlus, KeyRound,
+  Link2, List, Plus, ToggleLeft, Type as TypeIcon, X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -16,49 +16,114 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 export type FieldType = "text" | "password" | "number" | "boolean" | "date" | "time" | "url" | "select";
 
-export const FIELD_TYPES: FieldType[] = ["text", "password", "number", "boolean", "date", "time", "url", "select"];
-
-// Clave de traducción (namespace "vault") de cada tipo
-export const FIELD_TYPE_KEYS: Record<FieldType, string> = {
-  text: "fieldTypeText",
-  password: "fieldTypePassword",
-  number: "fieldTypeNumber",
-  boolean: "fieldTypeBoolean",
-  date: "fieldTypeDate",
-  time: "fieldTypeTime",
-  url: "fieldTypeUrl",
-  select: "fieldTypeSelect",
-};
-
 export interface CustomFieldData {
   label: string;
   value: string;
   field_type: string; // uno de FIELD_TYPES
   is_preset?: boolean;
   preset_key?: string | null;
-  options?: string[]; // solo para el tipo "select": opciones definidas por el usuario para este campo
+  options?: string[]; // solo para el tipo "select"
+  sensitive?: boolean; // oculto por defecto, pide la contraseña maestra
+  config?: Record<string, unknown> | null; // ajustes propios del tipo
 }
 
-export function normalizedFieldType(type: string | undefined): FieldType {
-  return (FIELD_TYPES as string[]).includes(type ?? "") ? (type as FieldType) : "text";
+export interface FieldEditorProps {
+  field: CustomFieldData;
+  onChange: (value: string) => void;
 }
 
-// Tipos cuyo valor es texto libre: al cambiar entre ellos se conserva el valor.
-const TEXT_LIKE: FieldType[] = ["text", "password", "url"];
-export function isValueCompatible(from: string | undefined, to: FieldType): boolean {
-  return TEXT_LIKE.includes(normalizedFieldType(from)) && TEXT_LIKE.includes(to);
+export interface FieldViewerProps {
+  field: CustomFieldData;
+  onOpenUrl: (url: string) => void;
 }
 
-function formatDateValue(value: string): string {
-  const d = new Date(`${value}T00:00:00`);
-  return Number.isNaN(d.getTime())
-    ? value
-    : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "numeric" });
+// Cada tipo declara aquí todo lo que lo define. Para añadir uno nuevo:
+// un Editor, un Viewer y una entrada en FIELD_TYPE_DEFS.
+interface FieldTypeDef {
+  id: FieldType;
+  labelKey: string; // clave de traducción (namespace "vault")
+  icon: IconComponent;
+  textLike?: boolean; // valor de texto libre: se conserva al cambiar entre tipos así
+  showWhenEmpty?: boolean; // el Viewer decide cómo pintar el valor vacío
+  Editor: React.ComponentType<FieldEditorProps>;
+  Viewer: React.ComponentType<FieldViewerProps>;
 }
 
-// ---------- Entrada de hora: dos casillas con ":" en medio ----------
+// ----- Editores -----
 
-function TimeInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function TextEditor({ field, onChange }: FieldEditorProps) {
+  const { t } = useTranslation("vault");
+  return (
+    <Input
+      placeholder={t("customFieldValuePlaceholder")}
+      value={field.value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+function PasswordEditor({ field, onChange }: FieldEditorProps) {
+  const { t } = useTranslation("vault");
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        type={visible ? "text" : "password"}
+        placeholder={t("customFieldValuePlaceholder")}
+        value={field.value}
+        onChange={(e) => onChange(e.target.value)}
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setVisible(!visible)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+      >
+        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
+function NumberEditor({ field, onChange }: FieldEditorProps) {
+  const { t } = useTranslation("vault");
+  return (
+    <Input
+      type="number"
+      placeholder={t("customFieldValuePlaceholder")}
+      value={field.value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+function BooleanEditor({ field, onChange }: FieldEditorProps) {
+  const { t } = useTranslation("vault");
+  return (
+    <div className="flex items-center gap-2">
+      <Switch checked={field.value === "true"} onCheckedChange={(v) => onChange(v ? "true" : "false")} />
+      <span className="text-sm text-muted-foreground">
+        {field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}
+      </span>
+    </div>
+  );
+}
+
+function DateEditor({ field, onChange }: FieldEditorProps) {
+  // El selector de calendario lo aporta el propio sistema (WebView).
+  return (
+    <Input
+      type="date"
+      value={field.value}
+      onChange={(e) => onChange(e.target.value)}
+      className="dark:[color-scheme:dark]"
+    />
+  );
+}
+
+// Entrada de hora: dos casillas con ":" en medio
+function TimeEditor({ field, onChange }: FieldEditorProps) {
+  const value = field.value;
   const [h, m] = value.includes(":") ? value.split(":") : ["", ""];
 
   const emit = (nh: string, nm: string) => onChange(nh === "" && nm === "" ? "" : `${nh}:${nm}`);
@@ -95,6 +160,108 @@ function TimeInput({ value, onChange }: { value: string; onChange: (value: strin
   );
 }
 
+function UrlEditor({ field, onChange }: FieldEditorProps) {
+  return (
+    <Input
+      inputMode="url"
+      placeholder="https://"
+      value={field.value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+function SelectEditor({ field, onChange }: FieldEditorProps) {
+  const { t } = useTranslation("vault");
+  const options = field.options ?? [];
+  if (options.length === 0) {
+    return <p className="text-xs text-muted-foreground">{t("selectNoOptions")}</p>;
+  }
+  return (
+    <Select value={field.value} onValueChange={(v) => v && onChange(v)}>
+      <SelectTrigger>
+        <SelectValue placeholder={t("selectPlaceholder")} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {option}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+// ----- Visores (solo lectura) -----
+
+function formatDateValue(value: string): string {
+  const d = new Date(`${value}T00:00:00`);
+  return Number.isNaN(d.getTime())
+    ? value
+    : d.toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function TextViewer({ field }: FieldViewerProps) {
+  return <p className="break-words">{field.value}</p>;
+}
+
+function BooleanViewer({ field }: FieldViewerProps) {
+  const { t } = useTranslation("vault");
+  return <p>{field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}</p>;
+}
+
+function DateViewer({ field }: FieldViewerProps) {
+  return <p>{formatDateValue(field.value)}</p>;
+}
+
+function TimeViewer({ field }: FieldViewerProps) {
+  return <p className="font-mono">{field.value}</p>;
+}
+
+function UrlViewer({ field, onOpenUrl }: FieldViewerProps) {
+  return <UrlValue value={field.value} onOpen={onOpenUrl} />;
+}
+
+// ----- El registro -----
+
+const FIELD_TYPE_DEFS: FieldTypeDef[] = [
+  { id: "text", labelKey: "fieldTypeText", icon: TypeIcon, textLike: true, Editor: TextEditor, Viewer: TextViewer },
+  { id: "password", labelKey: "fieldTypePassword", icon: KeyRound, textLike: true, Editor: PasswordEditor, Viewer: TextViewer },
+  { id: "number", labelKey: "fieldTypeNumber", icon: Hash, Editor: NumberEditor, Viewer: TextViewer },
+  { id: "boolean", labelKey: "fieldTypeBoolean", icon: ToggleLeft, showWhenEmpty: true, Editor: BooleanEditor, Viewer: BooleanViewer },
+  { id: "date", labelKey: "fieldTypeDate", icon: Calendar, Editor: DateEditor, Viewer: DateViewer },
+  { id: "time", labelKey: "fieldTypeTime", icon: Clock, Editor: TimeEditor, Viewer: TimeViewer },
+  { id: "url", labelKey: "fieldTypeUrl", icon: Link2, textLike: true, Editor: UrlEditor, Viewer: UrlViewer },
+  { id: "select", labelKey: "fieldTypeSelect", icon: List, Editor: SelectEditor, Viewer: TextViewer },
+];
+
+const FIELD_TYPE_REGISTRY = Object.fromEntries(FIELD_TYPE_DEFS.map((d) => [d.id, d])) as Record<
+  FieldType,
+  FieldTypeDef
+>;
+
+export const FIELD_TYPES: FieldType[] = FIELD_TYPE_DEFS.map((d) => d.id);
+
+// Clave de traducción (namespace "vault") de cada tipo
+export const FIELD_TYPE_KEYS = Object.fromEntries(FIELD_TYPE_DEFS.map((d) => [d.id, d.labelKey])) as Record<
+  FieldType,
+  string
+>;
+
+export function normalizedFieldType(type: string | undefined): FieldType {
+  return (FIELD_TYPES as string[]).includes(type ?? "") ? (type as FieldType) : "text";
+}
+
+export function getFieldType(type: string | undefined): FieldTypeDef {
+  return FIELD_TYPE_REGISTRY[normalizedFieldType(type)];
+}
+
+// Tipos cuyo valor es texto libre: al cambiar entre ellos se conserva el valor.
+export function isValueCompatible(from: string | undefined, to: FieldType): boolean {
+  return !!getFieldType(from).textLike && !!FIELD_TYPE_REGISTRY[to].textLike;
+}
+
 // ---------- Entrada de valor según el tipo (formularios) ----------
 
 export function FieldValueInput({
@@ -104,108 +271,8 @@ export function FieldValueInput({
   field: CustomFieldData;
   onChange: (value: string) => void;
 }) {
-  const { t } = useTranslation("vault");
-  const [visible, setVisible] = useState(false);
-  const type = normalizedFieldType(field.field_type);
-
-  if (type === "boolean") {
-    return (
-      <div className="flex items-center gap-2">
-        <Switch checked={field.value === "true"} onCheckedChange={(v) => onChange(v ? "true" : "false")} />
-        <span className="text-sm text-muted-foreground">
-          {field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}
-        </span>
-      </div>
-    );
-  }
-
-  if (type === "select") {
-    const options = field.options ?? [];
-    if (options.length === 0) {
-      return <p className="text-xs text-muted-foreground">{t("selectNoOptions")}</p>;
-    }
-    return (
-      <Select value={field.value} onValueChange={(v) => v && onChange(v)}>
-        <SelectTrigger>
-          <SelectValue placeholder={t("selectPlaceholder")} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option} value={option}>
-              {option}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
-  }
-
-  if (type === "number") {
-    return (
-      <Input
-        type="number"
-        placeholder={t("customFieldValuePlaceholder")}
-        value={field.value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    );
-  }
-
-  if (type === "date") {
-    // El selector de calendario lo aporta el propio sistema (WebView).
-    return (
-      <Input
-        type="date"
-        value={field.value}
-        onChange={(e) => onChange(e.target.value)}
-        className="dark:[color-scheme:dark]"
-      />
-    );
-  }
-
-  if (type === "time") {
-    return <TimeInput value={field.value} onChange={onChange} />;
-  }
-
-  if (type === "password") {
-    return (
-      <div className="relative">
-        <Input
-          type={visible ? "text" : "password"}
-          placeholder={t("customFieldValuePlaceholder")}
-          value={field.value}
-          onChange={(e) => onChange(e.target.value)}
-          className="pr-10"
-        />
-        <button
-          type="button"
-          onClick={() => setVisible(!visible)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-        >
-          {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
-    );
-  }
-
-  if (type === "url") {
-    return (
-      <Input
-        inputMode="url"
-        placeholder="https://"
-        value={field.value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    );
-  }
-
-  return (
-    <Input
-      placeholder={t("customFieldValuePlaceholder")}
-      value={field.value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
+  const def = getFieldType(field.field_type);
+  return <def.Editor field={field} onChange={onChange} />;
 }
 
 // ---------- Editor de opciones de un campo de lista desplegable ----------
@@ -388,8 +455,6 @@ export function UrlValue({ value, onOpen }: { value: string; onOpen: (url: strin
 }
 
 // ---------- Valor de solo lectura según el tipo (detalle) ----------
-// Las contraseñas las gestiona quien lo usa (necesitan pedir la contraseña maestra).
-
 export function FieldPlainValue({
   field,
   onOpenUrl,
@@ -397,15 +462,9 @@ export function FieldPlainValue({
   field: CustomFieldData;
   onOpenUrl: (url: string) => void;
 }) {
-  const { t } = useTranslation("vault");
-  const type = normalizedFieldType(field.field_type);
-
-  if (type === "boolean") return <p>{field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}</p>;
-  if (!field.value) return <p className="text-muted-foreground">—</p>;
-  if (type === "date") return <p>{formatDateValue(field.value)}</p>;
-  if (type === "time") return <p className="font-mono">{field.value}</p>;
-  if (type === "url") return <UrlValue value={field.value} onOpen={onOpenUrl} />;
-  return <p className="break-words">{field.value}</p>;
+  const def = getFieldType(field.field_type);
+  if (!field.value && !def.showWhenEmpty) return <p className="text-muted-foreground">—</p>;
+  return <def.Viewer field={field} onOpenUrl={onOpenUrl} />;
 }
 
 // ---------- Avatar del registro: icono del tipo, inicial o imagen del usuario ----------
