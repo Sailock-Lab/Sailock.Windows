@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus,
-  KeyRound,
   X,
   Pencil,
   Trash2,
@@ -28,11 +27,6 @@ import {
   Search,
   Copy,
   Check,
-  IdCard,
-  CreditCard,
-  StickyNote,
-  Wifi,
-  Sparkles,
   List,
   LayoutGrid,
   Folder,
@@ -43,9 +37,9 @@ import {
   ArrowUp,
   ArrowDown,
   Settings2,
-  LucideIcon,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
+import { entryIcon, findTemplate, MAIN_TEMPLATES, MORE_TEMPLATES, TEMPLATES, type EntryTemplate } from "./templates";
 import {
   AvatarMode,
   AvatarPicker,
@@ -253,128 +247,6 @@ function folderSelectItems(folders: FolderData[], rootLabel: string) {
   ];
 }
 
-interface TemplateFieldPreset {
-  labelKey: string;
-  type: FieldType;
-}
-
-interface EntryTemplate {
-  id: string;
-  icon: LucideIcon;
-  labelKey: string;
-  nameLabelKey: string;
-  showUsername: boolean;
-  showPassword: boolean;
-  showWebsite: boolean;
-  showTotp: boolean;
-  presetFields: TemplateFieldPreset[];
-}
-
-const TEMPLATES: EntryTemplate[] = [
-  {
-    id: "password",
-    icon: KeyRound,
-    labelKey: "templatePassword",
-    nameLabelKey: "fieldName",
-    showUsername: true,
-    showPassword: true,
-    showWebsite: true,
-    showTotp: true,
-    presetFields: [],
-  },
-  {
-    id: "identity",
-    icon: IdCard,
-    labelKey: "templateIdentity",
-    nameLabelKey: "presetFullName",
-    showUsername: false,
-    showPassword: false,
-    showWebsite: false,
-    showTotp: false,
-    presetFields: [
-      { labelKey: "presetIdDocument", type: "password" },
-      { labelKey: "presetDateOfBirth", type: "date" },
-      { labelKey: "presetNationality", type: "text" },
-      { labelKey: "presetAddress", type: "text" },
-      { labelKey: "presetCity", type: "text" },
-      { labelKey: "presetStateProvince", type: "text" },
-      { labelKey: "presetPostalCode", type: "text" },
-      { labelKey: "presetCountry", type: "text" },
-      { labelKey: "presetPhone", type: "text" },
-      { labelKey: "presetEmail", type: "text" },
-    ],
-  },
-  {
-    id: "card",
-    icon: CreditCard,
-    labelKey: "templateCard",
-    nameLabelKey: "presetCardName",
-    showUsername: false,
-    showPassword: false,
-    showWebsite: false,
-    showTotp: false,
-    presetFields: [
-      { labelKey: "presetCardHolder", type: "text" },
-      { labelKey: "presetCardNumber", type: "password" },
-      { labelKey: "presetExpiryDate", type: "text" },
-      { labelKey: "presetCvv", type: "password" },
-      { labelKey: "presetPin", type: "password" },
-      { labelKey: "presetBank", type: "text" },
-      { labelKey: "presetCardType", type: "text" },
-    ],
-  },
-  {
-    id: "note",
-    icon: StickyNote,
-    labelKey: "templateNote",
-    nameLabelKey: "presetTitle",
-    showUsername: false,
-    showPassword: false,
-    showWebsite: false,
-    showTotp: false,
-    presetFields: [],
-  },
-  {
-    id: "wifi",
-    icon: Wifi,
-    labelKey: "templateWifi",
-    nameLabelKey: "presetSsid",
-    showUsername: false,
-    showPassword: true,
-    showWebsite: false,
-    showTotp: false,
-    presetFields: [
-      { labelKey: "presetSecurityType", type: "text" },
-      { labelKey: "presetWifiUsername", type: "text" },
-      { labelKey: "presetAuthMethod", type: "text" },
-    ],
-  },
-  {
-    id: "custom",
-    icon: Sparkles,
-    labelKey: "templateCustom",
-    nameLabelKey: "fieldName",
-    showUsername: true,
-    showPassword: true,
-    showWebsite: true,
-    showTotp: true,
-    presetFields: [],
-  },
-];
-
-const TEMPLATE_ICONS: Record<string, LucideIcon> = {
-  password: KeyRound,
-  identity: IdCard,
-  card: CreditCard,
-  note: StickyNote,
-  wifi: Wifi,
-  custom: Sparkles,
-};
-
-function entryIcon(entryType?: string | null): LucideIcon {
-  return (entryType && TEMPLATE_ICONS[entryType]) || KeyRound;
-}
-
 interface VaultViewProps {
   prefillPassword?: string | null;
   onPrefillConsumed?: () => void;
@@ -433,7 +305,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   useEffect(() => {
     if (prefillPassword) {
       setPendingPassword(prefillPassword);
-      setSelectedTemplate(TEMPLATES.find((tpl) => tpl.id === "password") ?? null);
+      setSelectedTemplate(findTemplate("password") ?? null);
       setFormMode("create");
       setSelectedId(null);
     }
@@ -708,7 +580,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
 
   const typeBadgeLabel = (entryType?: string | null) =>
     entryType
-      ? t(TEMPLATES.find((tp) => tp.id === entryType)?.labelKey ?? "templateUncategorized")
+      ? t(findTemplate(entryType)?.labelKey ?? "templateUncategorized")
       : t("templateUncategorized");
 
   return (
@@ -1058,33 +930,43 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
       </Dialog>
 
       <Dialog open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("templatePickerTitle")}</DialogTitle>
             <DialogDescription>{t("templatePickerDescription")}</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {TEMPLATES.map((tpl) => {
-              const Icon = tpl.icon;
-              return (
-                <button
-                  key={tpl.id}
-                  onClick={() => {
-                    setSelectedTemplate(tpl);
-                    setTemplatePickerOpen(false);
-                    setFormMode("create");
-                    setSelectedId(null);
-                  }}
-                  className="flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center hover:bg-muted hover:border-primary transition-colors"
-                >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-foreground">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <span className="text-xs font-medium">{t(tpl.labelKey)}</span>
-                </button>
-              );
-            })}
-          </div>
+          {[
+            { id: "main", title: t("templatesMain"), templates: MAIN_TEMPLATES },
+            { id: "more", title: t("templatesMore"), templates: MORE_TEMPLATES },
+          ].map((section) => (
+            <div key={section.id} className="flex flex-col gap-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {section.title}
+              </h4>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                {section.templates.map((tpl) => {
+                  const Icon = tpl.icon;
+                  return (
+                    <button
+                      key={tpl.id}
+                      onClick={() => {
+                        setSelectedTemplate(tpl);
+                        setTemplatePickerOpen(false);
+                        setFormMode("create");
+                        setSelectedId(null);
+                      }}
+                      className="flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-colors hover:border-primary hover:bg-muted"
+                    >
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-foreground">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <span className="text-xs font-medium">{t(tpl.labelKey)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </DialogContent>
       </Dialog>
 
@@ -1106,7 +988,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
           {formMode === "create" && (
             <EntryForm
               initialPassword={pendingPassword ?? undefined}
-              template={selectedTemplate ?? TEMPLATES.find((tpl) => tpl.id === "custom")!}
+              template={selectedTemplate ?? findTemplate("custom")!}
               defaultFolderId={currentFolderId}
               folders={folders}
               {...taxonomyProps}
@@ -1367,6 +1249,9 @@ function EntryForm({
         field_type: f.type,
         is_preset: true,
         preset_key: f.labelKey,
+        sensitive: f.sensitive ?? false,
+        config: f.config ?? defaultConfigFor(f.type),
+        options: (f.optionKeys ?? []).map((key) => t(key)),
       }));
     }
     return [];
@@ -1386,7 +1271,7 @@ function EntryForm({
   const entryTypeToSave = initial ? initial.entry_type ?? null : activeTemplate ? activeTemplate.id : null;
   const HeaderIcon = entryIcon(entryTypeToSave);
   const headerTypeLabel = entryTypeToSave
-    ? t(TEMPLATES.find((tp) => tp.id === entryTypeToSave)?.labelKey ?? "templateUncategorized")
+    ? t(findTemplate(entryTypeToSave)?.labelKey ?? "templateUncategorized")
     : t("templateUncategorized");
 
   const indexedFields = customFields.map((field, i) => ({ field, i }));
@@ -2030,7 +1915,7 @@ function EntryDetail({
   const extraFields = indexedFields.filter((x) => !x.field.is_preset);
 
   const typeLabel = entry.entry_type
-    ? t(TEMPLATES.find((tp) => tp.id === entry.entry_type)?.labelKey ?? "templateUncategorized")
+    ? t(findTemplate(entry.entry_type)?.labelKey ?? "templateUncategorized")
     : t("templateUncategorized");
   const folderLabel = entry.folder_id ? folderPath(folders, entry.folder_id) : t("vaultRootLabel");
   // Del más reciente al más antiguo (los eventos se guardan en orden cronológico).

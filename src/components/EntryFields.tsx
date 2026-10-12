@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import {
+  AlignLeft,
   Calendar,
   Clock,
   Coins,
@@ -61,6 +62,7 @@ import {
 
 export type FieldType =
   | "text"
+  | "longtext"
   | "password"
   | "number"
   | "currency"
@@ -124,6 +126,20 @@ function TextEditor({ field, onChange }: FieldEditorProps) {
   return (
     <Input
       placeholder={t("customFieldValuePlaceholder")}
+      value={field.value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+// Texto de varias líneas (claves privadas, listas de códigos...): conserva los saltos de línea.
+function LongTextEditor({ field, onChange }: FieldEditorProps) {
+  const { t } = useTranslation("vault");
+  return (
+    <textarea
+      placeholder={t("customFieldValuePlaceholder")}
+      className="min-h-24 w-full rounded border bg-transparent p-2 font-mono text-sm"
+      spellCheck={false}
       value={field.value}
       onChange={(e) => onChange(e.target.value)}
     />
@@ -273,6 +289,10 @@ function TextViewer({ field }: FieldViewerProps) {
   return <p className="break-words">{field.value}</p>;
 }
 
+function LongTextViewer({ field }: FieldViewerProps) {
+  return <p className="whitespace-pre-wrap break-words">{field.value}</p>;
+}
+
 function BooleanViewer({ field }: FieldViewerProps) {
   const { t } = useTranslation("vault");
   return <p>{field.value === "true" ? t("fieldValueYes") : t("fieldValueNo")}</p>;
@@ -294,6 +314,7 @@ function UrlViewer({ field, onOpenUrl }: FieldViewerProps) {
 
 const FIELD_TYPE_DEFS: FieldTypeDef[] = [
   { id: "text", labelKey: "fieldTypeText", icon: TypeIcon, textLike: true, Editor: TextEditor, Viewer: TextViewer },
+  { id: "longtext", labelKey: "fieldTypeLongText", icon: AlignLeft, textLike: true, Editor: LongTextEditor, Viewer: LongTextViewer },
   { id: "password", labelKey: "fieldTypePassword", icon: KeyRound, textLike: true, Editor: PasswordEditor, Viewer: TextViewer },
   { id: "number", labelKey: "fieldTypeNumber", icon: Hash, numberLike: true, Editor: NumberEditor, Viewer: TextViewer },
   {
