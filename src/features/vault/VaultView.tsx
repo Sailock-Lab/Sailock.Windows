@@ -1311,6 +1311,8 @@ interface TaxonomyProps {
   onDeleteTaxonomyItem: (kind: TaxonomyKind, id: string) => Promise<void>;
 }
 
+type FormTab = "general" | "credentials" | "fields" | "notes";
+
 function EntryForm({
   initial,
   initialPassword,
@@ -1368,6 +1370,10 @@ function EntryForm({
     return [];
   });
   const { saveActivity } = useActivity();
+  // Con muchos campos (plantillas largas, registros con 4 o más campos) el formulario se organiza en pestañas.
+  // Se decide al abrirlo y no cambia mientras se edita, para que las pestañas no aparezcan ni desaparezcan.
+  const [useTabs] = useState(() => customFields.length >= 4);
+  const [tab, setTab] = useState<FormTab>("general");
 
   const showUsername = initial ? true : activeTemplate ? activeTemplate.showUsername : true;
   const showPasswordField = initial ? true : activeTemplate ? activeTemplate.showPassword : true;
@@ -1483,6 +1489,273 @@ function EntryForm({
     }
   };
 
+  const hasCredentials = showUsername || showPasswordField || showTotp || showWebsite;
+  const tabs: { id: FormTab; label: string }[] = [
+    { id: "general", label: t("tabGeneral") },
+    ...(hasCredentials ? [{ id: "credentials" as FormTab, label: t("tabCredentials") }] : []),
+    { id: "fields", label: `${t("tabFields")} (${customFields.length})` },
+    { id: "notes", label: t("tabNotes") },
+  ];
+  const activeTab: FormTab = tabs.some((x) => x.id === tab) ? tab : "general";
+
+  // ---- Bloques del formulario: se colocan en dos columnas o en pestañas ----
+
+  const avatarBlock = (
+      <AvatarPicker
+        name={name}
+        icon={HeaderIcon}
+        logo={logo}
+        mode={avatarMode}
+        onChange={(next) => {
+          setLogo(next.logo);
+          setAvatarMode(next.mode);
+        }}
+      />
+  );
+
+  const nameBlock = (
+      <div>
+        <label className="mb-1 block text-sm font-medium">{nameLabel}</label>
+        <Input
+          placeholder={t("fieldNamePlaceholder")}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+      </div>
+  );
+
+  const usernameBlock = showUsername && (
+    <div>
+      <label className="mb-1 block text-sm font-medium">{t("fieldUsername")}</label>
+      <Input placeholder={t("optional")} value={username} onChange={(e) => setUsername(e.target.value)} />
+    </div>
+  );
+
+  const passwordBlock = showPasswordField && (
+    <div>
+      <label className="mb-1 block text-sm font-medium">{t("fieldPassword")}</label>
+      <div className="relative">
+        <Input
+          placeholder={t("optional")}
+          type={showPassword ? "text" : "password"}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="pr-10"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword(!showPassword)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+        >
+          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+    </div>
+  );
+
+  const totpBlock = showTotp && (
+    <div>
+      <label className="mb-1 block text-sm font-medium">{t("fieldTotpSecret")}</label>
+      <Input
+        placeholder={t("fieldTotpPlaceholder")}
+        value={totpSecret}
+        onChange={(e) => setTotpSecret(e.target.value)}
+      />
+      <p className="mt-1 text-xs text-muted-foreground">{t("fieldTotpHint")}</p>
+    </div>
+  );
+
+  const presetBlocks = presetIndexed.map(({ field, i }) => {
+      const isSecurityTypeField = field.preset_key === "presetSecurityType";
+      return (
+        <div key={i}>
+          <label className="mb-1 block text-sm font-medium">{field.label}</label>
+          {isSecurityTypeField ? (
+            <Select value={field.value} onValueChange={(v) => v && updateField(i, "value", v)}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("customFieldValuePlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
+                <SelectItem value="WPA3">WPA3</SelectItem>
+                <SelectItem value="WEP">WEP</SelectItem>
+                <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <FieldValueInput field={field} onChange={(val) => updateField(i, "value", val)} />
+          )}
+        </div>
+      );
+  });
+  const folderBlock = (
+      <div>
+        <label className="mb-1 block text-sm font-medium">{t("folderLabel")}</label>
+        <Select
+          value={folderTarget}
+          onValueChange={(v) => v && setFolderTarget(v)}
+          items={folderSelectItems(folders, t("vaultRootLabel"))}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="root">{t("vaultRootLabel")}</SelectItem>
+            {folders.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {folderPath(folders, f.id)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+  );
+
+  const websiteBlock = showWebsite && (
+    <div>
+      <label className="mb-1 block text-sm font-medium">{t("fieldWebsite")}</label>
+      <Input placeholder={t("optional")} value={website} onChange={(e) => setWebsite(e.target.value)} />
+    </div>
+  );
+
+  const categoryBlock = (
+      <div>
+        <label className="mb-1 block text-sm font-medium">{t("categoryLabel")}</label>
+        <div className="flex gap-2">
+          <Select
+            value={effectiveCategory}
+            onValueChange={(v) => v && setCategoryId(v)}
+            items={[
+              { value: "none", label: t("categoryNone") },
+              ...taxonomy.categories.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          >
+            <SelectTrigger className="flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{t("categoryNone")}</SelectItem>
+              {taxonomy.categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setTaxonomyOpen(true)}
+            title={t("manageTaxonomyButton")}
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+  );
+
+  const tagsBlock = (
+      <div>
+        <label className="mb-1 block text-sm font-medium">{t("tagsLabel")}</label>
+        <TagPicker
+          tags={taxonomy.tags}
+          selectedIds={validTagIds}
+          onChange={setTagIds}
+          onCreate={(name) => onCreateTaxonomyItem("tag", name)}
+        />
+      </div>
+  );
+
+  const notesBlock = (
+      <div>
+        <label className="mb-1 block text-sm font-medium">{notesLabel}</label>
+        <textarea
+          placeholder={t("optional")}
+          className={`w-full rounded border bg-transparent p-2 text-sm ${useTabs ? "min-h-64" : "min-h-28"}`}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+      </div>
+  );
+
+  const extrasBlock = (
+      <div className="flex flex-col gap-2">
+        {initial && extraIndexed.length > 0 && (
+          <label className="text-sm font-medium">{t("additionalFieldsLabel")}</label>
+        )}
+        {extraIndexed.map(({ field, i }, pos) => (
+          <div key={i} className="flex flex-col gap-2 rounded-md border p-2">
+            <div className="flex items-center gap-1.5">
+              <Input
+                placeholder={t("customFieldNamePlaceholder")}
+                value={field.label}
+                onChange={(e) => updateField(i, "label", e.target.value)}
+                className="flex-1"
+              />
+              <Select
+                value={normalizedFieldType(field.field_type)}
+                onValueChange={(v) => v && updateFieldType(i, v as FieldType)}
+                items={FIELD_TYPES.map((type) => ({ value: type, label: t(FIELD_TYPE_KEYS[type]) }))}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FIELD_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {t(FIELD_TYPE_KEYS[type])}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={pos === 0}
+                  onClick={() => moveExtraField(pos, -1)}
+                  title={t("moveFieldUp")}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={pos === extraIndexed.length - 1}
+                  onClick={() => moveExtraField(pos, 1)}
+                  title={t("moveFieldDown")}
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeField(i)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            {normalizedFieldType(field.field_type) === "select" && (
+              <OptionsEditor options={field.options ?? []} onChange={(options) => updateFieldOptions(i, options)} />
+            )}
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={isFieldSensitive(field)}
+                disabled={normalizedFieldType(field.field_type) === "password"}
+                onCheckedChange={(v) => updateFieldSensitive(i, v)}
+              />
+              <span className="text-xs text-muted-foreground">{t("fieldSensitiveLabel")}</span>
+            </div>
+            <FieldValueInput field={field} onChange={(val) => updateField(i, "value", val)} />
+          </div>
+        ))}
+        <Button variant="ghost" size="sm" className="self-start" onClick={addExtraField}>
+          <Plus className="mr-1 h-4 w-4" /> {t("addFieldButton")}
+        </Button>
+      </div>
+  );
+
   return (
     <>
       <DialogHeader className="shrink-0 flex-row items-center gap-3 border-b px-6 py-4">
@@ -1500,266 +1773,85 @@ function EntryForm({
         </Button>
       </DialogHeader>
 
+      {useTabs && (
+        <div role="tablist" className="flex shrink-0 gap-1 overflow-x-auto border-b px-6">
+          {tabs.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === x.id}
+              onClick={() => setTab(x.id)}
+              className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                activeTab === x.id
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {x.label}
+              {x.id === "general" && !name && <span className="ml-1 text-destructive">*</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-6 py-5">
         {initialPassword && !initial && (
           <p className="mb-4 rounded bg-muted p-2 text-xs text-muted-foreground">{t("prefillNotice")}</p>
         )}
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Columna izquierda: información básica */}
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold">{t("sectionBasicInfo")}</h3>
-
-            <AvatarPicker
-              name={name}
-              icon={HeaderIcon}
-              logo={logo}
-              mode={avatarMode}
-              onChange={(next) => {
-                setLogo(next.logo);
-                setAvatarMode(next.mode);
-              }}
-            />
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">{nameLabel}</label>
-              <Input
-                placeholder={t("fieldNamePlaceholder")}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
-              />
-            </div>
-
-            {showUsername && (
-              <div>
-                <label className="mb-1 block text-sm font-medium">{t("fieldUsername")}</label>
-                <Input placeholder={t("optional")} value={username} onChange={(e) => setUsername(e.target.value)} />
-              </div>
+        {useTabs ? (
+          <div className="flex min-h-[22rem] flex-col gap-3">
+            {activeTab === "general" && (
+              <>
+                {avatarBlock}
+                {nameBlock}
+                {folderBlock}
+                {categoryBlock}
+                {tagsBlock}
+              </>
             )}
-
-            {showPasswordField && (
-              <div>
-                <label className="mb-1 block text-sm font-medium">{t("fieldPassword")}</label>
-                <div className="relative">
-                  <Input
-                    placeholder={t("optional")}
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
+            {activeTab === "credentials" && (
+              <>
+                {usernameBlock}
+                {passwordBlock}
+                {totpBlock}
+                {websiteBlock}
+              </>
             )}
-
-            {showTotp && (
-              <div>
-                <label className="mb-1 block text-sm font-medium">{t("fieldTotpSecret")}</label>
-                <Input
-                  placeholder={t("fieldTotpPlaceholder")}
-                  value={totpSecret}
-                  onChange={(e) => setTotpSecret(e.target.value)}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">{t("fieldTotpHint")}</p>
-              </div>
+            {activeTab === "fields" && (
+              <>
+                {presetBlocks}
+                {extrasBlock}
+              </>
             )}
+            {activeTab === "notes" && notesBlock}
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Columna izquierda: información básica */}
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold">{t("sectionBasicInfo")}</h3>
+              {avatarBlock}
+              {nameBlock}
+              {usernameBlock}
+              {passwordBlock}
+              {totpBlock}
+              {presetBlocks}
+              {folderBlock}
+            </section>
 
-            {presetIndexed.map(({ field, i }) => {
-              const isSecurityTypeField = field.preset_key === "presetSecurityType";
-              return (
-                <div key={i}>
-                  <label className="mb-1 block text-sm font-medium">{field.label}</label>
-                  {isSecurityTypeField ? (
-                    <Select value={field.value} onValueChange={(v) => v && updateField(i, "value", v)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("customFieldValuePlaceholder")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="WPA/WPA2">WPA/WPA2</SelectItem>
-                        <SelectItem value="WPA3">WPA3</SelectItem>
-                        <SelectItem value="WEP">WEP</SelectItem>
-                        <SelectItem value={t("presetSecurityOpen")}>{t("presetSecurityOpen")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <FieldValueInput field={field} onChange={(val) => updateField(i, "value", val)} />
-                  )}
-                </div>
-              );
-            })}
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">{t("folderLabel")}</label>
-              <Select
-                value={folderTarget}
-                onValueChange={(v) => v && setFolderTarget(v)}
-                items={folderSelectItems(folders, t("vaultRootLabel"))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="root">{t("vaultRootLabel")}</SelectItem>
-                  {folders.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>
-                      {folderPath(folders, f.id)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </section>
-
-          {/* Columna derecha: opciones, notas y campos adicionales */}
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold">{t("sectionOptions")}</h3>
-
-            {showWebsite && (
-              <div>
-                <label className="mb-1 block text-sm font-medium">{t("fieldWebsite")}</label>
-                <Input placeholder={t("optional")} value={website} onChange={(e) => setWebsite(e.target.value)} />
-              </div>
-            )}
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">{t("categoryLabel")}</label>
-              <div className="flex gap-2">
-                <Select
-                  value={effectiveCategory}
-                  onValueChange={(v) => v && setCategoryId(v)}
-                  items={[
-                    { value: "none", label: t("categoryNone") },
-                    ...taxonomy.categories.map((c) => ({ value: c.id, label: c.name })),
-                  ]}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{t("categoryNone")}</SelectItem>
-                    {taxonomy.categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setTaxonomyOpen(true)}
-                  title={t("manageTaxonomyButton")}
-                >
-                  <Settings2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">{t("tagsLabel")}</label>
-              <TagPicker
-                tags={taxonomy.tags}
-                selectedIds={validTagIds}
-                onChange={setTagIds}
-                onCreate={(name) => onCreateTaxonomyItem("tag", name)}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">{notesLabel}</label>
-              <textarea
-                placeholder={t("optional")}
-                className="min-h-28 w-full rounded border bg-transparent p-2 text-sm"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
-
-            {/* Al crear, los campos extra se añaden sin más; al editar se agrupan como "campos adicionales". */}
-            <div className="flex flex-col gap-2">
-              {initial && extraIndexed.length > 0 && (
-                <label className="text-sm font-medium">{t("additionalFieldsLabel")}</label>
-              )}
-              {extraIndexed.map(({ field, i }, pos) => (
-                <div key={i} className="flex flex-col gap-2 rounded-md border p-2">
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      placeholder={t("customFieldNamePlaceholder")}
-                      value={field.label}
-                      onChange={(e) => updateField(i, "label", e.target.value)}
-                      className="flex-1"
-                    />
-                    <Select
-                      value={normalizedFieldType(field.field_type)}
-                      onValueChange={(v) => v && updateFieldType(i, v as FieldType)}
-                      items={FIELD_TYPES.map((type) => ({ value: type, label: t(FIELD_TYPE_KEYS[type]) }))}
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {FIELD_TYPES.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {t(FIELD_TYPE_KEYS[type])}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="flex shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={pos === 0}
-                        onClick={() => moveExtraField(pos, -1)}
-                        title={t("moveFieldUp")}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        disabled={pos === extraIndexed.length - 1}
-                        onClick={() => moveExtraField(pos, 1)}
-                        title={t("moveFieldDown")}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeField(i)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  {normalizedFieldType(field.field_type) === "select" && (
-                    <OptionsEditor options={field.options ?? []} onChange={(options) => updateFieldOptions(i, options)} />
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={isFieldSensitive(field)}
-                      disabled={normalizedFieldType(field.field_type) === "password"}
-                      onCheckedChange={(v) => updateFieldSensitive(i, v)}
-                    />
-                    <span className="text-xs text-muted-foreground">{t("fieldSensitiveLabel")}</span>
-                  </div>
-                  <FieldValueInput field={field} onChange={(val) => updateField(i, "value", val)} />
-                </div>
-              ))}
-              <Button variant="ghost" size="sm" className="self-start" onClick={addExtraField}>
-                <Plus className="mr-1 h-4 w-4" /> {t("addFieldButton")}
-              </Button>
-            </div>
-          </section>
-        </div>
+            {/* Columna derecha: opciones, notas y campos adicionales */}
+            <section className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold">{t("sectionOptions")}</h3>
+              {websiteBlock}
+              {categoryBlock}
+              {tagsBlock}
+              {notesBlock}
+              {extrasBlock}
+            </section>
+          </div>
+        )}
       </div>
 
       <DialogFooter className="shrink-0 items-center border-t px-6 py-4 sm:justify-between">
