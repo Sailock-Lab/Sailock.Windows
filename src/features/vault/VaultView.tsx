@@ -58,6 +58,8 @@ import {
   FieldValueInput,
   OptionsEditor,
   UrlValue,
+  defaultConfigFor,
+  FieldConfigInput,
   isFieldSensitive,
   isValueCompatible,
   normalizedFieldType,
@@ -1430,6 +1432,7 @@ function EntryForm({
               field_type: type,
               // Un campo que ya era sensible (p. ej. de tipo contraseña) no pasa a verse al cambiar de tipo.
               sensitive: isFieldSensitive(f),
+              config: defaultConfigFor(type),
               value: isValueCompatible(f.field_type, type) ? f.value : "",
             }
           : f
@@ -1438,6 +1441,9 @@ function EntryForm({
   };
   const updateFieldSensitive = (index: number, sensitive: boolean) => {
     setCustomFields(customFields.map((f, i) => (i === index ? { ...f, sensitive } : f)));
+  };
+  const updateFieldConfig = (index: number, config: Record<string, unknown>) => {
+    setCustomFields(customFields.map((f, i) => (i === index ? { ...f, config } : f)));
   };
   const removeField = (index: number) => {
     setCustomFields(customFields.filter((_, i) => i !== index));
@@ -1739,6 +1745,7 @@ function EntryForm({
             {normalizedFieldType(field.field_type) === "select" && (
               <OptionsEditor options={field.options ?? []} onChange={(options) => updateFieldOptions(i, options)} />
             )}
+            <FieldConfigInput field={field} onChange={(config) => updateFieldConfig(i, config)} />
             <div className="flex items-center gap-2">
               <Switch
                 checked={isFieldSensitive(field)}

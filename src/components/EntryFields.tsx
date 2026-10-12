@@ -1,20 +1,79 @@
+// src/components/EntryFields.tsx
+// Piezas reutilizables de la Bóveda: tipos de campo, avatar/logo del registro
+// y apertura segura de enlaces en el navegador.
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import {
-  Calendar, Clock, Eye, EyeOff, ExternalLink, Hash, ImagePlus, KeyRound,
-  Link2, List, Plus, ToggleLeft, Type as TypeIcon, X,
+  Calendar,
+  Clock,
+  Coins,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  Hash,
+  ImagePlus,
+  KeyRound,
+  Link2,
+  List,
+  Mail,
+  MapPin,
+  Network,
+  Percent,
+  Phone,
+  Plus,
+  ToggleLeft,
+  Type as TypeIcon,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  CoordinatesEditor,
+  CoordinatesViewer,
+  CURRENCY_DEFAULT_CONFIG,
+  CurrencyConfigEditor,
+  CurrencyEditor,
+  CurrencyViewer,
+  IP_DEFAULT_CONFIG,
+  IpConfigEditor,
+  IpEditor,
+  IpViewer,
+  PERCENTAGE_DEFAULT_CONFIG,
+  PercentageConfigEditor,
+  PercentageEditor,
+  PercentageViewer,
+  PHONE_DEFAULT_CONFIG,
+  PhoneConfigEditor,
+  PhoneEditor,
+  PhoneViewer,
+  POSTAL_DEFAULT_CONFIG,
+  PostalConfigEditor,
+  PostalEditor,
+  PostalViewer,
+} from "@/components/FieldTypeExtras";
 
 // ---------- Tipos de campo ----------
 
-export type FieldType = "text" | "password" | "number" | "boolean" | "date" | "time" | "url" | "select";
+export type FieldType =
+  | "text"
+  | "password"
+  | "number"
+  | "currency"
+  | "percentage"
+  | "boolean"
+  | "date"
+  | "time"
+  | "url"
+  | "select"
+  | "phone"
+  | "ip"
+  | "postal_code"
+  | "coordinates";
 
 export interface CustomFieldData {
   label: string;
@@ -22,9 +81,9 @@ export interface CustomFieldData {
   field_type: string; // uno de FIELD_TYPES
   is_preset?: boolean;
   preset_key?: string | null;
-  options?: string[]; // solo para el tipo "select"
-  sensitive?: boolean; // oculto por defecto, pide la contraseña maestra
-  config?: Record<string, unknown> | null; // ajustes propios del tipo
+  options?: string[]; // solo para el tipo "select": opciones definidas por el usuario para este campo
+  sensitive?: boolean; // oculto por defecto: pide la contraseña maestra para verse o copiarse
+  config?: Record<string, unknown> | null; // ajustes propios del tipo (decimales, país, mínimo/máximo...)
 }
 
 export interface FieldEditorProps {
@@ -37,19 +96,28 @@ export interface FieldViewerProps {
   onOpenUrl: (url: string) => void;
 }
 
-// Cada tipo declara aquí todo lo que lo define. Para añadir uno nuevo:
+// Editor de los ajustes de un tipo (decimales, país, mínimo/máximo...). Devuelve la config completa.
+export interface FieldConfigEditorProps {
+  field: CustomFieldData;
+  onChange: (config: Record<string, unknown>) => void;
+}
+
+// Cada tipo de campo declara aquí todo lo que lo define. Para añadir uno nuevo hacen falta tres cosas:
 // un Editor, un Viewer y una entrada en FIELD_TYPE_DEFS.
 interface FieldTypeDef {
   id: FieldType;
   labelKey: string; // clave de traducción (namespace "vault")
   icon: IconComponent;
   textLike?: boolean; // valor de texto libre: se conserva al cambiar entre tipos así
-  showWhenEmpty?: boolean; // el Viewer decide cómo pintar el valor vacío
+  numberLike?: boolean; // valor numérico: se conserva al cambiar entre tipos numéricos
+  defaultConfig?: Record<string, unknown>; // ajustes iniciales del tipo
+  ConfigEditor?: React.ComponentType<FieldConfigEditorProps>; // pantalla de ajustes del tipo
+  showWhenEmpty?: boolean; // el Viewer decide cómo pintar el valor vacío (p. ej. un interruptor en "No")
   Editor: React.ComponentType<FieldEditorProps>;
   Viewer: React.ComponentType<FieldViewerProps>;
 }
 
-// ----- Editores -----
+// ----- Editores (formularios) -----
 
 function TextEditor({ field, onChange }: FieldEditorProps) {
   const { t } = useTranslation("vault");
@@ -123,8 +191,7 @@ function DateEditor({ field, onChange }: FieldEditorProps) {
 
 // Entrada de hora: dos casillas con ":" en medio
 function TimeEditor({ field, onChange }: FieldEditorProps) {
-  const value = field.value;
-  const [h, m] = value.includes(":") ? value.split(":") : ["", ""];
+  const [h, m] = field.value.includes(":") ? field.value.split(":") : ["", ""];
 
   const emit = (nh: string, nm: string) => onChange(nh === "" && nm === "" ? "" : `${nh}:${nm}`);
   const clean = (raw: string, max: number) => {
@@ -223,16 +290,67 @@ function UrlViewer({ field, onOpenUrl }: FieldViewerProps) {
   return <UrlValue value={field.value} onOpen={onOpenUrl} />;
 }
 
-// ----- El registro -----
+// ----- El registro de tipos -----
 
 const FIELD_TYPE_DEFS: FieldTypeDef[] = [
   { id: "text", labelKey: "fieldTypeText", icon: TypeIcon, textLike: true, Editor: TextEditor, Viewer: TextViewer },
   { id: "password", labelKey: "fieldTypePassword", icon: KeyRound, textLike: true, Editor: PasswordEditor, Viewer: TextViewer },
-  { id: "number", labelKey: "fieldTypeNumber", icon: Hash, Editor: NumberEditor, Viewer: TextViewer },
+  { id: "number", labelKey: "fieldTypeNumber", icon: Hash, numberLike: true, Editor: NumberEditor, Viewer: TextViewer },
+  {
+    id: "currency",
+    labelKey: "fieldTypeCurrency",
+    icon: Coins,
+    numberLike: true,
+    defaultConfig: CURRENCY_DEFAULT_CONFIG,
+    Editor: CurrencyEditor,
+    Viewer: CurrencyViewer,
+    ConfigEditor: CurrencyConfigEditor,
+  },
+  {
+    id: "percentage",
+    labelKey: "fieldTypePercentage",
+    icon: Percent,
+    numberLike: true,
+    defaultConfig: PERCENTAGE_DEFAULT_CONFIG,
+    Editor: PercentageEditor,
+    Viewer: PercentageViewer,
+    ConfigEditor: PercentageConfigEditor,
+  },
+  {
+    id: "phone",
+    labelKey: "fieldTypePhone",
+    icon: Phone,
+    textLike: true,
+    defaultConfig: PHONE_DEFAULT_CONFIG,
+    Editor: PhoneEditor,
+    Viewer: PhoneViewer,
+    ConfigEditor: PhoneConfigEditor,
+  },
+  { id: "url", labelKey: "fieldTypeUrl", icon: Link2, textLike: true, Editor: UrlEditor, Viewer: UrlViewer },
+  {
+    id: "ip",
+    labelKey: "fieldTypeIp",
+    icon: Network,
+    textLike: true,
+    defaultConfig: IP_DEFAULT_CONFIG,
+    Editor: IpEditor,
+    Viewer: IpViewer,
+    ConfigEditor: IpConfigEditor,
+  },
+  {
+    id: "postal_code",
+    labelKey: "fieldTypePostalCode",
+    icon: Mail,
+    textLike: true,
+    defaultConfig: POSTAL_DEFAULT_CONFIG,
+    Editor: PostalEditor,
+    Viewer: PostalViewer,
+    ConfigEditor: PostalConfigEditor,
+  },
+  { id: "coordinates", labelKey: "fieldTypeCoordinates", icon: MapPin, Editor: CoordinatesEditor, Viewer: CoordinatesViewer },
   { id: "boolean", labelKey: "fieldTypeBoolean", icon: ToggleLeft, showWhenEmpty: true, Editor: BooleanEditor, Viewer: BooleanViewer },
   { id: "date", labelKey: "fieldTypeDate", icon: Calendar, Editor: DateEditor, Viewer: DateViewer },
   { id: "time", labelKey: "fieldTypeTime", icon: Clock, Editor: TimeEditor, Viewer: TimeViewer },
-  { id: "url", labelKey: "fieldTypeUrl", icon: Link2, textLike: true, Editor: UrlEditor, Viewer: UrlViewer },
   { id: "select", labelKey: "fieldTypeSelect", icon: List, Editor: SelectEditor, Viewer: TextViewer },
 ];
 
@@ -259,7 +377,15 @@ export function getFieldType(type: string | undefined): FieldTypeDef {
 
 // Tipos cuyo valor es texto libre: al cambiar entre ellos se conserva el valor.
 export function isValueCompatible(from: string | undefined, to: FieldType): boolean {
-  return !!getFieldType(from).textLike && !!FIELD_TYPE_REGISTRY[to].textLike;
+  const a = getFieldType(from);
+  const b = FIELD_TYPE_REGISTRY[to];
+  return (!!a.textLike && !!b.textLike) || (!!a.numberLike && !!b.numberLike);
+}
+
+// Ajustes iniciales de un tipo (null si no tiene).
+export function defaultConfigFor(type: string | undefined): Record<string, unknown> | null {
+  const def = getFieldType(type).defaultConfig;
+  return def ? { ...def } : null;
 }
 
 // Un campo es sensible si se marcó así o si es de tipo contraseña (siempre lo ha sido).
@@ -278,6 +404,19 @@ export function FieldValueInput({
 }) {
   const def = getFieldType(field.field_type);
   return <def.Editor field={field} onChange={onChange} />;
+}
+
+// Ajustes propios del tipo del campo (decimales, país...). No pinta nada si el tipo no tiene.
+export function FieldConfigInput({
+  field,
+  onChange,
+}: {
+  field: CustomFieldData;
+  onChange: (config: Record<string, unknown>) => void;
+}) {
+  const def = getFieldType(field.field_type);
+  if (!def.ConfigEditor) return null;
+  return <def.ConfigEditor field={field} onChange={onChange} />;
 }
 
 // ---------- Editor de opciones de un campo de lista desplegable ----------
@@ -460,6 +599,8 @@ export function UrlValue({ value, onOpen }: { value: string; onOpen: (url: strin
 }
 
 // ---------- Valor de solo lectura según el tipo (detalle) ----------
+// Las contraseñas las gestiona quien lo usa (necesitan pedir la contraseña maestra).
+
 export function FieldPlainValue({
   field,
   onOpenUrl,
