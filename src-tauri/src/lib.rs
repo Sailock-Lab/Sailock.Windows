@@ -838,6 +838,10 @@ fn delete_vault(
     if taxonomy_file.exists() {
         let _ = fs::remove_file(&taxonomy_file);
     }
+    let templates_file = templates_path(&app_handle);
+    if templates_file.exists() {
+        let _ = fs::remove_file(&templates_file);
+    }
 
     *state.key.lock().unwrap() = None;
     Ok(())
@@ -1863,6 +1867,197 @@ fn clean_taxonomy_refs(
     (clean, category)
 }
 
+// ---------- Plantillas propias del usuario ----------
+// Se guardan cifradas en templates.json. Los registros guardan sus propios campos,
+// así que borrar o cambiar una plantilla nunca rompe registros ya creados.
+
+#[derive(Serialize, Deserialize, Clone)]
+struct UserTemplateField {
+    label: String,
+    field_type: String,
+    #[serde(default)]
+    sensitive: bool,
+    #[serde(default)]
+    config: Option<serde_json::Value>,
+    #[serde(default)]
+    options: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct UserTemplate {
+    #[serde(default)]
+    id: String,
+    name: String,
+    #[serde(default)]
+    icon: String,
+    #[serde(default)]
+    name_label: String,
+    #[serde(default)]
+    show_username: bool,
+    #[serde(default)]
+    show_password: bool,
+    #[serde(default)]
+    show_website: bool,
+    #[serde(default)]
+    show_totp: bool,
+    #[serde(default)]
+    fields: Vec<UserTemplateField>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TemplatesFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn templates_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("templates.json")
+}
+
+fn read_templates(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> Vec<UserTemplate> {
+    let path = templates_path(app_handle);
+    if !path.exists() {
+        return Vec::new();
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let file: TemplatesFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return Vec::new(),
+    };
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let nonce_bytes = match B64.decode(&file.nonce) {
+        Ok(n) => n,
+        Err(_) => return Vec::new(),
+    };
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = match B64.decode(&file.ciphertext) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    match cipher.decrypt(nonce, ciphertext.as_ref()) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn write_templates(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+    templates: &[UserTemplate],
+) -> Result<(), String> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let plaintext = serde_json::to_vec(templates).map_err(|e| e.to_string())?;
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext.as_ref())
+        .map_err(|e| e.to_string())?;
+    let file = TemplatesFile {
+        nonce: B64.encode(nonce_bytes),
+        ciphertext: B64.encode(ciphertext),
+    };
+    let json = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;
+    fs::write(templates_path(app_handle), json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_templates(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<UserTemplate>, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(read_templates(&app_handle, &key))
+}
+
+// Crea (id vacío) o actualiza (id existente) una plantilla. Devuelve la plantilla guardada.
+#[tauri::command]
+fn save_template(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    template: UserTemplate,
+) -> Result<UserTemplate, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut template = template;
+    template.name = template.name.trim().to_string();
+    if template.name.is_empty() {
+        return Err("El nombre de la plantilla no puede estar vacío".into());
+    }
+    if template.name.chars().count() > 60 {
+        return Err("El nombre de la plantilla es demasiado largo".into());
+    }
+    template.name_label = template.name_label.trim().to_string();
+    if template.fields.len() > 40 {
+        return Err("Demasiados campos en la plantilla".into());
+    }
+    for f in template.fields.iter_mut() {
+        f.label = f.label.trim().to_string();
+        f.options = f
+            .options
+            .iter()
+            .map(|o| o.trim().to_string())
+            .filter(|o| !o.is_empty())
+            .collect();
+    }
+    template.fields.retain(|f| !f.label.is_empty());
+
+    let mut templates = read_templates(&app_handle, &key);
+    if templates
+        .iter()
+        .any(|t| t.id != template.id && t.name.to_lowercase() == template.name.to_lowercase())
+    {
+        return Err("Ya existe una plantilla con ese nombre".into());
+    }
+
+    if template.id.is_empty() {
+        let mut n = now_millis();
+        while templates.iter().any(|t| t.id == format!("u{}", n)) {
+            n += 1;
+        }
+        template.id = format!("u{}", n);
+        templates.push(template.clone());
+    } else {
+        match templates.iter_mut().find(|t| t.id == template.id) {
+            Some(existing) => *existing = template.clone(),
+            None => return Err("No se encontró la plantilla".into()),
+        }
+    }
+    write_templates(&app_handle, &key, &templates)?;
+    Ok(template)
+}
+
+#[tauri::command]
+fn delete_template(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut templates = read_templates(&app_handle, &key);
+    let before = templates.len();
+    templates.retain(|t| t.id != id);
+    if templates.len() == before {
+        return Err("No se encontró la plantilla".into());
+    }
+    write_templates(&app_handle, &key, &templates)
+}
+
 #[tauri::command]
 fn load_taxonomy(
     app_handle: tauri::AppHandle,
@@ -2134,6 +2329,9 @@ pub fn run() {
             create_taxonomy_item,
             rename_taxonomy_item,
             delete_taxonomy_item,
+            load_templates,
+            save_template,
+            delete_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

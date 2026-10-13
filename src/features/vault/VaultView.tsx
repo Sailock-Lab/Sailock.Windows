@@ -37,9 +37,27 @@ import {
   ArrowUp,
   ArrowDown,
   Settings2,
+  BookmarkPlus,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
-import { entryIcon, findTemplate, MAIN_TEMPLATES, MORE_TEMPLATES, TEMPLATES, type EntryTemplate } from "./templates";
+import {
+  deleteUserTemplate,
+  entryIcon,
+  entryTypeLabel,
+  findTemplate,
+  loadUserTemplates,
+  MAIN_TEMPLATES,
+  MORE_TEMPLATES,
+  presetLabel,
+  presetOption,
+  templateLabel,
+  templateNameLabel,
+  TEMPLATES,
+  useUserTemplates,
+  type EntryTemplate,
+  type UserTemplateData,
+} from "./templates";
+import { TemplateEditorDialog } from "./TemplateEditor";
 import {
   AvatarMode,
   AvatarPicker,
@@ -262,6 +280,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const [pendingPassword, setPendingPassword] = useState<string | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<EntryTemplate | null>(null);
+  const userTemplates = useUserTemplates();
+  const [newTemplateOpen, setNewTemplateOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<EntryTemplate | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
@@ -300,6 +321,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     loadEntries();
     loadFolders();
     loadTaxonomy();
+    loadUserTemplates();
   }, []);
 
   useEffect(() => {
@@ -579,9 +601,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const categoryName = (entry: Entry) => taxonomy.categories.find((c) => c.id === entry.category_id)?.name;
 
   const typeBadgeLabel = (entryType?: string | null) =>
-    entryType
-      ? t(findTemplate(entryType)?.labelKey ?? "templateUncategorized")
-      : t("templateUncategorized");
+    entryTypeLabel(t, entryType);
 
   return (
     <div>
@@ -662,7 +682,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 onValueChange={(v) => v && setTypeFilter(v)}
                 items={[
                   { value: "all", label: t("typeFilterAll") },
-                  ...TEMPLATES.map((tpl) => ({ value: tpl.id, label: t(tpl.labelKey) })),
+                  ...[...TEMPLATES, ...userTemplates].map((tpl) => ({ value: tpl.id, label: templateLabel(t, tpl) })),
                   { value: "uncategorized", label: t("templateUncategorized") },
                 ]}
               >
@@ -671,9 +691,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("typeFilterAll")}</SelectItem>
-                  {TEMPLATES.map((tpl) => (
+                  {[...TEMPLATES, ...userTemplates].map((tpl) => (
                     <SelectItem key={tpl.id} value={tpl.id}>
-                      {t(tpl.labelKey)}
+                      {templateLabel(t, tpl)}
                     </SelectItem>
                   ))}
                   <SelectItem value="uncategorized">{t("templateUncategorized")}</SelectItem>
@@ -938,6 +958,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
           {[
             { id: "main", title: t("templatesMain"), templates: MAIN_TEMPLATES },
             { id: "more", title: t("templatesMore"), templates: MORE_TEMPLATES },
+            { id: "user", title: t("templatesMine"), templates: userTemplates },
           ].map((section) => (
             <div key={section.id} className="flex flex-col gap-2">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -947,26 +968,82 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 {section.templates.map((tpl) => {
                   const Icon = tpl.icon;
                   return (
-                    <button
-                      key={tpl.id}
-                      onClick={() => {
-                        setSelectedTemplate(tpl);
-                        setTemplatePickerOpen(false);
-                        setFormMode("create");
-                        setSelectedId(null);
-                      }}
-                      className="flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-colors hover:border-primary hover:bg-muted"
-                    >
-                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-foreground">
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <span className="text-xs font-medium">{t(tpl.labelKey)}</span>
-                    </button>
+                    <div key={tpl.id} className="group relative">
+                      <button
+                        onClick={() => {
+                          setSelectedTemplate(tpl);
+                          setTemplatePickerOpen(false);
+                          setFormMode("create");
+                          setSelectedId(null);
+                        }}
+                        className="flex h-full w-full flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-colors hover:border-primary hover:bg-muted"
+                      >
+                        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-foreground">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <span className="break-words text-xs font-medium">{templateLabel(t, tpl)}</span>
+                      </button>
+                      {tpl.user && (
+                        <button
+                          type="button"
+                          onClick={() => setTemplateToDelete(tpl)}
+                          title={t("templateDeleteTooltip")}
+                          className="absolute right-1 top-1 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
+                {section.id === "user" && (
+                  <button
+                    onClick={() => setNewTemplateOpen(true)}
+                    className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed p-3 text-center text-muted-foreground transition-colors hover:border-primary hover:bg-muted hover:text-foreground"
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md">
+                      <Plus className="h-4 w-4" />
+                    </div>
+                    <span className="text-xs font-medium">{t("templateNewCard")}</span>
+                  </button>
+                )}
               </div>
             </div>
           ))}
+        </DialogContent>
+      </Dialog>
+
+      <TemplateEditorDialog open={newTemplateOpen} onOpenChange={setNewTemplateOpen} />
+
+      <Dialog open={templateToDelete !== null} onOpenChange={(isOpen) => !isOpen && setTemplateToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {t("templateDeleteTitle", { name: templateToDelete ? templateLabel(t, templateToDelete) : "" })}
+            </DialogTitle>
+            <DialogDescription>{t("templateDeleteDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateToDelete(null)}>
+              {t("cancelButton")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const target = templateToDelete;
+                setTemplateToDelete(null);
+                if (!target) return;
+                try {
+                  await deleteUserTemplate(target.id);
+                  toast.success(t("templateDeletedToast"));
+                } catch (e) {
+                  toast.error(String(e));
+                }
+              }}
+            >
+              {t("templateDeleteConfirm")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1244,14 +1321,14 @@ function EntryForm({
     }
     if (activeTemplate) {
       return activeTemplate.presetFields.map((f) => ({
-        label: t(f.labelKey),
+        label: presetLabel(t, activeTemplate, f),
         value: "",
         field_type: f.type,
         is_preset: true,
-        preset_key: f.labelKey,
+        preset_key: activeTemplate.user ? null : f.labelKey,
         sensitive: f.sensitive ?? false,
         config: f.config ?? defaultConfigFor(f.type),
-        options: (f.optionKeys ?? []).map((key) => t(key)),
+        options: (f.optionKeys ?? []).map((key) => presetOption(t, activeTemplate, key)),
       }));
     }
     return [];
@@ -1266,13 +1343,34 @@ function EntryForm({
   const showPasswordField = initial ? true : activeTemplate ? activeTemplate.showPassword : true;
   const showWebsite = initial ? true : activeTemplate ? activeTemplate.showWebsite : true;
   const showTotp = initial ? true : activeTemplate ? activeTemplate.showTotp : true;
-  const nameLabel = !initial && activeTemplate ? t(activeTemplate.nameLabelKey) : t("fieldName");
+  const nameLabel = !initial && activeTemplate ? templateNameLabel(t, activeTemplate) : t("fieldName");
   const notesLabel = !initial && activeTemplate?.id === "note" ? t("presetContent") : t("fieldNotes");
   const entryTypeToSave = initial ? initial.entry_type ?? null : activeTemplate ? activeTemplate.id : null;
   const HeaderIcon = entryIcon(entryTypeToSave);
-  const headerTypeLabel = entryTypeToSave
-    ? t(findTemplate(entryTypeToSave)?.labelKey ?? "templateUncategorized")
-    : t("templateUncategorized");
+  const headerTypeLabel = entryTypeLabel(t, entryTypeToSave);
+  // Borrador de plantilla con los campos actuales del formulario (sin sus valores).
+  const [templateDraft, setTemplateDraft] = useState<UserTemplateData | null>(null);
+  const openTemplateDraft = () => {
+    setTemplateDraft({
+      id: "",
+      name: "",
+      icon: "sparkles",
+      name_label: "",
+      show_username: showUsername,
+      show_password: showPasswordField,
+      show_website: showWebsite,
+      show_totp: showTotp,
+      fields: customFields
+        .filter((f) => f.label.trim())
+        .map((f) => ({
+          label: f.label.trim(),
+          field_type: normalizedFieldType(f.field_type),
+          sensitive: !!f.sensitive,
+          config: f.config ?? null,
+          options: f.options ?? [],
+        })),
+    });
+  };
 
   const indexedFields = customFields.map((field, i) => ({ field, i }));
   const presetIndexed = indexedFields.filter((x) => x.field.is_preset);
@@ -1757,7 +1855,16 @@ function EntryForm({
         >
           <Star className={`h-4 w-4 ${favorite ? "fill-current text-yellow-500" : ""}`} />
         </Button>
-        <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={openTemplateDraft}
+          title={t("saveAsTemplateTooltip")}
+        >
+          <BookmarkPlus className="mr-1 h-4 w-4" /> {t("saveAsTemplate")}
+        </Button>
+        <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving}>
             {t("cancelButton")}
           </Button>
@@ -1766,6 +1873,12 @@ function EntryForm({
           </Button>
         </div>
       </DialogFooter>
+
+      <TemplateEditorDialog
+        open={templateDraft !== null}
+        onOpenChange={(isOpen) => !isOpen && setTemplateDraft(null)}
+        initial={templateDraft ?? undefined}
+      />
 
       <TaxonomyDialog
         open={taxonomyOpen}
@@ -1914,9 +2027,7 @@ function EntryDetail({
   const presetFields = indexedFields.filter((x) => x.field.is_preset);
   const extraFields = indexedFields.filter((x) => !x.field.is_preset);
 
-  const typeLabel = entry.entry_type
-    ? t(findTemplate(entry.entry_type)?.labelKey ?? "templateUncategorized")
-    : t("templateUncategorized");
+  const typeLabel = entryTypeLabel(t, entry.entry_type);
   const folderLabel = entry.folder_id ? folderPath(folders, entry.folder_id) : t("vaultRootLabel");
   // Del más reciente al más antiguo (los eventos se guardan en orden cronológico).
   const historyEvents = [...(entry.history ?? [])].reverse();
