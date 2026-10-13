@@ -151,12 +151,21 @@ function formatDateTime(timestamp: number): string {
 
 function matchesSearch(entry: Entry, term: string, category: SearchCategory): boolean {
   if (!term) return true;
-  const t = term.toLowerCase();
-  const inName = entry.name.toLowerCase().includes(t);
-  const inContact = (entry.username ?? "").toLowerCase().includes(t);
-  const inWebsite = (entry.website ?? "").toLowerCase().includes(t);
+  const norm = (text: string) =>
+    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const t = norm(term.trim());
+  if (!t) return true;
+  const inName = norm(entry.name).includes(t);
+  const inContact = norm(entry.username ?? "").includes(t);
+  const inWebsite = norm(entry.website ?? "").includes(t);
+  // El nombre de un campo cuenta solo si una de sus palabras empieza por lo escrito ("wi" ya no encuentra "SWIFT").
+  // Los valores de campos sensibles no se buscan: si no, escribir letras revelaría su contenido.
   const inCustom = (entry.custom_fields ?? []).some(
-    (f) => f.label.toLowerCase().includes(t) || f.value.toLowerCase().includes(t)
+    (f) =>
+      norm(f.label)
+        .split(/[^\p{L}\p{N}]+/u)
+        .some((word) => word.startsWith(t)) ||
+      (!isFieldSensitive(f) && norm(f.value).includes(t))
   );
   switch (category) {
     case "name":
@@ -1007,7 +1016,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                   return (
                     <div
                       key={tpl.id}
-                      className="flex flex-col rounded-lg border transition-colors hover:border-primary"
+                      className="group relative flex flex-col rounded-lg border transition-colors hover:border-primary"
                     >
                       <button
                         onClick={() => {
@@ -1024,7 +1033,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                         <span className="break-words text-xs font-medium">{templateLabel(t, tpl)}</span>
                       </button>
                       {tpl.user && (
-                        <div className="flex justify-center gap-1 px-1 pb-1.5">
+                        <div className="absolute right-1 top-1 flex flex-col opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
                           <button
                             type="button"
                             onClick={() => setTemplateEditor({ initial: getUserTemplateData(tpl.id) })}
