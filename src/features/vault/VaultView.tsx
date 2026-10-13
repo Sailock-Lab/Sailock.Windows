@@ -45,6 +45,7 @@ import {
   entryIcon,
   entryTypeLabel,
   findTemplate,
+  getUserTemplateData,
   loadUserTemplates,
   MAIN_TEMPLATES,
   MORE_TEMPLATES,
@@ -281,7 +282,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<EntryTemplate | null>(null);
   const userTemplates = useUserTemplates();
-  const [newTemplateOpen, setNewTemplateOpen] = useState(false);
+  // Editor de plantillas propias: {} = plantilla nueva, {initial} = editar una existente.
+  const [templateEditor, setTemplateEditor] = useState<{ initial?: UserTemplateData } | null>(null);
+  const [templateSearch, setTemplateSearch] = useState("");
   const [templateToDelete, setTemplateToDelete] = useState<EntryTemplate | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -323,6 +326,11 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     loadTaxonomy();
     loadUserTemplates();
   }, []);
+
+  // El buscador del selector empieza vacío cada vez que se abre.
+  useEffect(() => {
+    if (!templatePickerOpen) setTemplateSearch("");
+  }, [templatePickerOpen]);
 
   useEffect(() => {
     if (prefillPassword) {
@@ -602,6 +610,20 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
 
   const typeBadgeLabel = (entryType?: string | null) =>
     entryTypeLabel(t, entryType);
+
+  // Selector de plantillas: secciones filtradas por el buscador (nombre de la plantilla o de sus campos).
+  const normalizeText = (text: string) =>
+    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const templateQuery = normalizeText(templateSearch);
+  const matchesTemplate = (tpl: EntryTemplate) =>
+    !templateQuery ||
+    normalizeText(templateLabel(t, tpl)).includes(templateQuery) ||
+    tpl.presetFields.some((f) => normalizeText(presetLabel(t, tpl, f)).includes(templateQuery));
+  const pickerSections = [
+    { id: "main", title: t("templatesMain"), templates: MAIN_TEMPLATES.filter(matchesTemplate) },
+    { id: "more", title: t("templatesMore"), templates: MORE_TEMPLATES.filter(matchesTemplate) },
+    { id: "user", title: t("templatesMine"), templates: userTemplates.filter(matchesTemplate) },
+  ].filter((section) => section.templates.length > 0 || (section.id === "user" && !templateQuery));
 
   return (
     <div>
@@ -955,11 +977,19 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
             <DialogTitle>{t("templatePickerTitle")}</DialogTitle>
             <DialogDescription>{t("templatePickerDescription")}</DialogDescription>
           </DialogHeader>
-          {[
-            { id: "main", title: t("templatesMain"), templates: MAIN_TEMPLATES },
-            { id: "more", title: t("templatesMore"), templates: MORE_TEMPLATES },
-            { id: "user", title: t("templatesMine"), templates: userTemplates },
-          ].map((section) => (
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-8"
+              value={templateSearch}
+              placeholder={t("templateSearchPlaceholder")}
+              onChange={(e) => setTemplateSearch(e.target.value)}
+            />
+          </div>
+          {templateQuery && pickerSections.every((s) => s.templates.length === 0) && (
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("templateNoResults")}</p>
+          )}
+          {pickerSections.map((section) => (
             <div key={section.id} className="flex flex-col gap-2">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {section.title}
@@ -984,21 +1014,31 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                         <span className="break-words text-xs font-medium">{templateLabel(t, tpl)}</span>
                       </button>
                       {tpl.user && (
-                        <button
-                          type="button"
-                          onClick={() => setTemplateToDelete(tpl)}
-                          title={t("templateDeleteTooltip")}
-                          className="absolute right-1 top-1 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-destructive focus:opacity-100 group-hover:opacity-100"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="absolute right-1 top-1 flex opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => setTemplateEditor({ initial: getUserTemplateData(tpl.id) })}
+                            title={t("templateEditTooltip")}
+                            className="rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTemplateToDelete(tpl)}
+                            title={t("templateDeleteTooltip")}
+                            className="rounded p-1 text-muted-foreground hover:bg-background hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   );
                 })}
-                {section.id === "user" && (
+                {section.id === "user" && !templateQuery && (
                   <button
-                    onClick={() => setNewTemplateOpen(true)}
+                    onClick={() => setTemplateEditor({})}
                     className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed p-3 text-center text-muted-foreground transition-colors hover:border-primary hover:bg-muted hover:text-foreground"
                   >
                     <div className="flex h-9 w-9 items-center justify-center rounded-md">
@@ -1013,7 +1053,11 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
         </DialogContent>
       </Dialog>
 
-      <TemplateEditorDialog open={newTemplateOpen} onOpenChange={setNewTemplateOpen} />
+      <TemplateEditorDialog
+        open={templateEditor !== null}
+        onOpenChange={(isOpen) => !isOpen && setTemplateEditor(null)}
+        initial={templateEditor?.initial}
+      />
 
       <Dialog open={templateToDelete !== null} onOpenChange={(isOpen) => !isOpen && setTemplateToDelete(null)}>
         <DialogContent>

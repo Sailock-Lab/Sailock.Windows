@@ -303,5 +303,9 @@
   "templateFieldsLabel": "模板字段",
   "templateSaveButton": "保存模板",
   "saveAsTemplate": "另存为模板",
-  "saveAsTemplateTooltip": "用这些字段创建模板（不会保存字段的值）"
+  "saveAsTemplateTooltip": "用这些字段创建模板（不会保存字段的值）",
+  "templateSearchPlaceholder": "搜索模板…",
+  "templateNoResults": "没有与搜索匹配的模板",
+  "templateEditTooltip": "编辑模板",
+  "templateEditorTitleEdit": "编辑模板"
 }

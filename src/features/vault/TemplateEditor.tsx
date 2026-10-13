@@ -167,7 +167,7 @@ export function TemplateEditorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t("templateEditorTitle")}</DialogTitle>
+          <DialogTitle>{initial?.id ? t("templateEditorTitleEdit") : t("templateEditorTitle")}</DialogTitle>
           <DialogDescription>{t("templateEditorDescription")}</DialogDescription>
         </DialogHeader>
 

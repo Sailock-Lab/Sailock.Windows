@@ -301,5 +301,9 @@
   "templateFieldsLabel": "Template fields",
   "templateSaveButton": "Save template",
   "saveAsTemplate": "Save as template",
-  "saveAsTemplateTooltip": "Create a template with these fields (values are not saved)"
+  "saveAsTemplateTooltip": "Create a template with these fields (values are not saved)",
+  "templateSearchPlaceholder": "Search templates…",
+  "templateNoResults": "No templates match your search",
+  "templateEditTooltip": "Edit template",
+  "templateEditorTitleEdit": "Edit template"
 }

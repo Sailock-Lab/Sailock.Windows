@@ -304,5 +304,9 @@
   "templateFieldsLabel": "Campos de la plantilla",
   "templateSaveButton": "Guardar plantilla",
   "saveAsTemplate": "Guardar como plantilla",
-  "saveAsTemplateTooltip": "Crear una plantilla con estos campos (los valores no se guardan)"
+  "saveAsTemplateTooltip": "Crear una plantilla con estos campos (los valores no se guardan)",
+  "templateSearchPlaceholder": "Buscar plantillas…",
+  "templateNoResults": "Ninguna plantilla coincide con la búsqueda",
+  "templateEditTooltip": "Editar plantilla",
+  "templateEditorTitleEdit": "Editar plantilla"
 }

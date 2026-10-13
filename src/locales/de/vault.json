@@ -303,5 +303,9 @@
   "templateFieldsLabel": "Felder der Vorlage",
   "templateSaveButton": "Vorlage speichern",
   "saveAsTemplate": "Als Vorlage speichern",
-  "saveAsTemplateTooltip": "Eine Vorlage mit diesen Feldern erstellen (Werte werden nicht gespeichert)"
+  "saveAsTemplateTooltip": "Eine Vorlage mit diesen Feldern erstellen (Werte werden nicht gespeichert)",
+  "templateSearchPlaceholder": "Vorlagen suchen …",
+  "templateNoResults": "Keine Vorlage passt zu deiner Suche",
+  "templateEditTooltip": "Vorlage bearbeiten",
+  "templateEditorTitleEdit": "Vorlage bearbeiten"
 }

@@ -303,5 +303,9 @@
   "templateFieldsLabel": "Velden van het sjabloon",
   "templateSaveButton": "Sjabloon opslaan",
   "saveAsTemplate": "Opslaan als sjabloon",
-  "saveAsTemplateTooltip": "Maak een sjabloon met deze velden (waarden worden niet opgeslagen)"
+  "saveAsTemplateTooltip": "Maak een sjabloon met deze velden (waarden worden niet opgeslagen)",
+  "templateSearchPlaceholder": "Sjablonen zoeken…",
+  "templateNoResults": "Geen sjablonen gevonden voor je zoekopdracht",
+  "templateEditTooltip": "Sjabloon bewerken",
+  "templateEditorTitleEdit": "Sjabloon bewerken"
 }

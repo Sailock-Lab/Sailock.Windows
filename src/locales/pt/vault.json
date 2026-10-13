@@ -303,5 +303,9 @@
   "templateFieldsLabel": "Campos do modelo",
   "templateSaveButton": "Guardar modelo",
   "saveAsTemplate": "Guardar como modelo",
-  "saveAsTemplateTooltip": "Criar um modelo com estes campos (os valores não são guardados)"
+  "saveAsTemplateTooltip": "Criar um modelo com estes campos (os valores não são guardados)",
+  "templateSearchPlaceholder": "Pesquisar modelos…",
+  "templateNoResults": "Nenhum modelo corresponde à pesquisa",
+  "templateEditTooltip": "Editar modelo",
+  "templateEditorTitleEdit": "Editar modelo"
 }

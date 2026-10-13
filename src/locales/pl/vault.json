@@ -303,5 +303,9 @@
   "templateFieldsLabel": "Pola szablonu",
   "templateSaveButton": "Zapisz szablon",
   "saveAsTemplate": "Zapisz jako szablon",
-  "saveAsTemplateTooltip": "Utwórz szablon z tymi polami (wartości nie są zapisywane)"
+  "saveAsTemplateTooltip": "Utwórz szablon z tymi polami (wartości nie są zapisywane)",
+  "templateSearchPlaceholder": "Szukaj szablonów…",
+  "templateNoResults": "Żaden szablon nie pasuje do wyszukiwania",
+  "templateEditTooltip": "Edytuj szablon",
+  "templateEditorTitleEdit": "Edytuj szablon"
 }

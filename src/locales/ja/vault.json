@@ -303,5 +303,9 @@
   "templateFieldsLabel": "テンプレートのフィールド",
   "templateSaveButton": "テンプレートを保存",
   "saveAsTemplate": "テンプレートとして保存",
-  "saveAsTemplateTooltip": "これらのフィールドでテンプレートを作成（値は保存されません）"
+  "saveAsTemplateTooltip": "これらのフィールドでテンプレートを作成（値は保存されません）",
+  "templateSearchPlaceholder": "テンプレートを検索…",
+  "templateNoResults": "検索に一致するテンプレートはありません",
+  "templateEditTooltip": "テンプレートを編集",
+  "templateEditorTitleEdit": "テンプレートを編集"
 }

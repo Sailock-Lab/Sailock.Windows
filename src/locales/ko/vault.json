@@ -303,5 +303,9 @@
   "templateFieldsLabel": "템플릿 필드",
   "templateSaveButton": "템플릿 저장",
   "saveAsTemplate": "템플릿으로 저장",
-  "saveAsTemplateTooltip": "이 필드들로 템플릿 만들기 (값은 저장되지 않습니다)"
+  "saveAsTemplateTooltip": "이 필드들로 템플릿 만들기 (값은 저장되지 않습니다)",
+  "templateSearchPlaceholder": "템플릿 검색…",
+  "templateNoResults": "검색과 일치하는 템플릿이 없습니다",
+  "templateEditTooltip": "템플릿 편집",
+  "templateEditorTitleEdit": "템플릿 편집"
 }

@@ -303,5 +303,9 @@
   "templateFieldsLabel": "Поля шаблона",
   "templateSaveButton": "Сохранить шаблон",
   "saveAsTemplate": "Сохранить как шаблон",
-  "saveAsTemplateTooltip": "Создать шаблон с этими полями (значения не сохраняются)"
+  "saveAsTemplateTooltip": "Создать шаблон с этими полями (значения не сохраняются)",
+  "templateSearchPlaceholder": "Поиск шаблонов…",
+  "templateNoResults": "Нет шаблонов, подходящих под запрос",
+  "templateEditTooltip": "Редактировать шаблон",
+  "templateEditorTitleEdit": "Редактировать шаблон"
 }
