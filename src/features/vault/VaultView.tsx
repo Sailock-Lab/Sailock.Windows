@@ -612,13 +612,20 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
     entryTypeLabel(t, entryType);
 
   // Selector de plantillas: secciones filtradas por el buscador (nombre de la plantilla o de sus campos).
+  // Sin tildes, mayúsculas, espacios ni guiones: "wifi" encuentra "Wi-Fi".
   const normalizeText = (text: string) =>
-    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
   const templateQuery = normalizeText(templateSearch);
+  // Por el nombre de la plantilla; por sus campos solo con 3 letras o más y al inicio de una palabra.
   const matchesTemplate = (tpl: EntryTemplate) =>
     !templateQuery ||
     normalizeText(templateLabel(t, tpl)).includes(templateQuery) ||
-    tpl.presetFields.some((f) => normalizeText(presetLabel(t, tpl, f)).includes(templateQuery));
+    (templateQuery.length >= 3 &&
+      tpl.presetFields.some((f) =>
+        presetLabel(t, tpl, f)
+          .split(/[^\p{L}\p{N}]+/u)
+          .some((word) => normalizeText(word).startsWith(templateQuery))
+      ));
   const pickerSections = [
     { id: "main", title: t("templatesMain"), templates: MAIN_TEMPLATES.filter(matchesTemplate) },
     { id: "more", title: t("templatesMore"), templates: MORE_TEMPLATES.filter(matchesTemplate) },
@@ -812,7 +819,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
           {visible.length === 0 && currentSubfolders.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">{search ? t("emptySearch") : t("emptyList")}</p>
           ) : viewMode === "list" ? (
-            <div className="flex flex-col gap-1">
+            <div className="flex max-h-[max(16rem,calc(100vh-19rem))] flex-col gap-1 overflow-y-auto rounded-lg border p-2">
               {currentSubfolders.length > 0 &&
                 renderSubfolders("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
               {currentSubfolders.length > 0 && visible.length > 0 && <div className="my-2 border-t" />}
@@ -854,7 +861,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
+            <div className="grid max-h-[max(16rem,calc(100vh-19rem))] grid-cols-3 content-start gap-2 overflow-y-auto rounded-lg border p-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
               {currentSubfolders.length > 0 &&
                 renderSubfolders("col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
               {currentSubfolders.length > 0 && visible.length > 0 && <div className="col-span-full my-1 border-t" />}
@@ -998,7 +1005,10 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                 {section.templates.map((tpl) => {
                   const Icon = tpl.icon;
                   return (
-                    <div key={tpl.id} className="group relative">
+                    <div
+                      key={tpl.id}
+                      className="flex flex-col rounded-lg border transition-colors hover:border-primary"
+                    >
                       <button
                         onClick={() => {
                           setSelectedTemplate(tpl);
@@ -1006,7 +1016,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                           setFormMode("create");
                           setSelectedId(null);
                         }}
-                        className="flex h-full w-full flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-colors hover:border-primary hover:bg-muted"
+                        className="flex w-full flex-1 flex-col items-center gap-1.5 rounded-lg p-3 text-center transition-colors hover:bg-muted"
                       >
                         <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-foreground">
                           <Icon className="h-4 w-4" />
@@ -1014,7 +1024,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed }: VaultViewProps
                         <span className="break-words text-xs font-medium">{templateLabel(t, tpl)}</span>
                       </button>
                       {tpl.user && (
-                        <div className="absolute right-1 top-1 flex opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                        <div className="flex justify-center gap-1 px-1 pb-1.5">
                           <button
                             type="button"
                             onClick={() => setTemplateEditor({ initial: getUserTemplateData(tpl.id) })}
@@ -1383,12 +1393,15 @@ function EntryForm({
   const [useTabs] = useState(() => customFields.length >= 4);
   const [tab, setTab] = useState<FormTab>("general");
 
-  const showUsername = initial ? true : activeTemplate ? activeTemplate.showUsername : true;
-  const showPasswordField = initial ? true : activeTemplate ? activeTemplate.showPassword : true;
-  const showWebsite = initial ? true : activeTemplate ? activeTemplate.showWebsite : true;
-  const showTotp = initial ? true : activeTemplate ? activeTemplate.showTotp : true;
-  const nameLabel = !initial && activeTemplate ? templateNameLabel(t, activeTemplate) : t("fieldName");
-  const notesLabel = !initial && activeTemplate?.id === "note" ? t("presetContent") : t("fieldNotes");
+  // Al editar se respeta la plantilla del registro, pero nunca se oculta un dato que ya tenga valor.
+  // Los registros sin plantilla (o cuya plantilla se borró) muestran todos los campos.
+  const formTemplate = initial ? findTemplate(initial.entry_type) : activeTemplate;
+  const showUsername = formTemplate ? formTemplate.showUsername || !!initial?.username : true;
+  const showPasswordField = formTemplate ? formTemplate.showPassword || !!initial?.password : true;
+  const showWebsite = formTemplate ? formTemplate.showWebsite || !!initial?.website : true;
+  const showTotp = formTemplate ? formTemplate.showTotp || !!initial?.totp_secret : true;
+  const nameLabel = formTemplate ? templateNameLabel(t, formTemplate) : t("fieldName");
+  const notesLabel = formTemplate?.id === "note" ? t("presetContent") : t("fieldNotes");
   const entryTypeToSave = initial ? initial.entry_type ?? null : activeTemplate ? activeTemplate.id : null;
   const HeaderIcon = entryIcon(entryTypeToSave);
   const headerTypeLabel = entryTypeLabel(t, entryTypeToSave);

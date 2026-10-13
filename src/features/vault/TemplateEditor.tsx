@@ -34,9 +34,9 @@ export const EMPTY_USER_TEMPLATE: UserTemplateData = {
   name: "",
   icon: "sparkles",
   name_label: "",
-  show_username: true,
-  show_password: true,
-  show_website: true,
+  show_username: false,
+  show_password: false,
+  show_website: false,
   show_totp: false,
   fields: [],
 };
@@ -72,9 +72,9 @@ export function TemplateEditorDialog({
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("sparkles");
   const [nameLabel, setNameLabel] = useState("");
-  const [showUsername, setShowUsername] = useState(true);
-  const [showPassword, setShowPassword] = useState(true);
-  const [showWebsite, setShowWebsite] = useState(true);
+  const [showUsername, setShowUsername] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showWebsite, setShowWebsite] = useState(false);
   const [showTotp, setShowTotp] = useState(false);
   const [fields, setFields] = useState<CustomFieldData[]>([]);
   const [saving, setSaving] = useState(false);
