@@ -805,6 +805,134 @@ fn verify_master_password(
     Ok(decrypt_entries(&key, &file.nonce, &file.ciphertext).is_ok())
 }
 
+// ---------- Cambio de contraseña maestra ----------
+
+// Vuelve a cifrar un fichero {nonce, ciphertext} (carpetas, etiquetas, plantillas...) con la clave nueva.
+// Devuelve None si el fichero no se puede leer con la clave actual (en ese caso se deja como está).
+fn reencrypt_blob(content: &str, old_key: &[u8; 32], new_key: &[u8; 32]) -> Option<String> {
+    let file: TaxonomyFile = serde_json::from_str(content).ok()?;
+    let nonce_bytes = B64.decode(&file.nonce).ok()?;
+    if nonce_bytes.len() != 12 {
+        return None;
+    }
+    let ciphertext = B64.decode(&file.ciphertext).ok()?;
+    let old_cipher = Aes256Gcm::new_from_slice(old_key).ok()?;
+    let plaintext = old_cipher
+        .decrypt(Nonce::from_slice(&nonce_bytes), ciphertext.as_ref())
+        .ok()?;
+
+    let new_cipher = Aes256Gcm::new_from_slice(new_key).ok()?;
+    let mut new_nonce = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut new_nonce);
+    let new_ciphertext = new_cipher
+        .encrypt(Nonce::from_slice(&new_nonce), plaintext.as_ref())
+        .ok()?;
+    serde_json::to_string_pretty(&TaxonomyFile {
+        nonce: B64.encode(new_nonce),
+        ciphertext: B64.encode(new_ciphertext),
+    })
+    .ok()
+}
+
+// Cambia la contraseña maestra: genera una sal nueva, deriva la clave nueva y vuelve a cifrar el vault
+// y todos los ficheros cifrados con ella. Si algo falla a medias, se restauran los ficheros originales.
+#[tauri::command]
+fn change_master_password(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    current_password: String,
+    new_password: String,
+) -> Result<(), String> {
+    if new_password.is_empty() {
+        return Err("La nueva contraseña no puede estar vacía".into());
+    }
+    if new_password == current_password {
+        return Err("La nueva contraseña debe ser distinta de la actual".into());
+    }
+
+    // El bloqueo se mantiene durante todo el cambio para que nada escriba con la clave antigua a mitad.
+    let mut key_guard = state.key.lock().unwrap();
+    if key_guard.is_none() {
+        return Err("El vault está bloqueado".into());
+    }
+
+    let vault_file_path = vault_path(&app_handle);
+    let content = fs::read_to_string(&vault_file_path).map_err(|e| e.to_string())?;
+    let file: VaultFile = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+    let salt_bytes = B64.decode(&file.salt).map_err(|e| e.to_string())?;
+    let old_key = derive_key(&current_password, &salt_bytes);
+    // Si la contraseña actual es incorrecta, falla aquí
+    let entries = decrypt_entries(&old_key, &file.nonce, &file.ciphertext)?;
+
+    let mut new_salt = [0u8; 16];
+    AeadOsRng.fill_bytes(&mut new_salt);
+    let new_key = derive_key(&new_password, &new_salt);
+    let (nonce, ciphertext) = encrypt_entries(&new_key, &entries);
+    let new_vault = VaultFile {
+        salt: B64.encode(new_salt),
+        nonce,
+        ciphertext,
+    };
+
+    // Contenido nuevo de cada fichero (el vault y los que existan de los demás)
+    let mut writes: Vec<(PathBuf, String)> = vec![(
+        vault_file_path,
+        serde_json::to_string_pretty(&new_vault).map_err(|e| e.to_string())?,
+    )];
+    for p in [
+        folders_path(&app_handle),
+        taxonomy_path(&app_handle),
+        templates_path(&app_handle),
+        generator_history_path(&app_handle),
+        totp_settings_path(&app_handle),
+    ] {
+        if !p.exists() {
+            continue;
+        }
+        let existing = fs::read_to_string(&p).map_err(|e| e.to_string())?;
+        if let Some(new_content) = reencrypt_blob(&existing, &old_key, &new_key) {
+            writes.push((p, new_content));
+        }
+    }
+
+    let tmp_of = |p: &PathBuf| p.with_extension("json.tmp");
+    let bak_of = |p: &PathBuf| p.with_extension("json.bak");
+    let cleanup = |writes: &[(PathBuf, String)]| {
+        for (p, _) in writes {
+            let _ = fs::remove_file(tmp_of(p));
+            let _ = fs::remove_file(bak_of(p));
+        }
+    };
+
+    // 1) Escribir todo en ficheros temporales y 2) guardar copia de los originales
+    for (p, new_content) in &writes {
+        if let Err(e) = fs::write(tmp_of(p), new_content) {
+            cleanup(&writes);
+            return Err(e.to_string());
+        }
+    }
+    for (p, _) in &writes {
+        if let Err(e) = fs::copy(p, bak_of(p)) {
+            cleanup(&writes);
+            return Err(e.to_string());
+        }
+    }
+    // 3) Sustituir los originales; si uno falla, se restauran los ya sustituidos
+    for (i, (p, _)) in writes.iter().enumerate() {
+        if let Err(e) = fs::rename(tmp_of(p), p) {
+            for (done, _) in writes.iter().take(i) {
+                let _ = fs::copy(bak_of(done), done);
+            }
+            cleanup(&writes);
+            return Err(e.to_string());
+        }
+    }
+    cleanup(&writes);
+
+    *key_guard = Some(new_key);
+    Ok(())
+}
+
 #[tauri::command]
 fn delete_vault(
     app_handle: tauri::AppHandle,
@@ -2298,6 +2426,7 @@ pub fn run() {
             restore_entry,
             save_backup_batch,
             verify_master_password,
+            change_master_password,
             delete_vault,
             save_activity,
             load_activities,

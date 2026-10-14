@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, } from "@/components/ui/alert-dialog";
-import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, KeyRound, Check, RefreshCw } from "lucide-react";
+import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, KeyRound, Check, RefreshCw, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { checkForUpdates, useUpdater } from "@/hooks/useUpdater";
@@ -648,6 +648,197 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
   );
 }
 
+const MIN_MASTER_PASSWORD_LENGTH = 8;
+
+type ChangePasswordStep = "form" | "totp";
+
+function ChangePasswordDialog({ totpEnabled }: { totpEnabled: boolean }) {
+  const { t } = useTranslation("settings");
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<ChangePasswordStep>("form");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const reset = () => {
+    setStep("form");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setTotpCode("");
+    setShowPasswords(false);
+    setError("");
+    setBusy(false);
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    // Mientras se está cambiando no se puede cerrar: el cambio no debe quedar a medias en pantalla.
+    if (!isOpen && busy) return;
+    setOpen(isOpen);
+    if (!isOpen) reset();
+  };
+
+  const applyChange = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await invoke("change_master_password", { currentPassword, newPassword });
+      toast.success(t("changePasswordSuccessToast"));
+      setBusy(false);
+      setOpen(false);
+      reset();
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!currentPassword) {
+      setError(t("deleteEnterPasswordError"));
+      return;
+    }
+    if (newPassword.length < MIN_MASTER_PASSWORD_LENGTH) {
+      setError(t("changePasswordMinLengthError", { count: MIN_MASTER_PASSWORD_LENGTH }));
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setError(t("changePasswordSameError"));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError(t("changePasswordMismatchError"));
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const ok = await invoke<boolean>("verify_master_password", { masterPassword: currentPassword });
+      if (!ok) {
+        setError(t("deleteWrongPasswordError"));
+        setBusy(false);
+        return;
+      }
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+      return;
+    }
+    if (totpEnabled) {
+      setStep("totp");
+      setBusy(false);
+      return;
+    }
+    await applyChange();
+  };
+
+  const handleVerifyTotp = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const ok = await invoke<boolean>("totp_verify_unlock", { code: totpCode });
+      if (!ok) {
+        setError(t("wrongCodeError"));
+        setBusy(false);
+        return;
+      }
+    } catch (e) {
+      setError(String(e));
+      setBusy(false);
+      return;
+    }
+    await applyChange();
+  };
+
+  const inputType = showPasswords ? "text" : "password";
+
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <KeyRound className="h-4 w-4 mr-2" />
+        {t("changePasswordButton")}
+      </Button>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("changePasswordDialogTitle")}</DialogTitle>
+            <DialogDescription>
+              {step === "form" ? t("changePasswordDialogDescription") : t("importStepTotpDescription")}
+            </DialogDescription>
+          </DialogHeader>
+
+          {step === "form" && (
+            <div className="flex flex-col gap-3">
+              <div>
+                <Label>{t("changePasswordCurrentLabel")}</Label>
+                <Input
+                  type={inputType}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <Label>{t("changePasswordNewLabel")}</Label>
+                <Input
+                  type={inputType}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div>
+                <Label>{t("changePasswordConfirmLabel")}</Label>
+                <Input
+                  type={inputType}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !busy && handleSubmit()}
+                  autoComplete="new-password"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPasswords(!showPasswords)}
+                className="flex items-center gap-1.5 self-start text-xs text-muted-foreground hover:text-foreground"
+              >
+                {showPasswords ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showPasswords ? t("changePasswordHide") : t("changePasswordShow")}
+              </button>
+              <p className="text-xs text-muted-foreground">{t("changePasswordWarning")}</p>
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button onClick={handleSubmit} disabled={busy}>
+                {busy ? t("changePasswordWorking") : totpEnabled ? t("continueButton") : t("changePasswordSubmitButton")}
+              </Button>
+            </div>
+          )}
+
+          {step === "totp" && (
+            <div className="flex flex-col gap-3">
+              <Input
+                placeholder="123456"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !busy && handleVerifyTotp()}
+                autoFocus
+              />
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              <Button onClick={handleVerifyTotp} disabled={busy}>
+                {busy ? t("changePasswordWorking") : t("changePasswordTotpButton")}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 interface SettingsViewProps {
   onVaultDeleted: () => void;
   autoLockDuration: AutoLockDuration;
@@ -946,6 +1137,13 @@ export function SettingsView({
             </CardTitle>
             <CardDescription className="text-sm mb-4">{t("securityCardDescription")}</CardDescription>
             <div className="space-y-3">
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div>
+                  <p className="text-sm font-medium">{t("changePasswordLabel")}</p>
+                  <p className="text-xs text-muted-foreground">{t("changePasswordDescription")}</p>
+                </div>
+                <ChangePasswordDialog totpEnabled={totpEnabled} />
+              </div>
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
                   <p className="text-sm font-medium">{t("totpLabel")}</p>
