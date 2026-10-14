@@ -1,7 +1,11 @@
 {
-    "vault": "보관함",
-    "generator": "생성기",
-    "activity": "활동",
-    "settings": "설정",
-    "lock": "로그아웃"
+  "vault": "보관함",
+  "generator": "생성기",
+  "activity": "활동",
+  "settings": "설정",
+  "lock": "로그아웃",
+  "shortcutGoTo": "{{view}}(으)로 이동",
+  "shortcutSearch": "보관함에서 검색",
+  "shortcutNewEntry": "새 항목",
+  "shortcutLock": "보관함 잠그기"
 }

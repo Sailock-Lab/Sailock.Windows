@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, } from "@/components/ui/alert-dialog";
-import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, KeyRound, Check, RefreshCw, Eye, EyeOff } from "lucide-react";
+import { Moon, Sun, Monitor, Globe, Download, Upload, Trash2, Shield, AlertTriangle, Smartphone, Power, Lock, X, KeyRound, Check, RefreshCw, Eye, EyeOff, Keyboard, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { checkForUpdates, useUpdater } from "@/hooks/useUpdater";
@@ -20,6 +20,19 @@ import i18n from "@/i18n";
 import { LANGUAGE_LABELS } from "@/i18n/languages";
 import { isEnabled as isAutostartEnabled, enable as enableAutostart, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 import { getVersion } from "@tauri-apps/api/app";
+import {
+  SHORTCUT_ACTIONS,
+  DEFAULT_SHORTCUTS,
+  ShortcutAction,
+  comboFromEvent,
+  formatCombo,
+  resetAllShortcuts,
+  resetShortcut,
+  setShortcut,
+  setShortcutRecording,
+  useShortcutBindings,
+  validateCombo,
+} from "@/lib/shortcuts";
 
 type DeleteStep = "confirm" | "password" | "confirmType" | "deleting";
 
@@ -676,7 +689,6 @@ function ChangePasswordDialog({ totpEnabled }: { totpEnabled: boolean }) {
   };
 
   const handleOpenChange = (isOpen: boolean) => {
-    // Mientras se está cambiando no se puede cerrar: el cambio no debe quedar a medias en pantalla.
     if (!isOpen && busy) return;
     setOpen(isOpen);
     if (!isOpen) reset();
@@ -839,6 +851,214 @@ function ChangePasswordDialog({ totpEnabled }: { totpEnabled: boolean }) {
   );
 }
 
+function ShortcutKeys({ combo }: { combo: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      {formatCombo(combo).map((key, i) => (
+        <kbd
+          key={i}
+          className="min-w-6 rounded border bg-muted px-1.5 py-0.5 text-center font-mono text-xs text-muted-foreground"
+        >
+          {key}
+        </kbd>
+      ))}
+    </span>
+  );
+}
+
+const FIXED_SHORTCUTS: { labelKey: string; combos: string[] }[] = [
+  { labelKey: "shortcutFixedClose", combos: ["Escape"] },
+  { labelKey: "shortcutFixedConfirm", combos: ["Enter"] },
+  { labelKey: "shortcutFixedNextField", combos: ["Tab", "Shift+Tab"] },
+  { labelKey: "shortcutFixedClipboard", combos: ["Mod+C", "Mod+X", "Mod+V"] },
+];
+
+function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const { t } = useTranslation(["settings", "sidebar"]);
+  const shortcuts = useShortcutBindings();
+  const [recording, setRecording] = useState<ShortcutAction | null>(null);
+  const [error, setError] = useState("");
+
+  const labelFor = (action: ShortcutAction): string => {
+    switch (action) {
+      case "goVault":
+        return t("sidebar:shortcutGoTo", { view: t("sidebar:vault") });
+      case "goGenerator":
+        return t("sidebar:shortcutGoTo", { view: t("sidebar:generator") });
+      case "goActivity":
+        return t("sidebar:shortcutGoTo", { view: t("sidebar:activity") });
+      case "goSettings":
+        return t("sidebar:shortcutGoTo", { view: t("sidebar:settings") });
+      case "search":
+        return t("sidebar:shortcutSearch");
+      case "newEntry":
+        return t("sidebar:shortcutNewEntry");
+      case "lock":
+        return t("sidebar:shortcutLock");
+      case "help":
+        return t("shortcutActionShow");
+    }
+  };
+
+  useEffect(() => {
+    if (!recording) return;
+    setShortcutRecording(true);
+    const onKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === "Escape") {
+        setRecording(null);
+        setError("");
+        return;
+      }
+      const combo = comboFromEvent(e);
+      if (!combo) return;
+      const problem = validateCombo(recording, combo);
+      if (problem) {
+        setError(
+          problem.type === "reserved"
+            ? t("shortcutsErrorReserved")
+            : problem.type === "needModifier"
+              ? t("shortcutsErrorNeedModifier")
+              : t("shortcutsErrorInUse", { action: labelFor(problem.action) })
+        );
+        return;
+      }
+      setShortcut(recording, combo);
+      setRecording(null);
+      setError("");
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      setShortcutRecording(false);
+    };
+  }, [recording]);
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setRecording(null);
+      setError("");
+    }
+    onOpenChange(isOpen);
+  };
+
+  const anyCustom = SHORTCUT_ACTIONS.some((a) => shortcuts[a] !== DEFAULT_SHORTCUTS[a]);
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{t("shortcutsCardTitle")}</DialogTitle>
+          <DialogDescription>{t("shortcutsCardDescription")}</DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-5">
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("shortcutsEditableTitle")}
+              </h4>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!anyCustom}
+                onClick={() => {
+                  setRecording(null);
+                  setError("");
+                  resetAllShortcuts();
+                }}
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                {t("shortcutsResetAll")}
+              </Button>
+            </div>
+            <div className="space-y-1.5">
+              {SHORTCUT_ACTIONS.map((action) => {
+                const combo = shortcuts[action];
+                const isRecording = recording === action;
+                return (
+                  <div key={action}>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="min-w-0 text-sm">{labelFor(action)}</p>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isRecording ? (
+                          <span className="text-xs text-muted-foreground">{t("shortcutsPressKeys")}</span>
+                        ) : combo ? (
+                          <ShortcutKeys combo={combo} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{t("shortcutsUnassigned")}</span>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setError("");
+                            setRecording(isRecording ? null : action);
+                          }}
+                        >
+                          {isRecording ? t("shortcutsCancelButton") : t("shortcutsChangeButton")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          disabled={combo === DEFAULT_SHORTCUTS[action]}
+                          onClick={() => resetShortcut(action)}
+                          title={t("shortcutsResetOne")}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          disabled={!combo}
+                          onClick={() => setShortcut(action, "")}
+                          title={t("shortcutsRemove")}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    {isRecording && error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("shortcutsFixedTitle")}
+              <span
+                tabIndex={0}
+                title={t("shortcutsFixedHint")}
+                aria-label={t("shortcutsFixedHint")}
+                className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border text-[10px] font-medium normal-case"
+              >
+                ?
+              </span>
+            </h4>
+            <div className="space-y-1.5">
+              {FIXED_SHORTCUTS.map((row) => (
+                <div key={row.labelKey} className="flex items-center justify-between gap-3">
+                  <p className="text-sm">{t(row.labelKey)}</p>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {row.combos.map((combo) => (
+                      <ShortcutKeys key={combo} combo={combo} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface SettingsViewProps {
   onVaultDeleted: () => void;
   autoLockDuration: AutoLockDuration;
@@ -853,6 +1073,8 @@ interface SettingsViewProps {
   onTextSizeChange: (value: TextSize) => void;
   highContrast: boolean;
   onHighContrastChange: (value: boolean) => void;
+  focusSection?: "shortcuts" | null;
+  onFocusHandled?: () => void;
 }
 
 export function SettingsView({
@@ -869,6 +1091,8 @@ export function SettingsView({
   onTextSizeChange,
   highContrast,
   onHighContrastChange,
+  focusSection,
+  onFocusHandled,
 }: SettingsViewProps) {
   const { t } = useTranslation("settings");
 
@@ -898,6 +1122,7 @@ export function SettingsView({
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const [language, setLanguage] = useState(i18n.language);
   const [startWithWindows, setStartWithWindows] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [backupCodesRemaining, setBackupCodesRemaining] = useState<number | null>(null);
   const { saveActivity } = useActivity();
@@ -914,6 +1139,12 @@ export function SettingsView({
       .then(setTotpEnabled)
       .catch(() => { });
   }, []);
+
+  useEffect(() => {
+    if (focusSection !== "shortcuts") return;
+    setShortcutsOpen(true);
+    onFocusHandled?.();
+  }, [focusSection]);
 
   useEffect(() => {
     isAutostartEnabled().then(setStartWithWindows).catch(() => { });
@@ -972,8 +1203,6 @@ export function SettingsView({
     saveActivity("edit", "autoUpdateToggled", "settings", { state: value ? "on" : "off" });
   };
 
-  // Búsqueda manual: funciona aunque la comprobación automática esté desactivada.
-  // Si hay versión nueva, se abre el diálogo global (UpdateDialog) montado en la app.
   const handleCheckForUpdates = async () => {
     const result = await checkForUpdates({ manual: true });
     if (result === "upToDate") {
@@ -1268,7 +1497,7 @@ export function SettingsView({
         <Card className="p-5 rounded-xl">
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-muted-foreground" aria-hidden="true"><circle cx="12" cy="12" r="10" strokeWidth="1.5" /><g transform="translate(3 3) scale(0.75)" strokeWidth="2"><path d="M12 10v4" /><path d="m6 8 6 2 6-2" /><path d="m9 20 3-6 3 6" /><circle cx="12" cy="5" r="1" /></g></svg>              {t("accessibilityCardTitle")}
+              <svg xmlns="http:www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-muted-foreground" aria-hidden="true"><circle cx="12" cy="12" r="10" strokeWidth="1.5" /><g transform="translate(3 3) scale(0.75)" strokeWidth="2"><path d="M12 10v4" /><path d="m6 8 6 2 6-2" /><path d="m9 20 3-6 3 6" /><circle cx="12" cy="5" r="1" /></g></svg>              {t("accessibilityCardTitle")}
             </CardTitle>
             <CardDescription className="text-sm mb-4">{t("accessibilityCardDescription")}</CardDescription>
             <div className="space-y-3">
@@ -1304,6 +1533,16 @@ export function SettingsView({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div>
+                  <p className="text-sm font-medium">{t("shortcutsCardTitle")}</p>
+                  <p className="text-xs text-muted-foreground">{t("shortcutsCardDescription")}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setShortcutsOpen(true)}>
+                  <Keyboard className="h-4 w-4 mr-2" />
+                  {t("shortcutsViewButton")}
+                </Button>
               </div>
             </div>
           </div>
@@ -1442,6 +1681,8 @@ export function SettingsView({
           </div>
         </Card>
       </div>
+
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   );
 }

@@ -1,7 +1,11 @@
 {
-    "vault": "保管庫",
-    "generator": "ジェネレーター",
-    "activity": "アクティビティ",
-    "settings": "設定",
-    "lock": "ログアウト"
+  "vault": "保管庫",
+  "generator": "ジェネレーター",
+  "activity": "アクティビティ",
+  "settings": "設定",
+  "lock": "ログアウト",
+  "shortcutGoTo": "{{view}}へ移動",
+  "shortcutSearch": "保管庫内を検索",
+  "shortcutNewEntry": "新しい項目",
+  "shortcutLock": "保管庫をロック"
 }

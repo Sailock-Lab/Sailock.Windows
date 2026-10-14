@@ -1,7 +1,11 @@
 {
-    "vault": "Sejf",
-    "generator": "Generator",
-    "activity": "Aktywność",
-    "settings": "Ustawienia",
-    "lock": "Wyloguj się"
+  "vault": "Sejf",
+  "generator": "Generator",
+  "activity": "Aktywność",
+  "settings": "Ustawienia",
+  "lock": "Wyloguj się",
+  "shortcutGoTo": "Przejdź do: {{view}}",
+  "shortcutSearch": "Szukaj w sejfie",
+  "shortcutNewEntry": "Nowy wpis",
+  "shortcutLock": "Zablokuj sejf"
 }

@@ -1,7 +1,11 @@
 {
-    "vault": "Vault",
-    "generator": "Generator",
-    "activity": "Activity",
-    "settings": "Settings",
-    "lock": "Log out"
+  "vault": "Vault",
+  "generator": "Generator",
+  "activity": "Activity",
+  "settings": "Settings",
+  "lock": "Log out",
+  "shortcutGoTo": "Go to {{view}}",
+  "shortcutSearch": "Search the vault",
+  "shortcutNewEntry": "New entry",
+  "shortcutLock": "Lock the vault"
 }

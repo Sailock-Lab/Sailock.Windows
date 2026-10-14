@@ -1,7 +1,11 @@
 {
-    "vault": "Cassaforte",
-    "generator": "Generatore",
-    "activity": "Attività",
-    "settings": "Impostazioni",
-    "lock": "Disconnetti"
+  "vault": "Cassaforte",
+  "generator": "Generatore",
+  "activity": "Attività",
+  "settings": "Impostazioni",
+  "lock": "Disconnetti",
+  "shortcutGoTo": "Vai a {{view}}",
+  "shortcutSearch": "Cerca nella cassaforte",
+  "shortcutNewEntry": "Nuova voce",
+  "shortcutLock": "Blocca la cassaforte"
 }

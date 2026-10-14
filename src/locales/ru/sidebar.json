@@ -1,7 +1,11 @@
 {
-    "vault": "Хранилище",
-    "generator": "Генератор",
-    "activity": "Активность",
-    "settings": "Настройки",
-    "lock": "Выйти"
+  "vault": "Хранилище",
+  "generator": "Генератор",
+  "activity": "Активность",
+  "settings": "Настройки",
+  "lock": "Выйти",
+  "shortcutGoTo": "Перейти: {{view}}",
+  "shortcutSearch": "Поиск в хранилище",
+  "shortcutNewEntry": "Новая запись",
+  "shortcutLock": "Заблокировать хранилище"
 }

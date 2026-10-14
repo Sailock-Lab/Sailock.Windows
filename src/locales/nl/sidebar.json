@@ -1,7 +1,11 @@
 {
-    "vault": "Kluis",
-    "generator": "Generator",
-    "activity": "Activiteit",
-    "settings": "Instellingen",
-    "lock": "Uitloggen"
+  "vault": "Kluis",
+  "generator": "Generator",
+  "activity": "Activiteit",
+  "settings": "Instellingen",
+  "lock": "Uitloggen",
+  "shortcutGoTo": "Ga naar {{view}}",
+  "shortcutSearch": "Zoeken in de kluis",
+  "shortcutNewEntry": "Nieuw item",
+  "shortcutLock": "Kluis vergrendelen"
 }

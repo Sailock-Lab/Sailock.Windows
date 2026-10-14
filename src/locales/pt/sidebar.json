@@ -1,7 +1,11 @@
 {
-    "vault": "Cofre",
-    "generator": "Gerador",
-    "activity": "Atividade",
-    "settings": "Configurações",
-    "lock": "Sair"
+  "vault": "Cofre",
+  "generator": "Gerador",
+  "activity": "Atividade",
+  "settings": "Configurações",
+  "lock": "Sair",
+  "shortcutGoTo": "Ir para {{view}}",
+  "shortcutSearch": "Pesquisar no cofre",
+  "shortcutNewEntry": "Novo registo",
+  "shortcutLock": "Bloquear o cofre"
 }

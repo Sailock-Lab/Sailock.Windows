@@ -1,7 +1,11 @@
 {
-    "vault": "Tresor",
-    "generator": "Generator",
-    "activity": "Aktivität",
-    "settings": "Einstellungen",
-    "lock": "Abmelden"
+  "vault": "Tresor",
+  "generator": "Generator",
+  "activity": "Aktivität",
+  "settings": "Einstellungen",
+  "lock": "Abmelden",
+  "shortcutGoTo": "Zu {{view}} wechseln",
+  "shortcutSearch": "Im Tresor suchen",
+  "shortcutNewEntry": "Neuer Eintrag",
+  "shortcutLock": "Tresor sperren"
 }

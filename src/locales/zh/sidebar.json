@@ -1,7 +1,11 @@
 {
-    "vault": "保管库",
-    "generator": "生成器",
-    "activity": "活动",
-    "settings": "设置",
-    "lock": "退出登录"
+  "vault": "保管库",
+  "generator": "生成器",
+  "activity": "活动",
+  "settings": "设置",
+  "lock": "退出登录",
+  "shortcutGoTo": "转到{{view}}",
+  "shortcutSearch": "搜索保管库",
+  "shortcutNewEntry": "新建条目",
+  "shortcutLock": "锁定保管库"
 }

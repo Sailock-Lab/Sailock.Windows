@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Layout } from "@/components/layout/Layout";
 import { View } from "@/components/layout/Sidebar";
-import { VaultView } from "@/features/vault/VaultView";
+import { VaultView, type VaultAction } from "@/features/vault/VaultView";
 import { GeneratorView } from "@/features/generator/GeneratorView";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { ActivityView } from "@/features/activity/ActivityView";
@@ -13,6 +13,7 @@ import { UpdateChecker } from "@/components/UpdateDialog";
 import { useActivity } from "@/hooks/useActivity";
 import { useAutoLock } from "@/hooks/useAutoLock";
 import { useLockOnMinimize } from "@/hooks/useLockOnMinimize";
+import { useShortcuts } from "@/hooks/useShortcuts";
 import { getStoredTheme, applyTheme } from "@/lib/theme";
 import { applyTextSize, applyContrast } from "@/lib/accessibility";
 import { AutoLockDuration, TextSize, getStoredAutoLockDuration, storeAutoLockDuration, getStoredBool, storeBool, getStoredTextSize, storeTextSize, } from "@/lib/appSettings";
@@ -27,6 +28,8 @@ function App() {
   const [reduceMotion, setReduceMotionState] = useState<boolean>(() => getStoredBool("reduceMotion", false));
   const [textSize, setTextSizeState] = useState<TextSize>(getStoredTextSize());
   const [highContrast, setHighContrastState] = useState<boolean>(() => getStoredBool("highContrast", false));
+  const [settingsFocus, setSettingsFocus] = useState<"shortcuts" | null>(null);
+  const [vaultAction, setVaultAction] = useState<VaultAction | null>(null);
   const { saveActivity } = useActivity();
 
   useEffect(() => {
@@ -78,13 +81,37 @@ function App() {
   const handleLock = async (eventKey: string = "logout") => {
     await invoke("lock_vault");
     await saveActivity("logout", eventKey, "system");
+    setSettingsFocus(null);
+    setVaultAction(null);
     setUnlocked(false);
   };
 
   useAutoLock(autoLockDuration, unlocked, () => handleLock("logoutIdle"));
   useLockOnMinimize(unlocked && lockOnMinimize, () => handleLock("logoutMinimize"));
 
+  useShortcuts(unlocked, {
+    goVault: () => setActive("vault"),
+    goGenerator: () => setActive("generator"),
+    goActivity: () => setActive("activity"),
+    goSettings: () => setActive("settings"),
+    search: () => {
+      setActive("vault");
+      setVaultAction("search");
+    },
+    newEntry: () => {
+      setActive("vault");
+      setVaultAction("new");
+    },
+    lock: () => handleLock(),
+    help: () => {
+      setActive("settings");
+      setSettingsFocus("shortcuts");
+    },
+  });
+
   const handleVaultDeleted = () => {
+    setSettingsFocus(null);
+    setVaultAction(null);
     setUnlocked(false);
     setActive("vault");
   };
@@ -132,6 +159,8 @@ function App() {
           <VaultView
             prefillPassword={vaultPrefillPassword}
             onPrefillConsumed={() => setVaultPrefillPassword(null)}
+            pendingAction={vaultAction}
+            onActionHandled={() => setVaultAction(null)}
           />
         );
       case "generator":
@@ -154,6 +183,8 @@ function App() {
             onTextSizeChange={handleTextSizeChange}
             highContrast={highContrast}
             onHighContrastChange={handleHighContrastChange}
+            focusSection={settingsFocus}
+            onFocusHandled={() => setSettingsFocus(null)}
           />
         );
     }
@@ -179,8 +210,6 @@ function App() {
               </motion.div>
             </AnimatePresence>
           </Layout>
-          {/* Aviso de actualización: solo con la bóveda desbloqueada. Si el ajuste está
-              desactivado, nunca se conecta por su cuenta. */}
           <UpdateChecker enabled={autoUpdate} />
         </>
       )}

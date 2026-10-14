@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { KeyRound, Wand2, Settings, LogOut, ChevronLeft, ChevronRight, History } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { ShortcutAction, formatComboText, useShortcutBindings } from "@/lib/shortcuts";
 
 export type View = "vault" | "generator" | "settings" | "activity";
 
@@ -12,16 +13,23 @@ interface SidebarProps {
   onLock: () => void;
 }
 
-const items: { id: View; icon: React.ElementType }[] = [
-  { id: "vault", icon: KeyRound },
-  { id: "generator", icon: Wand2 },
-  { id: "activity", icon: History },
-  { id: "settings", icon: Settings },
+const items: { id: View; icon: React.ElementType; shortcut: ShortcutAction }[] = [
+  { id: "vault", icon: KeyRound, shortcut: "goVault" },
+  { id: "generator", icon: Wand2, shortcut: "goGenerator" },
+  { id: "activity", icon: History, shortcut: "goActivity" },
+  { id: "settings", icon: Settings, shortcut: "goSettings" },
 ];
 
 export function Sidebar({ active, onChange, onLock }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { t } = useTranslation("sidebar");
+  const shortcuts = useShortcutBindings();
+
+  const tooltip = (label: string, combo: string, showLabel: boolean) => {
+    const hint = combo ? formatComboText(combo) : "";
+    if (showLabel) return hint ? `${label} (${hint})` : label;
+    return hint || undefined;
+  };
 
   return (
     <aside
@@ -35,7 +43,7 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
 
       <div className="border-t my-2" />
 
-      {items.map(({ id, icon: Icon }) => {
+      {items.map(({ id, icon: Icon, shortcut }) => {
         const label = t(id);
         return (
           <Button
@@ -47,7 +55,7 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
                 : "hover:bg-muted hover:text-foreground hover:scale-[1.02]"
               }`}
             onClick={() => onChange(id)}
-            title={collapsed ? label : undefined}
+            title={tooltip(label, shortcuts[shortcut], collapsed)}
           >
             <Icon className="h-4 w-4 shrink-0" />
             {!collapsed && label}
@@ -62,7 +70,7 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
         className={`gap-2 mt-auto transition-all duration-200 border-destructive/50 text-destructive hover:bg-destructive hover:text-white hover:border-destructive hover:scale-[1.02] dark:high-contrast:hover:bg-[oklch(0.55_0.22_25)] ${collapsed ? "justify-center px-0" : "justify-center"
           }`}
         onClick={onLock}
-        title={collapsed ? t("lock") : undefined}
+        title={tooltip(t("lock"), shortcuts.lock, collapsed)}
       >
         <LogOut className="h-4 w-4 shrink-0" />
         {!collapsed && t("lock")}
