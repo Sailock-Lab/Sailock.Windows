@@ -307,5 +307,11 @@
   "templateSearchPlaceholder": "Поиск шаблонов…",
   "templateNoResults": "Нет шаблонов, подходящих под запрос",
   "templateEditTooltip": "Редактировать шаблон",
-  "templateEditorTitleEdit": "Редактировать шаблон"
+  "templateEditorTitleEdit": "Редактировать шаблон",
+  "shortcutOpenEntryFirst": "Сначала откройте запись, чтобы скопировать её данные.",
+  "shortcutCopiedUsername": "Имя пользователя скопировано.",
+  "shortcutCopiedTotp": "Одноразовый код скопирован.",
+  "shortcutEmptyUsername": "В этой записи нет имени пользователя.",
+  "shortcutEmptyPassword": "В этой записи нет пароля.",
+  "shortcutEmptyTotp": "В этой записи нет кода аутентификации."
 }

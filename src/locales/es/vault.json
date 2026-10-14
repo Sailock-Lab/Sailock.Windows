@@ -308,5 +308,11 @@
   "templateSearchPlaceholder": "Buscar plantillas…",
   "templateNoResults": "Ninguna plantilla coincide con la búsqueda",
   "templateEditTooltip": "Editar plantilla",
-  "templateEditorTitleEdit": "Editar plantilla"
+  "templateEditorTitleEdit": "Editar plantilla",
+  "shortcutOpenEntryFirst": "Abre primero un registro para copiar sus datos.",
+  "shortcutCopiedUsername": "Usuario copiado.",
+  "shortcutCopiedTotp": "Código de un solo uso copiado.",
+  "shortcutEmptyUsername": "Este registro no tiene usuario.",
+  "shortcutEmptyPassword": "Este registro no tiene contraseña.",
+  "shortcutEmptyTotp": "Este registro no tiene código de autenticación."
 }

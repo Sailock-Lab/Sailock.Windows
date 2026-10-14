@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -89,6 +89,7 @@ import {
 } from "@/components/EntryTaxonomy";
 import { useActivity } from "@/hooks/useActivity";
 
+// Código de error estable que devuelve el backend (Rust) cuando la contraseña maestra no es válida.
 const WRONG_PASSWORD_CODE = "INVALID_MASTER_PASSWORD";
 
 interface FolderData {
@@ -98,11 +99,12 @@ interface FolderData {
   created_at: number;
 }
 
+// Evento del historial de un registro. Nunca guarda valores, solo qué cambió.
 interface HistoryEvent {
   timestamp: number;
   action: string;
-  field?: string | null;  
-  extra?: string | null; 
+  field?: string | null; // etiqueta del campo, o "builtin:<clave>" para los campos fijos
+  extra?: string | null; // p. ej. el nombre nuevo de un campo o la carpeta de destino
 }
 
 interface Entry {
@@ -117,10 +119,10 @@ interface Entry {
   custom_fields?: CustomFieldData[];
   totp_secret?: string | null;
   entry_type?: string | null;
-  logo?: string | null; 
-  avatar_mode?: string | null; 
-  tag_ids?: string[]; 
-  category_id?: string | null; 
+  logo?: string | null; // imagen subida por el usuario (data URL pequeña)
+  avatar_mode?: string | null; // "type" | "initial" | "image"
+  tag_ids?: string[]; // etiquetas (varias)
+  category_id?: string | null; // categoría (una)
   history?: HistoryEvent[];
   favorite: boolean;
   trashed: boolean;
@@ -156,6 +158,8 @@ function matchesSearch(entry: Entry, term: string, category: SearchCategory): bo
   const inName = norm(entry.name).includes(t);
   const inContact = norm(entry.username ?? "").includes(t);
   const inWebsite = norm(entry.website ?? "").includes(t);
+  // El nombre de un campo cuenta solo si una de sus palabras empieza por lo escrito ("wi" ya no encuentra "SWIFT").
+  // Los valores de campos sensibles no se buscan: si no, escribir letras revelaría su contenido.
   const inCustom = (entry.custom_fields ?? []).some(
     (f) =>
       norm(f.label)
@@ -201,6 +205,9 @@ function folderPath(folders: FolderData[], id: string): string {
   return trail.join(" / ");
 }
 
+// ---------- Historial: texto legible de cada evento ----------
+
+// Campos fijos del registro -> clave de traducción de su nombre
 const BUILTIN_FIELD_KEYS: Record<string, string> = {
   name: "fieldName",
   username: "detailUsername",
@@ -215,6 +222,7 @@ const BUILTIN_FIELD_KEYS: Record<string, string> = {
 type TFn = (key: string, options?: Record<string, unknown>) => string;
 
 function describeHistory(t: TFn, ev: HistoryEvent): string {
+  // Las etiquetas y carpetas son texto del usuario: sin escapado HTML.
   const opts = (values: Record<string, string>) => ({ ...values, interpolation: { escapeValue: false } });
   const field = ev.field?.startsWith("builtin:")
     ? t(BUILTIN_FIELD_KEYS[ev.field.slice(8)] ?? "fieldName")
@@ -258,6 +266,8 @@ function describeHistory(t: TFn, ev: HistoryEvent): string {
   }
 }
 
+// Base UI muestra el VALOR del desplegable ("root", un id numérico...) salvo que le des la lista
+// de {value, label} en la prop `items`: con ella, SelectValue pinta la etiqueta ya traducida.
 function folderSelectItems(folders: FolderData[], rootLabel: string) {
   return [
     { value: "root", label: rootLabel },
@@ -265,7 +275,11 @@ function folderSelectItems(folders: FolderData[], rootLabel: string) {
   ];
 }
 
-export type VaultAction = "search" | "new";
+// Acciones que le pide a la bóveda un atajo de teclado global.
+export type VaultAction = "search" | "new" | "copyUsername" | "copyPassword" | "copyTotp";
+
+// Petición de copiar un dato del registro abierto; `n` cambia en cada pulsación para poder repetirla.
+type CopyRequest = { kind: "copyUsername" | "copyPassword" | "copyTotp"; n: number };
 
 interface VaultViewProps {
   prefillPassword?: string | null;
@@ -285,6 +299,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<EntryTemplate | null>(null);
   const userTemplates = useUserTemplates();
+  // Editor de plantillas propias: {} = plantilla nueva, {initial} = editar una existente.
   const [templateEditor, setTemplateEditor] = useState<{ initial?: UserTemplateData } | null>(null);
   const [templateSearch, setTemplateSearch] = useState("");
   const [templateToDelete, setTemplateToDelete] = useState<EntryTemplate | null>(null);
@@ -305,6 +320,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   const [taxonomyOpen, setTaxonomyOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>("all");
+  const [copyRequest, setCopyRequest] = useState<CopyRequest | null>(null);
   const { saveActivity } = useActivity();
 
   const loadEntries = async () => {
@@ -329,6 +345,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     loadUserTemplates();
   }, []);
 
+  // Atajos: Ctrl+K enfoca el buscador y Ctrl+N abre el selector de plantillas.
   useEffect(() => {
     if (!pendingAction) return;
     if (pendingAction === "search") {
@@ -337,10 +354,17 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
       input?.select();
     } else if (pendingAction === "new") {
       setTemplatePickerOpen(true);
+    } else if (selectedId && formMode === null) {
+      // Copiar usuario / contraseña / TOTP: actúa sobre el registro abierto.
+      setCopyRequest({ kind: pendingAction, n: Date.now() });
+    } else {
+      toast.info(t("shortcutOpenEntryFirst"));
     }
     onActionHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingAction]);
 
+  // El buscador del selector empieza vacío cada vez que se abre.
   useEffect(() => {
     if (!templatePickerOpen) setTemplateSearch("");
   }, [templatePickerOpen]);
@@ -354,6 +378,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     }
   }, [prefillPassword]);
 
+  // Con un filtro de categoría o etiqueta se busca en toda la bóveda, no solo en la carpeta actual.
   const browsingMode = filter === "all" && !search && categoryFilter === "all" && tagFilter === "all";
   const breadcrumbTrail = buildBreadcrumb(folders, currentFolderId);
   const currentSubfolders = browsingMode ? folders.filter((f) => f.parent_id === currentFolderId) : [];
@@ -373,6 +398,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   });
 
   const selected = entries.find((e) => e.id === selectedId) ?? null;
+  // El popup de la entrada se abre al crear, editar o ver un registro.
   const panelOpen = formMode !== null || selectedId !== null;
 
   const closePanel = () => {
@@ -412,11 +438,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     loadEntries();
   };
 
+  // Abrir el diálogo de contraseña maestra; el borrado real se hace al confirmarlo.
   const handleRequestDeletePermanently = (id: string) => {
     const entry = entries.find((e) => e.id === id);
     if (entry) setDeleteTarget(entry);
   };
 
+  // El backend vuelve a verificar la contraseña: si es incorrecta, delete_entry falla
+  // con WRONG_PASSWORD_CODE y el diálogo muestra el error sin borrar nada.
   const handleConfirmDeletePermanently = async (masterPassword: string) => {
     if (!deleteTarget) return;
     const target = deleteTarget;
@@ -427,9 +456,11 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     try {
       await saveActivity("delete", "entryDeletedForever", "vault", { name: target.name });
     } catch {
+      // El registro de actividad es secundario: la entrada ya se ha borrado.
     }
   };
 
+  // La papelera se abre solo tras verificar la contraseña maestra.
   const handleOpenTrash = () => {
     if (filter === "trash") return;
     setTrashAuthOpen(true);
@@ -495,6 +526,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     }
   };
 
+  // ---------- Etiquetas y categorías ----------
+
   const handleCreateTaxonomyItem = async (kind: TaxonomyKind, name: string): Promise<TaxonomyItem | null> => {
     const list = kind === "tag" ? taxonomy.tags : taxonomy.categories;
     const existing = list.find((x) => x.name.toLowerCase() === name.trim().toLowerCase());
@@ -528,7 +561,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     try {
       await invoke("delete_taxonomy_item", { kind, id });
       await loadTaxonomy();
-      await loadEntries();
+      await loadEntries(); // los registros que la usaban ya no la tienen
       if (kind === "tag" && tagFilter === id) setTagFilter("all");
       if (kind === "category" && categoryFilter === id) setCategoryFilter("all");
     } catch (e) {
@@ -536,6 +569,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     }
   };
 
+  // Se pasa tal cual al formulario, que puede crear y gestionar etiquetas y categorías sin salir del popup.
   const taxonomyProps = {
     taxonomy,
     onCreateTaxonomyItem: handleCreateTaxonomyItem,
@@ -555,6 +589,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
       </span>
     );
 
+  // Tarjetas de subcarpetas (misma pieza para la vista de lista y la de galería).
   const renderSubfolders = (containerClassName: string) => (
     <div className={containerClassName}>
       {currentSubfolders.map((f) => (
@@ -613,10 +648,12 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   const typeBadgeLabel = (entryType?: string | null) =>
     entryTypeLabel(t, entryType);
 
-  
+  // Selector de plantillas: secciones filtradas por el buscador (nombre de la plantilla o de sus campos).
+  // Sin tildes, mayúsculas, espacios ni guiones: "wifi" encuentra "Wi-Fi".
   const normalizeText = (text: string) =>
     text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
   const templateQuery = normalizeText(templateSearch);
+  // Por el nombre de la plantilla; por sus campos solo con 3 letras o más y al inicio de una palabra.
   const matchesTemplate = (tpl: EntryTemplate) =>
     !templateQuery ||
     normalizeText(templateLabel(t, tpl)).includes(templateQuery) ||
@@ -1166,6 +1203,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                 loadEntries();
               }}
               onClose={closePanel}
+              copyRequest={copyRequest}
             />
           )}
 
@@ -1193,6 +1231,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   );
 }
 
+// Diálogo reutilizable que pide la contraseña maestra antes de una acción sensible.
+// Quien lo usa decide qué hacer en onConfirm; si lanza un error, se muestra aquí.
 function MasterPasswordDialog({
   open,
   title,
@@ -1303,6 +1343,7 @@ function TotpDisplay({ secret, accountName }: { secret: string; accountName: str
       });
     }, 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret, accountName]);
 
   return (
@@ -1316,6 +1357,7 @@ function TotpDisplay({ secret, accountName }: { secret: string; accountName: str
   );
 }
 
+// Formulario de crear / editar. Se pinta dentro del popup (DialogContent) de VaultView.
 interface TaxonomyProps {
   taxonomy: Taxonomy;
   onCreateTaxonomyItem: (kind: TaxonomyKind, name: string) => Promise<TaxonomyItem | null>;
@@ -1385,9 +1427,13 @@ function EntryForm({
     return [];
   });
   const { saveActivity } = useActivity();
+  // Con muchos campos (plantillas largas, registros con 4 o más campos) el formulario se organiza en pestañas.
+  // Se decide al abrirlo y no cambia mientras se edita, para que las pestañas no aparezcan ni desaparezcan.
   const [useTabs] = useState(() => customFields.length >= 4);
   const [tab, setTab] = useState<FormTab>("general");
 
+  // Al editar se respeta la plantilla del registro, pero nunca se oculta un dato que ya tenga valor.
+  // Los registros sin plantilla (o cuya plantilla se borró) muestran todos los campos.
   const formTemplate = initial ? findTemplate(initial.entry_type) : activeTemplate;
   const showUsername = formTemplate ? formTemplate.showUsername || !!initial?.username : true;
   const showPasswordField = formTemplate ? formTemplate.showPassword || !!initial?.password : true;
@@ -1398,6 +1444,7 @@ function EntryForm({
   const entryTypeToSave = initial ? initial.entry_type ?? null : activeTemplate ? activeTemplate.id : null;
   const HeaderIcon = entryIcon(entryTypeToSave);
   const headerTypeLabel = entryTypeLabel(t, entryTypeToSave);
+  // Borrador de plantilla con los campos actuales del formulario (sin sus valores).
   const [templateDraft, setTemplateDraft] = useState<UserTemplateData | null>(null);
   const openTemplateDraft = () => {
     setTemplateDraft({
@@ -1424,6 +1471,7 @@ function EntryForm({
   const indexedFields = customFields.map((field, i) => ({ field, i }));
   const presetIndexed = indexedFields.filter((x) => x.field.is_preset);
   const extraIndexed = indexedFields.filter((x) => !x.field.is_preset);
+  // Si una etiqueta o categoría se elimina mientras el formulario está abierto, deja de contar.
   const validTagIds = tagIds.filter((id) => taxonomy.tags.some((tg) => tg.id === id));
   const effectiveCategory = taxonomy.categories.some((c) => c.id === categoryId) ? categoryId : "none";
 
@@ -1433,6 +1481,7 @@ function EntryForm({
       { label: "", value: "", field_type: "text", is_preset: false, preset_key: null, options: [] },
     ]);
   };
+  // Si se quita la opción elegida en un campo de lista, el valor se vacía.
   const updateFieldOptions = (index: number, options: string[]) => {
     setCustomFields(
       customFields.map((f, i) =>
@@ -1440,6 +1489,7 @@ function EntryForm({
       )
     );
   };
+  // Sube o baja un campo adicional una posición (los de la plantilla mantienen su sitio).
   const moveExtraField = (pos: number, direction: -1 | 1) => {
     const from = extraIndexed[pos]?.i;
     const to = extraIndexed[pos + direction]?.i;
@@ -1451,6 +1501,7 @@ function EntryForm({
   const updateField = (index: number, key: "label" | "value", val: string) => {
     setCustomFields(customFields.map((f, i) => (i === index ? { ...f, [key]: val } : f)));
   };
+  // Al cambiar de tipo se vacía el valor si el nuevo tipo no puede reutilizarlo (p. ej. texto -> fecha).
   const updateFieldType = (index: number, type: FieldType) => {
     setCustomFields(
       customFields.map((f, i) =>
@@ -1458,6 +1509,7 @@ function EntryForm({
           ? {
               ...f,
               field_type: type,
+              // Un campo que ya era sensible (p. ej. de tipo contraseña) no pasa a verse al cambiar de tipo.
               sensitive: isFieldSensitive(f),
               config: defaultConfigFor(type),
               value: isValueCompatible(f.field_type, type) ? f.value : "",
@@ -1508,6 +1560,7 @@ function EntryForm({
         }
         await saveActivity("edit", "entryEdited", "vault", { name });
       } else {
+        // save_entry devuelve el id de la nueva entrada.
         const newId = await invoke<string | null>("save_entry", { ...payload, folderId });
         if (favorite && newId) {
           await invoke("toggle_favorite", { id: newId });
@@ -1530,6 +1583,7 @@ function EntryForm({
   ];
   const activeTab: FormTab = tabs.some((x) => x.id === tab) ? tab : "general";
 
+  // ---- Bloques del formulario: se colocan en dos columnas o en pestañas ----
 
   const avatarBlock = (
       <AvatarPicker
@@ -1939,6 +1993,7 @@ interface RevealRequest {
   customFieldIndex?: number;
 }
 
+// Vista de solo lectura de un registro. Se pinta dentro del popup (DialogContent) de VaultView.
 function EntryDetail({
   entry,
   folders,
@@ -1950,6 +2005,7 @@ function EntryDetail({
   onToggleFavorite,
   onMoveToFolder,
   onClose,
+  copyRequest,
 }: {
   entry: Entry;
   folders: FolderData[];
@@ -1961,6 +2017,7 @@ function EntryDetail({
   onToggleFavorite: (e: React.MouseEvent) => void;
   onMoveToFolder: (folderId: string | null) => void | Promise<void>;
   onClose: () => void;
+  copyRequest?: CopyRequest | null;
 }) {
   const { t } = useTranslation("vault");
   const { requestOpen, dialog: openUrlDialog } = useOpenUrl();
@@ -2009,6 +2066,36 @@ function EntryDetail({
     }
     setRevealRequest({ action: "copy" });
   };
+
+  // Atajos de teclado para copiar usuario, contraseña o código TOTP del registro abierto.
+  const handledCopyN = useRef(copyRequest?.n); // una petición anterior no debe repetirse al abrir otro registro
+  useEffect(() => {
+    if (!copyRequest || copyRequest.n === handledCopyN.current) return;
+    handledCopyN.current = copyRequest.n;
+    const copyText = (text: string, message: string) => {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => toast.success(message))
+        .catch((e) => toast.error(String(e)));
+    };
+    if (copyRequest.kind === "copyUsername") {
+      if (entry.username) copyText(entry.username, t("shortcutCopiedUsername"));
+      else toast.info(t("shortcutEmptyUsername"));
+    } else if (copyRequest.kind === "copyPassword") {
+      // Igual que el botón de copiar: si la contraseña no está visible, pide la contraseña maestra.
+      if (entry.password) handleCopyClick();
+      else toast.info(t("shortcutEmptyPassword"));
+    } else if (copyRequest.kind === "copyTotp") {
+      if (!entry.totp_secret) {
+        toast.info(t("shortcutEmptyTotp"));
+      } else {
+        invoke<[string, number]>("get_totp_code", { secretBase32: entry.totp_secret, accountName: entry.name })
+          .then(([code]) => copyText(code, t("shortcutCopiedTotp")))
+          .catch((e) => toast.error(String(e)));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [copyRequest?.n]);
 
   const handleToggleCustomShow = (index: number) => {
     if (visibleCustomFields[index]) {
@@ -2070,6 +2157,7 @@ function EntryDetail({
 
   const typeLabel = entryTypeLabel(t, entry.entry_type);
   const folderLabel = entry.folder_id ? folderPath(folders, entry.folder_id) : t("vaultRootLabel");
+  // Del más reciente al más antiguo (los eventos se guardan en orden cronológico).
   const historyEvents = [...(entry.history ?? [])].reverse();
   const entryCategory = taxonomy.categories.find((c) => c.id === entry.category_id);
   const entryTags = (entry.tag_ids ?? [])

@@ -805,6 +805,49 @@ fn verify_master_password(
     Ok(decrypt_entries(&key, &file.nonce, &file.ciphertext).is_ok())
 }
 
+// ---------- Control de la ventana (atajos de teclado) ----------
+
+fn main_window(app_handle: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
+    app_handle
+        .get_webview_window("main")
+        .or_else(|| app_handle.webview_windows().into_values().next())
+        .ok_or_else(|| "No se encontró la ventana".to_string())
+}
+
+#[tauri::command]
+fn window_minimize(app_handle: tauri::AppHandle) -> Result<(), String> {
+    main_window(&app_handle)?.minimize().map_err(|e| e.to_string())
+}
+
+// Alterna la pantalla completa y devuelve el estado nuevo.
+#[tauri::command]
+fn window_toggle_fullscreen(app_handle: tauri::AppHandle) -> Result<bool, String> {
+    let window = main_window(&app_handle)?;
+    let next = !window.is_fullscreen().map_err(|e| e.to_string())?;
+    window.set_fullscreen(next).map_err(|e| e.to_string())?;
+    Ok(next)
+}
+
+#[tauri::command]
+fn window_set_always_on_top(app_handle: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    main_window(&app_handle)?
+        .set_always_on_top(enabled)
+        .map_err(|e| e.to_string())
+}
+
+// Zoom de la interfaz (1.0 = 100 %).
+#[tauri::command]
+fn window_set_zoom(app_handle: tauri::AppHandle, factor: f64) -> Result<(), String> {
+    main_window(&app_handle)?
+        .set_zoom(factor.clamp(0.5, 3.0))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn quit_app(app_handle: tauri::AppHandle) {
+    app_handle.exit(0);
+}
+
 // ---------- Cambio de contraseña maestra ----------
 
 // Vuelve a cifrar un fichero {nonce, ciphertext} (carpetas, etiquetas, plantillas...) con la clave nueva.
@@ -2427,6 +2470,11 @@ pub fn run() {
             save_backup_batch,
             verify_master_password,
             change_master_password,
+            window_minimize,
+            window_toggle_fullscreen,
+            window_set_always_on_top,
+            window_set_zoom,
+            quit_app,
             delete_vault,
             save_activity,
             load_activities,

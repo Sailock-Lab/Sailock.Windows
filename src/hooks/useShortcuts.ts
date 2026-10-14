@@ -8,6 +8,16 @@ import {
   isShortcutRecording,
 } from "@/lib/shortcuts";
 
+const BLOCKED_IN_MODAL = new Set<ShortcutAction>([
+  "goVault",
+  "goGenerator",
+  "goActivity",
+  "goSettings",
+  "search",
+  "newEntry",
+  "help",
+]);
+
 export type ShortcutHandlers = Record<ShortcutAction, () => void>;
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -34,7 +44,7 @@ export function useShortcuts(enabled: boolean, handlers: ShortcutHandlers) {
 
       if (!comboHasModifier(combo) && isTypingTarget(e.target)) return;
       const modalOpen = !!document.querySelector('[role="dialog"], [role="alertdialog"]');
-      if (modalOpen && action !== "lock") return;
+      if (modalOpen && BLOCKED_IN_MODAL.has(action)) return;
 
       e.preventDefault();
       latest.current[action]();

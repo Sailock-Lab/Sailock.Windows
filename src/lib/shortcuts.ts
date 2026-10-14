@@ -3,41 +3,59 @@ import { useSyncExternalStore } from "react";
 export const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform);
 
 export type ShortcutAction =
+  | "lock"
+  | "help"
+  | "quit"
   | "goVault"
   | "goGenerator"
   | "goActivity"
   | "goSettings"
   | "search"
   | "newEntry"
-  | "lock"
-  | "help";
+  | "copyUsername"
+  | "copyPassword"
+  | "copyTotp"
+  | "zoomIn"
+  | "zoomOut"
+  | "zoomReset"
+  | "fullscreen"
+  | "minimize"
+  | "alwaysOnTop";
 
-export const SHORTCUT_ACTIONS: ShortcutAction[] = [
-  "goVault",
-  "goGenerator",
-  "goActivity",
-  "goSettings",
-  "search",
-  "newEntry",
-  "lock",
-  "help",
+export const SHORTCUT_GROUPS: { titleKey: string; actions: ShortcutAction[] }[] = [
+  { titleKey: "shortcutsGroupGeneral", actions: ["lock", "help", "quit"] },
+  { titleKey: "shortcutsGroupNavigation", actions: ["goVault", "goGenerator", "goActivity", "goSettings"] },
+  { titleKey: "shortcutsGroupVault", actions: ["search", "newEntry", "copyUsername", "copyPassword", "copyTotp"] },
+  { titleKey: "shortcutsGroupDisplay", actions: ["zoomIn", "zoomOut", "zoomReset", "fullscreen"] },
+  { titleKey: "shortcutsGroupWindow", actions: ["minimize", "alwaysOnTop"] },
 ];
 
+export const SHORTCUT_ACTIONS: ShortcutAction[] = SHORTCUT_GROUPS.flatMap((g) => g.actions);
+
 export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string> = {
+  lock: "Mod+L",
+  help: "?",
+  quit: "Mod+Q",
   goVault: "Mod+1",
   goGenerator: "Mod+2",
   goActivity: "Mod+3",
   goSettings: "Mod+4",
   search: "Mod+K",
   newEntry: "Mod+N",
-  lock: "Mod+L",
-  help: "?",
+  copyUsername: "Mod+Shift+U",
+  copyPassword: "Mod+Shift+P",
+  copyTotp: "Mod+Shift+O",
+  zoomIn: "Mod+=",
+  zoomOut: "Mod+-",
+  zoomReset: "Mod+0",
+  fullscreen: "F11",
+  minimize: "Mod+M",
+  alwaysOnTop: "Mod+Shift+T",
 };
-
 
 const STORAGE_KEY = "sailock.shortcuts";
 
-type Bindings = Record<ShortcutAction, string>; 
+type Bindings = Record<ShortcutAction, string>; // "" = sin asignar
 
 function loadBindings(): Bindings {
   const merged: Bindings = { ...DEFAULT_SHORTCUTS };
@@ -123,7 +141,7 @@ export function comboFromEvent(e: KeyboardEvent): string | null {
   else if (IS_MAC && e.altKey && /^Digit\d$/.test(e.code)) key = e.code.slice(5);
 
   if (key === " ") key = "Space";
-  else if (key === "+") key = "Plus";
+  else if (key === "+") key = "="; 
   else if (key.length === 1) key = key.toUpperCase();
 
   const parts: string[] = [];
@@ -136,7 +154,6 @@ export function comboFromEvent(e: KeyboardEvent): string | null {
 }
 
 const KEY_LABELS: Record<string, string> = {
-  Plus: "+",
   ArrowUp: "↑",
   ArrowDown: "↓",
   ArrowLeft: "←",
@@ -167,9 +184,10 @@ export function comboHasModifier(combo: string): boolean {
   return mods.length > 0 || /^F\d{1,2}$/.test(key);
 }
 
+// Combinaciones que ya hacen algo en la app o en el sistema y no se pueden reasignar.
 const RESERVED = new Set([
   "Mod+C", "Mod+V", "Mod+X", "Mod+A", "Mod+Z", "Mod+Y", "Mod+Shift+Z",
-  "Mod+R", "Mod+Shift+R", "Mod+U", "Mod+Shift+I", "Mod+W", "Mod+Q", "Mod+P",
+  "Mod+R", "Mod+Shift+R", "Mod+U", "Mod+Shift+I", "Mod+W", "Mod+P",
   "F5", "F12", "Tab", "Shift+Tab", "Enter", "Escape", "Space", "Backspace", "Delete",
 ]);
 

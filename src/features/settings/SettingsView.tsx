@@ -23,6 +23,8 @@ import { getVersion } from "@tauri-apps/api/app";
 import {
   SHORTCUT_ACTIONS,
   DEFAULT_SHORTCUTS,
+  IS_MAC,
+  SHORTCUT_GROUPS,
   ShortcutAction,
   comboFromEvent,
   formatCombo,
@@ -689,6 +691,7 @@ function ChangePasswordDialog({ totpEnabled }: { totpEnabled: boolean }) {
   };
 
   const handleOpenChange = (isOpen: boolean) => {
+    // Mientras se está cambiando no se puede cerrar: el cambio no debe quedar a medias en pantalla.
     if (!isOpen && busy) return;
     setOpen(isOpen);
     if (!isOpen) reset();
@@ -866,13 +869,32 @@ function ShortcutKeys({ combo }: { combo: string }) {
   );
 }
 
-const FIXED_SHORTCUTS: { labelKey: string; combos: string[] }[] = [
-  { labelKey: "shortcutFixedClose", combos: ["Escape"] },
-  { labelKey: "shortcutFixedConfirm", combos: ["Enter"] },
-  { labelKey: "shortcutFixedNextField", combos: ["Tab", "Shift+Tab"] },
-  { labelKey: "shortcutFixedClipboard", combos: ["Mod+C", "Mod+X", "Mod+V"] },
+// Atajos que no se pueden cambiar (los de "Mod" son Ctrl en Windows/Linux y ⌘ en macOS).
+// Cada atajo en su propia línea, agrupados.
+const FIXED_SHORTCUT_GROUPS: { titleKey: string; rows: { labelKey: string; combo: string }[] }[] = [
+  {
+    titleKey: "shortcutsGroupGeneral",
+    rows: [
+      { labelKey: "shortcutFixedClose", combo: "Escape" },
+      { labelKey: "shortcutFixedConfirm", combo: "Enter" },
+      { labelKey: "shortcutFixedNext", combo: "Tab" },
+      { labelKey: "shortcutFixedPrev", combo: "Shift+Tab" },
+    ],
+  },
+  {
+    titleKey: "shortcutsGroupTextEditing",
+    rows: [
+      { labelKey: "shortcutFixedUndo", combo: "Mod+Z" },
+      { labelKey: "shortcutFixedRedo", combo: IS_MAC ? "Mod+Shift+Z" : "Mod+Y" },
+      { labelKey: "shortcutFixedSelectAll", combo: "Mod+A" },
+      { labelKey: "shortcutFixedCut", combo: "Mod+X" },
+      { labelKey: "shortcutFixedCopy", combo: "Mod+C" },
+      { labelKey: "shortcutFixedPaste", combo: "Mod+V" },
+    ],
+  },
 ];
 
+// Ventana con todos los atajos: los personalizables (con sus botones) y los fijos.
 function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { t } = useTranslation(["settings", "sidebar"]);
   const shortcuts = useShortcutBindings();
@@ -897,9 +919,30 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
         return t("sidebar:shortcutLock");
       case "help":
         return t("shortcutActionShow");
+      case "quit":
+        return t("shortcutActionQuit");
+      case "copyUsername":
+        return t("shortcutActionCopyUsername");
+      case "copyPassword":
+        return t("shortcutActionCopyPassword");
+      case "copyTotp":
+        return t("shortcutActionCopyTotp");
+      case "zoomIn":
+        return t("shortcutActionZoomIn");
+      case "zoomOut":
+        return t("shortcutActionZoomOut");
+      case "zoomReset":
+        return t("shortcutActionZoomReset");
+      case "fullscreen":
+        return t("shortcutActionFullscreen");
+      case "minimize":
+        return t("shortcutActionMinimize");
+      case "alwaysOnTop":
+        return t("shortcutActionAlwaysOnTop");
     }
   };
 
+  // Mientras se graba una combinación, esta ventana captura el teclado y los atajos globales se pausan.
   useEffect(() => {
     if (!recording) return;
     setShortcutRecording(true);
@@ -912,7 +955,7 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
         return;
       }
       const combo = comboFromEvent(e);
-      if (!combo) return;
+      if (!combo) return; // solo se pulsó un modificador: se espera a la tecla
       const problem = validateCombo(recording, combo);
       if (problem) {
         setError(
@@ -933,6 +976,7 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
       window.removeEventListener("keydown", onKeyDown, true);
       setShortcutRecording(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recording]);
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -950,12 +994,12 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
       <DialogContent className="max-h-[85vh] overflow-y-auto overflow-x-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("shortcutsCardTitle")}</DialogTitle>
-          <DialogDescription>{t("shortcutsCardDescription")}</DialogDescription>
+          <DialogDescription>{t("shortcutsIntro")}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-8">
           <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("shortcutsEditableTitle")}
               </h4>
@@ -973,58 +1017,65 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 {t("shortcutsResetAll")}
               </Button>
             </div>
-            <div className="space-y-1.5">
-              {SHORTCUT_ACTIONS.map((action) => {
-                const combo = shortcuts[action];
-                const isRecording = recording === action;
-                return (
-                  <div key={action}>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="min-w-0 text-sm">{labelFor(action)}</p>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {isRecording ? (
-                          <span className="text-xs text-muted-foreground">{t("shortcutsPressKeys")}</span>
-                        ) : combo ? (
-                          <ShortcutKeys combo={combo} />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">{t("shortcutsUnassigned")}</span>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setError("");
-                            setRecording(isRecording ? null : action);
-                          }}
-                        >
-                          {isRecording ? t("shortcutsCancelButton") : t("shortcutsChangeButton")}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          disabled={combo === DEFAULT_SHORTCUTS[action]}
-                          onClick={() => resetShortcut(action)}
-                          title={t("shortcutsResetOne")}
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          disabled={!combo}
-                          onClick={() => setShortcut(action, "")}
-                          title={t("shortcutsRemove")}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                    {isRecording && error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+            <div className="flex flex-col gap-5">
+              {SHORTCUT_GROUPS.map((group) => (
+                <div key={group.titleKey} className="border-t pt-4 first:border-t-0 first:pt-0">
+                  <h5 className="mb-2.5 text-sm font-semibold">{t(group.titleKey)}</h5>
+                  <div className="space-y-1.5">
+                    {group.actions.map((action) => {
+                        const combo = shortcuts[action];
+                        const isRecording = recording === action;
+                        return (
+                          <div key={action}>
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="min-w-0 text-sm">{labelFor(action)}</p>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {isRecording ? (
+                                  <span className="text-xs text-muted-foreground">{t("shortcutsPressKeys")}</span>
+                                ) : combo ? (
+                                  <ShortcutKeys combo={combo} />
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">{t("shortcutsUnassigned")}</span>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setError("");
+                                    setRecording(isRecording ? null : action);
+                                  }}
+                                >
+                                  {isRecording ? t("shortcutsCancelButton") : t("shortcutsChangeButton")}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  disabled={combo === DEFAULT_SHORTCUTS[action]}
+                                  onClick={() => resetShortcut(action)}
+                                  title={t("shortcutsResetOne")}
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  disabled={!combo}
+                                  onClick={() => setShortcut(action, "")}
+                                  title={t("shortcutsRemove")}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            {isRecording && error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+                          </div>
+                        );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -1040,13 +1091,16 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
                 ?
               </span>
             </h4>
-            <div className="space-y-1.5">
-              {FIXED_SHORTCUTS.map((row) => (
-                <div key={row.labelKey} className="flex items-center justify-between gap-3">
-                  <p className="text-sm">{t(row.labelKey)}</p>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {row.combos.map((combo) => (
-                      <ShortcutKeys key={combo} combo={combo} />
+            <div className="flex flex-col gap-5">
+              {FIXED_SHORTCUT_GROUPS.map((group) => (
+                <div key={group.titleKey} className="border-t pt-4 first:border-t-0 first:pt-0">
+                  <h5 className="mb-2.5 text-sm font-semibold">{t(group.titleKey)}</h5>
+                  <div className="space-y-1.5">
+                    {group.rows.map((row) => (
+                      <div key={row.labelKey} className="flex items-center justify-between gap-3">
+                        <p className="text-sm">{t(row.labelKey)}</p>
+                        <ShortcutKeys combo={row.combo} />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1140,10 +1194,12 @@ export function SettingsView({
       .catch(() => { });
   }, []);
 
+  // Desde el atajo de ayuda ("?") se llega directamente a la ventana de atajos.
   useEffect(() => {
     if (focusSection !== "shortcuts") return;
     setShortcutsOpen(true);
     onFocusHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusSection]);
 
   useEffect(() => {
@@ -1203,6 +1259,8 @@ export function SettingsView({
     saveActivity("edit", "autoUpdateToggled", "settings", { state: value ? "on" : "off" });
   };
 
+  // Búsqueda manual: funciona aunque la comprobación automática esté desactivada.
+  // Si hay versión nueva, se abre el diálogo global (UpdateDialog) montado en la app.
   const handleCheckForUpdates = async () => {
     const result = await checkForUpdates({ manual: true });
     if (result === "upToDate") {
@@ -1497,7 +1555,7 @@ export function SettingsView({
         <Card className="p-5 rounded-xl">
           <div>
             <CardTitle className="text-base flex items-center gap-2 mb-1">
-              <svg xmlns="http:www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-muted-foreground" aria-hidden="true"><circle cx="12" cy="12" r="10" strokeWidth="1.5" /><g transform="translate(3 3) scale(0.75)" strokeWidth="2"><path d="M12 10v4" /><path d="m6 8 6 2 6-2" /><path d="m9 20 3-6 3 6" /><circle cx="12" cy="5" r="1" /></g></svg>              {t("accessibilityCardTitle")}
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-muted-foreground" aria-hidden="true"><circle cx="12" cy="12" r="10" strokeWidth="1.5" /><g transform="translate(3 3) scale(0.75)" strokeWidth="2"><path d="M12 10v4" /><path d="m6 8 6 2 6-2" /><path d="m9 20 3-6 3 6" /><circle cx="12" cy="5" r="1" /></g></svg>              {t("accessibilityCardTitle")}
             </CardTitle>
             <CardDescription className="text-sm mb-4">{t("accessibilityCardDescription")}</CardDescription>
             <div className="space-y-3">
@@ -1537,7 +1595,7 @@ export function SettingsView({
               <div className="flex items-center justify-between pt-2 border-t">
                 <div>
                   <p className="text-sm font-medium">{t("shortcutsCardTitle")}</p>
-                  <p className="text-xs text-muted-foreground">{t("shortcutsCardDescription")}</p>
+                  <p className="text-xs text-muted-foreground">{t("shortcutsIntro")}</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setShortcutsOpen(true)}>
                   <Keyboard className="h-4 w-4 mr-2" />

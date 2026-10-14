@@ -307,5 +307,11 @@
   "templateSearchPlaceholder": "Pesquisar modelos…",
   "templateNoResults": "Nenhum modelo corresponde à pesquisa",
   "templateEditTooltip": "Editar modelo",
-  "templateEditorTitleEdit": "Editar modelo"
+  "templateEditorTitleEdit": "Editar modelo",
+  "shortcutOpenEntryFirst": "Abra primeiro um registro para copiar seus dados.",
+  "shortcutCopiedUsername": "Usuário copiado.",
+  "shortcutCopiedTotp": "Código de uso único copiado.",
+  "shortcutEmptyUsername": "Este registro não tem usuário.",
+  "shortcutEmptyPassword": "Este registro não tem senha.",
+  "shortcutEmptyTotp": "Este registro não tem código de autenticação."
 }

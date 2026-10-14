@@ -307,5 +307,11 @@
   "templateSearchPlaceholder": "搜索模板…",
   "templateNoResults": "没有与搜索匹配的模板",
   "templateEditTooltip": "编辑模板",
-  "templateEditorTitleEdit": "编辑模板"
+  "templateEditorTitleEdit": "编辑模板",
+  "shortcutOpenEntryFirst": "请先打开一个条目再复制其数据。",
+  "shortcutCopiedUsername": "已复制用户名。",
+  "shortcutCopiedTotp": "已复制一次性验证码。",
+  "shortcutEmptyUsername": "此条目没有用户名。",
+  "shortcutEmptyPassword": "此条目没有密码。",
+  "shortcutEmptyTotp": "此条目没有验证码。"
 }

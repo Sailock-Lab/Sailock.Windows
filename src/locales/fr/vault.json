@@ -307,5 +307,11 @@
   "templateSearchPlaceholder": "Rechercher un modèle…",
   "templateNoResults": "Aucun modèle ne correspond à votre recherche",
   "templateEditTooltip": "Modifier le modèle",
-  "templateEditorTitleEdit": "Modifier le modèle"
+  "templateEditorTitleEdit": "Modifier le modèle",
+  "shortcutOpenEntryFirst": "Ouvrez d'abord une entrée pour copier ses données.",
+  "shortcutCopiedUsername": "Identifiant copié.",
+  "shortcutCopiedTotp": "Code à usage unique copié.",
+  "shortcutEmptyUsername": "Cette entrée n'a pas d'identifiant.",
+  "shortcutEmptyPassword": "Cette entrée n'a pas de mot de passe.",
+  "shortcutEmptyTotp": "Cette entrée n'a pas de code d'authentification."
 }

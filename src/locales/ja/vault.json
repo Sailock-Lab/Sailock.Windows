@@ -307,5 +307,11 @@
   "templateSearchPlaceholder": "テンプレートを検索…",
   "templateNoResults": "検索に一致するテンプレートはありません",
   "templateEditTooltip": "テンプレートを編集",
-  "templateEditorTitleEdit": "テンプレートを編集"
+  "templateEditorTitleEdit": "テンプレートを編集",
+  "shortcutOpenEntryFirst": "先にアイテムを開いてからデータをコピーしてください。",
+  "shortcutCopiedUsername": "ユーザー名をコピーしました。",
+  "shortcutCopiedTotp": "ワンタイムコードをコピーしました。",
+  "shortcutEmptyUsername": "このアイテムにはユーザー名がありません。",
+  "shortcutEmptyPassword": "このアイテムにはパスワードがありません。",
+  "shortcutEmptyTotp": "このアイテムには認証コードがありません。"
 }

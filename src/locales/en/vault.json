@@ -305,5 +305,11 @@
   "templateSearchPlaceholder": "Search templates…",
   "templateNoResults": "No templates match your search",
   "templateEditTooltip": "Edit template",
-  "templateEditorTitleEdit": "Edit template"
+  "templateEditorTitleEdit": "Edit template",
+  "shortcutOpenEntryFirst": "Open an entry first to copy its data.",
+  "shortcutCopiedUsername": "Username copied.",
+  "shortcutCopiedTotp": "One-time code copied.",
+  "shortcutEmptyUsername": "This entry has no username.",
+  "shortcutEmptyPassword": "This entry has no password.",
+  "shortcutEmptyTotp": "This entry has no authenticator code."
 }

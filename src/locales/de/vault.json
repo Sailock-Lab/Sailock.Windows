@@ -307,5 +307,11 @@
   "templateSearchPlaceholder": "Vorlagen suchen …",
   "templateNoResults": "Keine Vorlage passt zu deiner Suche",
   "templateEditTooltip": "Vorlage bearbeiten",
-  "templateEditorTitleEdit": "Vorlage bearbeiten"
+  "templateEditorTitleEdit": "Vorlage bearbeiten",
+  "shortcutOpenEntryFirst": "Öffne zuerst einen Eintrag, um seine Daten zu kopieren.",
+  "shortcutCopiedUsername": "Benutzername kopiert.",
+  "shortcutCopiedTotp": "Einmalcode kopiert.",
+  "shortcutEmptyUsername": "Dieser Eintrag hat keinen Benutzernamen.",
+  "shortcutEmptyPassword": "Dieser Eintrag hat kein Passwort.",
+  "shortcutEmptyTotp": "Dieser Eintrag hat keinen Authentifizierungscode."
 }

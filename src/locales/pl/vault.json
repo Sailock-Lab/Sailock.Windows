@@ -307,5 +307,11 @@
   "templateSearchPlaceholder": "Szukaj szablonów…",
   "templateNoResults": "Żaden szablon nie pasuje do wyszukiwania",
   "templateEditTooltip": "Edytuj szablon",
-  "templateEditorTitleEdit": "Edytuj szablon"
+  "templateEditorTitleEdit": "Edytuj szablon",
+  "shortcutOpenEntryFirst": "Najpierw otwórz wpis, aby skopiować jego dane.",
+  "shortcutCopiedUsername": "Skopiowano nazwę użytkownika.",
+  "shortcutCopiedTotp": "Skopiowano kod jednorazowy.",
+  "shortcutEmptyUsername": "Ten wpis nie ma nazwy użytkownika.",
+  "shortcutEmptyPassword": "Ten wpis nie ma hasła.",
+  "shortcutEmptyTotp": "Ten wpis nie ma kodu uwierzytelniającego."
 }

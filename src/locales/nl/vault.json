@@ -307,5 +307,11 @@
   "templateSearchPlaceholder": "Sjablonen zoeken…",
   "templateNoResults": "Geen sjablonen gevonden voor je zoekopdracht",
   "templateEditTooltip": "Sjabloon bewerken",
-  "templateEditorTitleEdit": "Sjabloon bewerken"
+  "templateEditorTitleEdit": "Sjabloon bewerken",
+  "shortcutOpenEntryFirst": "Open eerst een item om de gegevens te kopiëren.",
+  "shortcutCopiedUsername": "Gebruikersnaam gekopieerd.",
+  "shortcutCopiedTotp": "Eenmalige code gekopieerd.",
+  "shortcutEmptyUsername": "Dit item heeft geen gebruikersnaam.",
+  "shortcutEmptyPassword": "Dit item heeft geen wachtwoord.",
+  "shortcutEmptyTotp": "Dit item heeft geen verificatiecode."
 }

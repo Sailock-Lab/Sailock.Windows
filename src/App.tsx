@@ -14,6 +14,18 @@ import { useActivity } from "@/hooks/useActivity";
 import { useAutoLock } from "@/hooks/useAutoLock";
 import { useLockOnMinimize } from "@/hooks/useLockOnMinimize";
 import { useShortcuts } from "@/hooks/useShortcuts";
+import { toast } from "sonner";
+import i18n from "i18next";
+import {
+  minimizeWindow,
+  quitApp,
+  restoreZoom,
+  toggleAlwaysOnTop,
+  toggleFullscreen,
+  zoomIn,
+  zoomOut,
+  zoomReset,
+} from "@/lib/windowControls";
 import { getStoredTheme, applyTheme } from "@/lib/theme";
 import { applyTextSize, applyContrast } from "@/lib/accessibility";
 import { AutoLockDuration, TextSize, getStoredAutoLockDuration, storeAutoLockDuration, getStoredBool, storeBool, getStoredTextSize, storeTextSize, } from "@/lib/appSettings";
@@ -36,6 +48,7 @@ function App() {
     applyTheme(getStoredTheme());
     applyTextSize(getStoredTextSize());
     applyContrast(getStoredBool("highContrast", false));
+    restoreZoom();
   }, []);
 
   useEffect(() => {
@@ -89,7 +102,28 @@ function App() {
   useAutoLock(autoLockDuration, unlocked, () => handleLock("logoutIdle"));
   useLockOnMinimize(unlocked && lockOnMinimize, () => handleLock("logoutMinimize"));
 
+  // Atajos de teclado (solo con la bóveda desbloqueada). Se configuran en Ajustes (src/lib/shortcuts.ts).
+  const copyFromEntry = (action: VaultAction) => {
+    if (active !== "vault") {
+      toast.info(i18n.t("vault:shortcutOpenEntryFirst"));
+      return;
+    }
+    setVaultAction(action);
+  };
+  const showZoom = (pending: Promise<number>) =>
+    pending
+      .then((zoom) => toast.info(i18n.t("settings:shortcutToastZoom", { percent: Math.round(zoom * 100) })))
+      .catch((e) => toast.error(String(e)));
+
   useShortcuts(unlocked, {
+    lock: () => handleLock(),
+    help: () => {
+      setActive("settings");
+      setSettingsFocus("shortcuts");
+    },
+    quit: () => {
+      quitApp().catch((e) => toast.error(String(e)));
+    },
     goVault: () => setActive("vault"),
     goGenerator: () => setActive("generator"),
     goActivity: () => setActive("activity"),
@@ -102,10 +136,22 @@ function App() {
       setActive("vault");
       setVaultAction("new");
     },
-    lock: () => handleLock(),
-    help: () => {
-      setActive("settings");
-      setSettingsFocus("shortcuts");
+    copyUsername: () => copyFromEntry("copyUsername"),
+    copyPassword: () => copyFromEntry("copyPassword"),
+    copyTotp: () => copyFromEntry("copyTotp"),
+    zoomIn: () => showZoom(zoomIn()),
+    zoomOut: () => showZoom(zoomOut()),
+    zoomReset: () => showZoom(zoomReset()),
+    fullscreen: () => {
+      toggleFullscreen().catch((e) => toast.error(String(e)));
+    },
+    minimize: () => {
+      minimizeWindow().catch((e) => toast.error(String(e)));
+    },
+    alwaysOnTop: () => {
+      toggleAlwaysOnTop()
+        .then((on) => toast.info(i18n.t(on ? "settings:shortcutToastOnTopOn" : "settings:shortcutToastOnTopOff")))
+        .catch((e) => toast.error(String(e)));
     },
   });
 
@@ -210,6 +256,8 @@ function App() {
               </motion.div>
             </AnimatePresence>
           </Layout>
+          {/* Aviso de actualización: solo con la bóveda desbloqueada. Si el ajuste está
+              desactivado, nunca se conecta por su cuenta. */}
           <UpdateChecker enabled={autoUpdate} />
         </>
       )}
