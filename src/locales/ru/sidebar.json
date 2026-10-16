@@ -7,5 +7,6 @@
   "shortcutGoTo": "Перейти: {{view}}",
   "shortcutSearch": "Поиск в хранилище",
   "shortcutNewEntry": "Новая запись",
-  "shortcutLock": "Заблокировать хранилище"
+  "shortcutLock": "Заблокировать хранилище",
+  "themeGroupLabel": "Тема"
 }

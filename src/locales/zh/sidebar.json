@@ -7,5 +7,6 @@
   "shortcutGoTo": "转到{{view}}",
   "shortcutSearch": "搜索保管库",
   "shortcutNewEntry": "新建条目",
-  "shortcutLock": "锁定保管库"
+  "shortcutLock": "锁定保管库",
+  "themeGroupLabel": "主题"
 }

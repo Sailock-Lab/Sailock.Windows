@@ -7,5 +7,6 @@
   "shortcutGoTo": "Zu {{view}} wechseln",
   "shortcutSearch": "Im Tresor suchen",
   "shortcutNewEntry": "Neuer Eintrag",
-  "shortcutLock": "Tresor sperren"
+  "shortcutLock": "Tresor sperren",
+  "themeGroupLabel": "Design"
 }

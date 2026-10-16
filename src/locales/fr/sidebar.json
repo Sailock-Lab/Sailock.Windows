@@ -7,5 +7,6 @@
   "shortcutGoTo": "Aller à {{view}}",
   "shortcutSearch": "Rechercher dans le coffre",
   "shortcutNewEntry": "Nouvelle entrée",
-  "shortcutLock": "Verrouiller le coffre"
+  "shortcutLock": "Verrouiller le coffre",
+  "themeGroupLabel": "Thème"
 }

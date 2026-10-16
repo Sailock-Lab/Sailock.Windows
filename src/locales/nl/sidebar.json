@@ -7,5 +7,6 @@
   "shortcutGoTo": "Ga naar {{view}}",
   "shortcutSearch": "Zoeken in de kluis",
   "shortcutNewEntry": "Nieuw item",
-  "shortcutLock": "Kluis vergrendelen"
+  "shortcutLock": "Kluis vergrendelen",
+  "themeGroupLabel": "Thema"
 }

@@ -7,5 +7,6 @@
   "shortcutGoTo": "Vai a {{view}}",
   "shortcutSearch": "Cerca nella cassaforte",
   "shortcutNewEntry": "Nuova voce",
-  "shortcutLock": "Blocca la cassaforte"
+  "shortcutLock": "Blocca la cassaforte",
+  "themeGroupLabel": "Tema"
 }

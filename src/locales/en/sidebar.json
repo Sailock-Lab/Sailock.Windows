@@ -7,5 +7,6 @@
   "shortcutGoTo": "Go to {{view}}",
   "shortcutSearch": "Search the vault",
   "shortcutNewEntry": "New entry",
-  "shortcutLock": "Lock the vault"
+  "shortcutLock": "Lock the vault",
+  "themeGroupLabel": "Theme"
 }

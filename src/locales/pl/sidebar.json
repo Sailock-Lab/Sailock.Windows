@@ -7,5 +7,6 @@
   "shortcutGoTo": "Przejdź do: {{view}}",
   "shortcutSearch": "Szukaj w sejfie",
   "shortcutNewEntry": "Nowy wpis",
-  "shortcutLock": "Zablokuj sejf"
+  "shortcutLock": "Zablokuj sejf",
+  "themeGroupLabel": "Motyw"
 }

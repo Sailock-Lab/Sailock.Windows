@@ -7,5 +7,6 @@
   "shortcutGoTo": "{{view}}へ移動",
   "shortcutSearch": "保管庫内を検索",
   "shortcutNewEntry": "新しい項目",
-  "shortcutLock": "保管庫をロック"
+  "shortcutLock": "保管庫をロック",
+  "themeGroupLabel": "テーマ"
 }

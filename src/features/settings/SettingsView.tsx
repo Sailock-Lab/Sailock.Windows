@@ -14,7 +14,8 @@ import { toast } from "sonner";
 import { useActivity } from "@/hooks/useActivity";
 import { checkForUpdates, useUpdater } from "@/hooks/useUpdater";
 import { CopyButton } from "@/components/CopyButton";
-import { getStoredTheme, storeTheme, applyTheme, Theme } from "@/lib/theme";
+import { Theme } from "@/lib/theme";
+import { useTheme } from "@/hooks/useTheme";
 import { AutoLockDuration, TextSize } from "@/lib/appSettings";
 import i18n from "@/i18n";
 import { LANGUAGE_LABELS } from "@/i18n/languages";
@@ -1150,11 +1151,8 @@ export function SettingsView({
 }: SettingsViewProps) {
   const { t } = useTranslation("settings");
 
-  const THEME_LABELS: Record<Theme, string> = {
-    light: t("themeLight"),
-    dark: t("themeDark"),
-    system: t("themeSystem"),
-  };
+  // El tema se comparte con la barra lateral (src/hooks/useTheme.ts).
+  const { theme, setTheme: handleThemeChange, labels: THEME_LABELS } = useTheme();
 
   const AUTO_LOCK_LABELS: Record<AutoLockDuration, string> = {
     never: t("autoLockNever"),
@@ -1173,7 +1171,6 @@ export function SettingsView({
 
   const DELETE_CONFIRM_PHRASE = t("deleteConfirmPhrase");
 
-  const [theme, setTheme] = useState<Theme>(getStoredTheme());
   const [language, setLanguage] = useState(i18n.language);
   const [startWithWindows, setStartWithWindows] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -1223,15 +1220,6 @@ export function SettingsView({
     setTotpEnabled(false);
     saveActivity("edit", "totpDisabled", "settings");
     toast.success(t("totpDisabledToast"));
-  };
-
-  const handleThemeChange = (value: Theme | null) => {
-    if (!value) return;
-    setTheme(value);
-    applyTheme(value);
-    storeTheme(value);
-    saveActivity("edit", "themeChanged", "settings", { theme: value });
-    toast.success(t("themeChangedToast", { theme: THEME_LABELS[value] }));
   };
 
   const handleLanguageChange = (value: string | null) => {

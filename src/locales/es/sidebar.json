@@ -7,5 +7,6 @@
   "shortcutGoTo": "Ir a {{view}}",
   "shortcutSearch": "Buscar en la bóveda",
   "shortcutNewEntry": "Nuevo registro",
-  "shortcutLock": "Bloquear la bóveda"
+  "shortcutLock": "Bloquear la bóveda",
+  "themeGroupLabel": "Tema"
 }
