@@ -9,5 +9,6 @@
   "shortcutNewEntry": "Nuova voce",
   "shortcutLock": "Blocca la cassaforte",
   "themeGroupLabel": "Tema",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Note"
 }

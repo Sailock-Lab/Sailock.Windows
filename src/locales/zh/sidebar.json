@@ -9,5 +9,6 @@
   "shortcutNewEntry": "新建条目",
   "shortcutLock": "锁定保管库",
   "themeGroupLabel": "主题",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "笔记"
 }

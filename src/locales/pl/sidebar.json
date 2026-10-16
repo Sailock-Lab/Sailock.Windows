@@ -9,5 +9,6 @@
   "shortcutNewEntry": "Nowy wpis",
   "shortcutLock": "Zablokuj sejf",
   "themeGroupLabel": "Motyw",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Notatki"
 }

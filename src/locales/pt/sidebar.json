@@ -9,5 +9,6 @@
   "shortcutNewEntry": "Novo registo",
   "shortcutLock": "Bloquear o cofre",
   "themeGroupLabel": "Tema",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Notas"
 }

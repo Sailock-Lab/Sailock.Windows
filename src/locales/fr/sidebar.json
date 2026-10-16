@@ -9,5 +9,6 @@
   "shortcutNewEntry": "Nouvelle entrée",
   "shortcutLock": "Verrouiller le coffre",
   "themeGroupLabel": "Thème",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Notes"
 }

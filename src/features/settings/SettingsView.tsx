@@ -906,6 +906,8 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
     switch (action) {
       case "goVault":
         return t("sidebar:shortcutGoTo", { view: t("sidebar:vault") });
+      case "goNotes":
+        return t("sidebar:shortcutGoTo", { view: t("sidebar:notes") });
       case "goTotp":
         return t("sidebar:shortcutGoTo", { view: t("sidebar:totp") });
       case "goGenerator":

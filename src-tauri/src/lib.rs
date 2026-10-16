@@ -929,6 +929,7 @@ fn change_master_password(
         generator_history_path(&app_handle),
         totp_settings_path(&app_handle),
         totp_accounts_path(&app_handle),
+        notes_path(&app_handle),
     ] {
         if !p.exists() {
             continue;
@@ -1017,6 +1018,10 @@ fn delete_vault(
     let totp_accounts_file = totp_accounts_path(&app_handle);
     if totp_accounts_file.exists() {
         let _ = fs::remove_file(&totp_accounts_file);
+    }
+    let notes_file = notes_path(&app_handle);
+    if notes_file.exists() {
+        let _ = fs::remove_file(&notes_file);
     }
 
     *state.key.lock().unwrap() = None;
@@ -2396,6 +2401,171 @@ fn delete_totp_account(
     write_totp_accounts(&app_handle, &key, &accounts)
 }
 
+// ---------- Notas seguras ----------
+// Se guardan cifradas en notes.json. El contenido es texto en markdown tal como lo escribe
+// el usuario; la app lo muestra con formato al verlo y en crudo al editarlo.
+
+const MAX_NOTES: usize = 1000;
+const MAX_NOTE_TITLE_CHARS: usize = 120;
+const MAX_NOTE_CONTENT_CHARS: usize = 100_000;
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Note {
+    #[serde(default)]
+    id: String,
+    title: String,
+    #[serde(default)]
+    content: String,
+    #[serde(default)]
+    favorite: bool,
+    #[serde(default)]
+    created_at: u64,
+    #[serde(default)]
+    updated_at: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct NotesFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn notes_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("notes.json")
+}
+
+fn read_notes(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> Vec<Note> {
+    let path = notes_path(app_handle);
+    if !path.exists() {
+        return Vec::new();
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let file: NotesFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return Vec::new(),
+    };
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let nonce_bytes = match B64.decode(&file.nonce) {
+        Ok(n) => n,
+        Err(_) => return Vec::new(),
+    };
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = match B64.decode(&file.ciphertext) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    match cipher.decrypt(nonce, ciphertext.as_ref()) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn write_notes(app_handle: &tauri::AppHandle, key: &[u8; 32], notes: &[Note]) -> Result<(), String> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let plaintext = serde_json::to_vec(notes).map_err(|e| e.to_string())?;
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext.as_ref())
+        .map_err(|e| e.to_string())?;
+    let file = NotesFile {
+        nonce: B64.encode(nonce_bytes),
+        ciphertext: B64.encode(ciphertext),
+    };
+    let json = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;
+    fs::write(notes_path(app_handle), json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_notes(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<Note>, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(read_notes(&app_handle, &key))
+}
+
+// Crea (id vacío) o actualiza (id existente) una nota. Devuelve la nota guardada.
+#[tauri::command]
+fn save_note(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    note: Note,
+) -> Result<Note, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut note = note;
+    note.title = note.title.trim().to_string();
+    if note.title.is_empty() {
+        return Err("El título no puede estar vacío".into());
+    }
+    if note.title.chars().count() > MAX_NOTE_TITLE_CHARS {
+        return Err("El título es demasiado largo".into());
+    }
+    if note.content.chars().count() > MAX_NOTE_CONTENT_CHARS {
+        return Err("La nota es demasiado larga".into());
+    }
+
+    let mut notes = read_notes(&app_handle, &key);
+    let now = now_millis();
+    if note.id.is_empty() {
+        if notes.len() >= MAX_NOTES {
+            return Err("Has alcanzado el máximo de notas".into());
+        }
+        let mut n = now;
+        while notes.iter().any(|x| x.id == format!("n{}", n)) {
+            n += 1;
+        }
+        note.id = format!("n{}", n);
+        note.created_at = now;
+        note.updated_at = now;
+        notes.push(note.clone());
+    } else {
+        match notes.iter_mut().find(|x| x.id == note.id) {
+            Some(existing) => {
+                note.created_at = existing.created_at;
+                note.updated_at = now;
+                *existing = note.clone();
+            }
+            None => return Err("No se encontró la nota".into()),
+        }
+    }
+    write_notes(&app_handle, &key, &notes)?;
+    Ok(note)
+}
+
+#[tauri::command]
+fn delete_note(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut notes = read_notes(&app_handle, &key);
+    let before = notes.len();
+    notes.retain(|n| n.id != id);
+    if notes.len() == before {
+        return Err("No se encontró la nota".into());
+    }
+    write_notes(&app_handle, &key, &notes)
+}
+
 #[tauri::command]
 fn load_taxonomy(
     app_handle: tauri::AppHandle,
@@ -2679,6 +2849,9 @@ pub fn run() {
             load_totp_accounts,
             save_totp_account,
             delete_totp_account,
+            load_notes,
+            save_note,
+            delete_note,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

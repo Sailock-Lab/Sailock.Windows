@@ -9,5 +9,6 @@
   "shortcutNewEntry": "새 항목",
   "shortcutLock": "보관함 잠그기",
   "themeGroupLabel": "테마",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "메모"
 }

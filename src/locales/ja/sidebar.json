@@ -9,5 +9,6 @@
   "shortcutNewEntry": "新しい項目",
   "shortcutLock": "保管庫をロック",
   "themeGroupLabel": "テーマ",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "ノート"
 }

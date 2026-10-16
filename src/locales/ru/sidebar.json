@@ -9,5 +9,6 @@
   "shortcutNewEntry": "Новая запись",
   "shortcutLock": "Заблокировать хранилище",
   "themeGroupLabel": "Тема",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Заметки"
 }

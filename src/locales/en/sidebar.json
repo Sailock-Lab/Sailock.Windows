@@ -9,5 +9,6 @@
   "shortcutNewEntry": "New entry",
   "shortcutLock": "Lock the vault",
   "themeGroupLabel": "Theme",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Notes"
 }

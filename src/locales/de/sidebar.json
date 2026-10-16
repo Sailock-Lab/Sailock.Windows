@@ -9,5 +9,6 @@
   "shortcutNewEntry": "Neuer Eintrag",
   "shortcutLock": "Tresor sperren",
   "themeGroupLabel": "Design",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Notizen"
 }

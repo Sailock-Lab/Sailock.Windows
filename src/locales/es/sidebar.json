@@ -9,5 +9,6 @@
   "shortcutNewEntry": "Nuevo registro",
   "shortcutLock": "Bloquear la bóveda",
   "themeGroupLabel": "Tema",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Notas"
 }

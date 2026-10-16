@@ -9,5 +9,6 @@
   "shortcutNewEntry": "Nieuw item",
   "shortcutLock": "Kluis vergrendelen",
   "themeGroupLabel": "Thema",
-  "totp": "TOTP"
+  "totp": "TOTP",
+  "notes": "Notities"
 }
