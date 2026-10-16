@@ -928,6 +928,7 @@ fn change_master_password(
         templates_path(&app_handle),
         generator_history_path(&app_handle),
         totp_settings_path(&app_handle),
+        totp_accounts_path(&app_handle),
     ] {
         if !p.exists() {
             continue;
@@ -1012,6 +1013,10 @@ fn delete_vault(
     let templates_file = templates_path(&app_handle);
     if templates_file.exists() {
         let _ = fs::remove_file(&templates_file);
+    }
+    let totp_accounts_file = totp_accounts_path(&app_handle);
+    if totp_accounts_file.exists() {
+        let _ = fs::remove_file(&totp_accounts_file);
     }
 
     *state.key.lock().unwrap() = None;
@@ -2229,6 +2234,168 @@ fn delete_template(
     write_templates(&app_handle, &key, &templates)
 }
 
+// ---------- TOTP sueltos (no ligados a ningún registro) ----------
+// Se guardan cifrados en totp_accounts.json. Los TOTP de los registros no se copian aquí:
+// la ventana TOTP los lee directamente de cada registro.
+
+const MAX_TOTP_ACCOUNTS: usize = 200;
+
+#[derive(Serialize, Deserialize, Clone)]
+struct TotpAccount {
+    #[serde(default)]
+    id: String,
+    name: String,
+    #[serde(default)]
+    account: String,
+    secret: String,
+    #[serde(default)]
+    created_at: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TotpAccountsFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn totp_accounts_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("totp_accounts.json")
+}
+
+fn read_totp_accounts(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> Vec<TotpAccount> {
+    let path = totp_accounts_path(app_handle);
+    if !path.exists() {
+        return Vec::new();
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let file: TotpAccountsFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return Vec::new(),
+    };
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let nonce_bytes = match B64.decode(&file.nonce) {
+        Ok(n) => n,
+        Err(_) => return Vec::new(),
+    };
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = match B64.decode(&file.ciphertext) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    match cipher.decrypt(nonce, ciphertext.as_ref()) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn write_totp_accounts(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+    accounts: &[TotpAccount],
+) -> Result<(), String> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let plaintext = serde_json::to_vec(accounts).map_err(|e| e.to_string())?;
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext.as_ref())
+        .map_err(|e| e.to_string())?;
+    let file = TotpAccountsFile {
+        nonce: B64.encode(nonce_bytes),
+        ciphertext: B64.encode(ciphertext),
+    };
+    let json = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;
+    fs::write(totp_accounts_path(app_handle), json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_totp_accounts(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<TotpAccount>, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(read_totp_accounts(&app_handle, &key))
+}
+
+// Crea (id vacío) o actualiza (id existente) un TOTP suelto. Devuelve el guardado.
+#[tauri::command]
+fn save_totp_account(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    account: TotpAccount,
+) -> Result<TotpAccount, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut account = account;
+    account.name = account.name.trim().to_string();
+    account.account = account.account.trim().to_string();
+    account.secret = account.secret.trim().to_string();
+    if account.name.is_empty() {
+        return Err("El nombre no puede estar vacío".into());
+    }
+    if account.name.chars().count() > 60 || account.account.chars().count() > 100 {
+        return Err("El nombre o la cuenta son demasiado largos".into());
+    }
+    // Comprueba que el secreto (o la URL otpauth) es válido antes de guardarlo.
+    build_totp(&account.secret, &account.name)?;
+
+    let mut accounts = read_totp_accounts(&app_handle, &key);
+    if account.id.is_empty() {
+        if accounts.len() >= MAX_TOTP_ACCOUNTS {
+            return Err("Has alcanzado el máximo de códigos guardados".into());
+        }
+        let mut n = now_millis();
+        while accounts.iter().any(|a| a.id == format!("t{}", n)) {
+            n += 1;
+        }
+        account.id = format!("t{}", n);
+        account.created_at = n;
+        accounts.push(account.clone());
+    } else {
+        match accounts.iter_mut().find(|a| a.id == account.id) {
+            Some(existing) => {
+                account.created_at = existing.created_at;
+                *existing = account.clone();
+            }
+            None => return Err("No se encontró el código".into()),
+        }
+    }
+    write_totp_accounts(&app_handle, &key, &accounts)?;
+    Ok(account)
+}
+
+#[tauri::command]
+fn delete_totp_account(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<(), String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut accounts = read_totp_accounts(&app_handle, &key);
+    let before = accounts.len();
+    accounts.retain(|a| a.id != id);
+    if accounts.len() == before {
+        return Err("No se encontró el código".into());
+    }
+    write_totp_accounts(&app_handle, &key, &accounts)
+}
+
 #[tauri::command]
 fn load_taxonomy(
     app_handle: tauri::AppHandle,
@@ -2509,6 +2676,9 @@ pub fn run() {
             load_templates,
             save_template,
             delete_template,
+            load_totp_accounts,
+            save_totp_account,
+            delete_totp_account,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

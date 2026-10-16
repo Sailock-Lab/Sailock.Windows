@@ -8,5 +8,6 @@
   "shortcutSearch": "Rechercher dans le coffre",
   "shortcutNewEntry": "Nouvelle entrée",
   "shortcutLock": "Verrouiller le coffre",
-  "themeGroupLabel": "Thème"
+  "themeGroupLabel": "Thème",
+  "totp": "TOTP"
 }

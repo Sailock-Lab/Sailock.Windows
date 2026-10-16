@@ -8,5 +8,6 @@
   "shortcutSearch": "보관함에서 검색",
   "shortcutNewEntry": "새 항목",
   "shortcutLock": "보관함 잠그기",
-  "themeGroupLabel": "테마"
+  "themeGroupLabel": "테마",
+  "totp": "TOTP"
 }

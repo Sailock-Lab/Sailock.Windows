@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { KeyRound, Wand2, Settings, LogOut, ChevronLeft, ChevronRight, History, Sun, Moon, Monitor } from "lucide-react";
+import { KeyRound, ShieldCheck, Wand2, Settings, LogOut, ChevronLeft, ChevronRight, History, Sun, Moon, Monitor } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { ShortcutAction, formatComboText, useShortcutBindings } from "@/lib/shortcuts";
 import { THEMES, useTheme } from "@/hooks/useTheme";
 import type { Theme } from "@/lib/theme";
 
-export type View = "vault" | "generator" | "settings" | "activity";
+export type View = "vault" | "totp" | "generator" | "settings" | "activity";
 
 interface SidebarProps {
   active: View;
@@ -17,6 +17,7 @@ interface SidebarProps {
 
 const items: { id: View; icon: React.ElementType; shortcut: ShortcutAction }[] = [
   { id: "vault", icon: KeyRound, shortcut: "goVault" },
+  { id: "totp", icon: ShieldCheck, shortcut: "goTotp" },
   { id: "generator", icon: Wand2, shortcut: "goGenerator" },
   { id: "activity", icon: History, shortcut: "goActivity" },
   { id: "settings", icon: Settings, shortcut: "goSettings" },

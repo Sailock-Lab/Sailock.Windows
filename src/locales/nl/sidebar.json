@@ -8,5 +8,6 @@
   "shortcutSearch": "Zoeken in de kluis",
   "shortcutNewEntry": "Nieuw item",
   "shortcutLock": "Kluis vergrendelen",
-  "themeGroupLabel": "Thema"
+  "themeGroupLabel": "Thema",
+  "totp": "TOTP"
 }

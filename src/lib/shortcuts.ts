@@ -1,3 +1,7 @@
+// src/lib/shortcuts.ts
+// Atajos de teclado configurables: acciones, combinaciones por defecto, guardado y utilidades.
+// Una combinación se guarda como texto: "Mod+K", "Mod+Shift+N", "F2", "?"...
+// "Mod" es Ctrl en Windows/Linux y Cmd en macOS.
 import { useSyncExternalStore } from "react";
 
 export const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform);
@@ -7,6 +11,7 @@ export type ShortcutAction =
   | "help"
   | "quit"
   | "goVault"
+  | "goTotp"
   | "goGenerator"
   | "goActivity"
   | "goSettings"
@@ -22,9 +27,10 @@ export type ShortcutAction =
   | "minimize"
   | "alwaysOnTop";
 
+// Grupos tal y como se muestran en Ajustes (la clave es el texto traducido en el espacio "settings").
 export const SHORTCUT_GROUPS: { titleKey: string; actions: ShortcutAction[] }[] = [
   { titleKey: "shortcutsGroupGeneral", actions: ["lock", "help", "quit"] },
-  { titleKey: "shortcutsGroupNavigation", actions: ["goVault", "goGenerator", "goActivity", "goSettings"] },
+  { titleKey: "shortcutsGroupNavigation", actions: ["goVault", "goTotp", "goGenerator", "goActivity", "goSettings"] },
   { titleKey: "shortcutsGroupVault", actions: ["search", "newEntry", "copyUsername", "copyPassword", "copyTotp"] },
   { titleKey: "shortcutsGroupDisplay", actions: ["zoomIn", "zoomOut", "zoomReset", "fullscreen"] },
   { titleKey: "shortcutsGroupWindow", actions: ["minimize", "alwaysOnTop"] },
@@ -37,6 +43,7 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string> = {
   help: "?",
   quit: "Mod+Q",
   goVault: "Mod+1",
+  goTotp: "Mod+5",
   goGenerator: "Mod+2",
   goActivity: "Mod+3",
   goSettings: "Mod+4",
@@ -52,6 +59,8 @@ export const DEFAULT_SHORTCUTS: Record<ShortcutAction, string> = {
   minimize: "Mod+M",
   alwaysOnTop: "Mod+Shift+T",
 };
+
+// ---------- Guardado (solo en este equipo) ----------
 
 const STORAGE_KEY = "sailock.shortcuts";
 
@@ -69,12 +78,14 @@ function loadBindings(): Bindings {
       }
     }
   } catch {
+    // sin almacenamiento o datos dañados: se usan los valores por defecto
   }
   return merged;
 }
 
 function saveBindings(b: Bindings) {
   try {
+    // Solo se guardan las que difieren del valor por defecto.
     const changed: Partial<Bindings> = {};
     for (const action of SHORTCUT_ACTIONS) {
       if (b[action] !== DEFAULT_SHORTCUTS[action]) changed[action] = b[action];
@@ -82,6 +93,7 @@ function saveBindings(b: Bindings) {
     if (Object.keys(changed).length === 0) localStorage.removeItem(STORAGE_KEY);
     else localStorage.setItem(STORAGE_KEY, JSON.stringify(changed));
   } catch {
+    // si no se puede guardar, el cambio vale solo hasta cerrar la app
   }
 }
 
@@ -121,6 +133,7 @@ export function resetAllShortcuts() {
   commit({ ...DEFAULT_SHORTCUTS });
 }
 
+// Mientras se está grabando una combinación nueva (en Ajustes), los atajos globales no actúan.
 let recording = false;
 export function setShortcutRecording(value: boolean) {
   recording = value;
@@ -129,25 +142,30 @@ export function isShortcutRecording() {
   return recording;
 }
 
+// ---------- Combinaciones ----------
 
 const MODIFIER_KEYS = new Set(["Control", "Shift", "Alt", "Meta", "AltGraph", "OS"]);
 
+// Convierte una pulsación en su combinación ("Mod+K"). Devuelve null si solo se pulsó un modificador.
 export function comboFromEvent(e: KeyboardEvent): string | null {
   if (e.isComposing || MODIFIER_KEYS.has(e.key)) return null;
+  // AltGr (Ctrl+Alt en Windows) sirve para escribir símbolos, no para atajos.
   if (e.getModifierState && e.getModifierState("AltGraph")) return null;
 
   let key = e.key;
+  // En macOS, Option + letra produce otro carácter: se usa la tecla física.
   if (IS_MAC && e.altKey && /^Key[A-Z]$/.test(e.code)) key = e.code.slice(3);
   else if (IS_MAC && e.altKey && /^Digit\d$/.test(e.code)) key = e.code.slice(5);
 
   if (key === " ") key = "Space";
-  else if (key === "+") key = "="; 
+  else if (key === "+") key = "="; // Ctrl++ y Ctrl+= son la misma combinación (zoom)
   else if (key.length === 1) key = key.toUpperCase();
 
   const parts: string[] = [];
   if (IS_MAC ? e.metaKey : e.ctrlKey) parts.push("Mod");
   if (IS_MAC && e.ctrlKey) parts.push("Ctrl");
   if (e.altKey) parts.push("Alt");
+  // Con símbolos y dígitos, Shift ya va incluido en el carácter ("?" o "!"), así que no se anota aparte.
   if (e.shiftKey && (/^[A-Z]$/.test(key) || key.length > 1)) parts.push("Shift");
   parts.push(key);
   return parts.join("+");
@@ -162,6 +180,7 @@ const KEY_LABELS: Record<string, string> = {
   Delete: "Supr",
 };
 
+// Partes de una combinación listas para mostrar: ["Ctrl", "K"].
 export function formatCombo(combo: string): string[] {
   if (!combo) return [];
   return combo.split("+").map((part) => {
@@ -177,6 +196,7 @@ export function formatComboText(combo: string): string {
   return formatCombo(combo).join("+");
 }
 
+// ¿Lleva modificador (o es una tecla de función)? Las que no, solo actúan cuando no se está escribiendo.
 export function comboHasModifier(combo: string): boolean {
   const parts = combo.split("+");
   const key = parts[parts.length - 1];

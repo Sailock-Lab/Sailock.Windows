@@ -8,5 +8,6 @@
   "shortcutSearch": "Im Tresor suchen",
   "shortcutNewEntry": "Neuer Eintrag",
   "shortcutLock": "Tresor sperren",
-  "themeGroupLabel": "Design"
+  "themeGroupLabel": "Design",
+  "totp": "TOTP"
 }

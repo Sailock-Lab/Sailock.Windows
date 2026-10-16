@@ -5,6 +5,7 @@ import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { Layout } from "@/components/layout/Layout";
 import { View } from "@/components/layout/Sidebar";
 import { VaultView, type VaultAction } from "@/features/vault/VaultView";
+import { TotpView } from "@/features/totp/TotpView";
 import { GeneratorView } from "@/features/generator/GeneratorView";
 import { SettingsView } from "@/features/settings/SettingsView";
 import { ActivityView } from "@/features/activity/ActivityView";
@@ -125,6 +126,7 @@ function App() {
       quitApp().catch((e) => toast.error(String(e)));
     },
     goVault: () => setActive("vault"),
+    goTotp: () => setActive("totp"),
     goGenerator: () => setActive("generator"),
     goActivity: () => setActive("activity"),
     goSettings: () => setActive("settings"),
@@ -209,6 +211,8 @@ function App() {
             onActionHandled={() => setVaultAction(null)}
           />
         );
+      case "totp":
+        return <TotpView />;
       case "generator":
         return <GeneratorView onAddToVault={handleAddToVault} />;
       case "activity":

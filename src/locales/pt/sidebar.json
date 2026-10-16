@@ -8,5 +8,6 @@
   "shortcutSearch": "Pesquisar no cofre",
   "shortcutNewEntry": "Novo registo",
   "shortcutLock": "Bloquear o cofre",
-  "themeGroupLabel": "Tema"
+  "themeGroupLabel": "Tema",
+  "totp": "TOTP"
 }

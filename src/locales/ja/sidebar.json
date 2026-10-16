@@ -8,5 +8,6 @@
   "shortcutSearch": "保管庫内を検索",
   "shortcutNewEntry": "新しい項目",
   "shortcutLock": "保管庫をロック",
-  "themeGroupLabel": "テーマ"
+  "themeGroupLabel": "テーマ",
+  "totp": "TOTP"
 }

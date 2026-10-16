@@ -8,5 +8,6 @@
   "shortcutSearch": "Поиск в хранилище",
   "shortcutNewEntry": "Новая запись",
   "shortcutLock": "Заблокировать хранилище",
-  "themeGroupLabel": "Тема"
+  "themeGroupLabel": "Тема",
+  "totp": "TOTP"
 }

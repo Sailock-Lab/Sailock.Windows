@@ -8,5 +8,6 @@
   "shortcutSearch": "Cerca nella cassaforte",
   "shortcutNewEntry": "Nuova voce",
   "shortcutLock": "Blocca la cassaforte",
-  "themeGroupLabel": "Tema"
+  "themeGroupLabel": "Tema",
+  "totp": "TOTP"
 }

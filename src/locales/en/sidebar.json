@@ -8,5 +8,6 @@
   "shortcutSearch": "Search the vault",
   "shortcutNewEntry": "New entry",
   "shortcutLock": "Lock the vault",
-  "themeGroupLabel": "Theme"
+  "themeGroupLabel": "Theme",
+  "totp": "TOTP"
 }

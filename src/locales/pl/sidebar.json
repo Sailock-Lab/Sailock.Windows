@@ -8,5 +8,6 @@
   "shortcutSearch": "Szukaj w sejfie",
   "shortcutNewEntry": "Nowy wpis",
   "shortcutLock": "Zablokuj sejf",
-  "themeGroupLabel": "Motyw"
+  "themeGroupLabel": "Motyw",
+  "totp": "TOTP"
 }
