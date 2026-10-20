@@ -417,5 +417,7 @@
   "totpShowCodesButton": "コードを表示",
   "totpHideCodesButton": "コードを隠す",
   "totpLockEnabledToast": "TOTPコードが保護されました",
-  "totpLockDisabledToast": "TOTPの保護を解除しました"
+  "totpLockDisabledToast": "TOTPの保護を解除しました",
+  "notesPinAdd": "メモをピン留め",
+  "notesPinRemove": "ピン留めを解除"
 }

@@ -417,5 +417,7 @@
   "totpShowCodesButton": "Codes tonen",
   "totpHideCodesButton": "Codes verbergen",
   "totpLockEnabledToast": "TOTP-codes zijn nu beveiligd",
-  "totpLockDisabledToast": "TOTP-beveiliging verwijderd"
+  "totpLockDisabledToast": "TOTP-beveiliging verwijderd",
+  "notesPinAdd": "Notitie vastzetten",
+  "notesPinRemove": "Notitie losmaken"
 }

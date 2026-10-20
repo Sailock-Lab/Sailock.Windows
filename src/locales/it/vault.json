@@ -417,5 +417,7 @@
   "totpShowCodesButton": "Mostra codici",
   "totpHideCodesButton": "Nascondi codici",
   "totpLockEnabledToast": "I codici TOTP ora sono protetti",
-  "totpLockDisabledToast": "Protezione TOTP rimossa"
+  "totpLockDisabledToast": "Protezione TOTP rimossa",
+  "notesPinAdd": "Fissa nota",
+  "notesPinRemove": "Rimuovi fissaggio"
 }

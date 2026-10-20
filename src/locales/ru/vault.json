@@ -417,5 +417,7 @@
   "totpShowCodesButton": "Показать коды",
   "totpHideCodesButton": "Скрыть коды",
   "totpLockEnabledToast": "TOTP-коды теперь защищены",
-  "totpLockDisabledToast": "Защита TOTP снята"
+  "totpLockDisabledToast": "Защита TOTP снята",
+  "notesPinAdd": "Закрепить заметку",
+  "notesPinRemove": "Открепить заметку"
 }

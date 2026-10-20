@@ -417,5 +417,7 @@
   "totpShowCodesButton": "Codes anzeigen",
   "totpHideCodesButton": "Codes verbergen",
   "totpLockEnabledToast": "TOTP-Codes sind jetzt geschützt",
-  "totpLockDisabledToast": "TOTP-Schutz entfernt"
+  "totpLockDisabledToast": "TOTP-Schutz entfernt",
+  "notesPinAdd": "Notiz anheften",
+  "notesPinRemove": "Notiz lösen"
 }

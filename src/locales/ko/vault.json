@@ -417,5 +417,7 @@
   "totpShowCodesButton": "코드 표시",
   "totpHideCodesButton": "코드 숨기기",
   "totpLockEnabledToast": "TOTP 코드가 보호되었습니다",
-  "totpLockDisabledToast": "TOTP 보호가 해제되었습니다"
+  "totpLockDisabledToast": "TOTP 보호가 해제되었습니다",
+  "notesPinAdd": "메모 고정",
+  "notesPinRemove": "메모 고정 해제"
 }

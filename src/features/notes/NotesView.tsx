@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { MarkdownView } from "@/components/MarkdownView";
 import {
-  Plus, Search, Star, Pencil, Trash2, Copy, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter,
+  Plus, Search, Pin, Pencil, Trash2, Copy, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter,
   AlignRight, AlignJustify, List, ListOrdered, ListChecks, Quote, Code, SquareCode, Link2, Minus, Table2, Lock, LockOpen,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +30,7 @@ interface Note {
   id: string;
   title: string;
   content: string;
+  // "favorite" es el campo persistido; en la interfaz significa "fijada" (chincheta).
   favorite: boolean;
   protected: boolean; // protegida: el contenido no llega a la interfaz sin la contraseña maestra
   created_at: number;
@@ -114,6 +115,7 @@ export function NotesView() {
     load();
   }, []);
 
+  // Las fijadas primero; dentro de cada grupo, las más recientes arriba.
   const sorted = useMemo(
     () => [...notes].sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.updated_at - a.updated_at),
     [notes]
@@ -260,7 +262,8 @@ export function NotesView() {
     }
   };
 
-  const toggleFavorite = async (note: Note) => {
+  // Fijar / desfijar (reutiliza el comando existente "set_note_favorite").
+  const togglePin = async (note: Note) => {
     try {
       const saved = await invoke<Note>("set_note_favorite", { id: note.id, favorite: !note.favorite });
       setPopup((p) => (p && p.note.id === saved.id ? { ...p, note: { ...p.note, favorite: saved.favorite } } : p));
@@ -330,7 +333,7 @@ export function NotesView() {
     else if (unlockRequest === "copy") await copyText(text);
   };
 
-  const favoriteLabel = (n: Note) => (n.favorite ? t("notesFavoriteRemove") : t("notesFavoriteAdd"));
+  const pinLabel = (n: Note) => (n.favorite ? t("notesPinRemove") : t("notesPinAdd"));
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-5">
@@ -385,14 +388,15 @@ export function NotesView() {
                 <button
                   type="button"
                   className="shrink-0 rounded p-0.5 hover:bg-muted"
-                  title={favoriteLabel(note)}
-                  aria-label={favoriteLabel(note)}
+                  title={pinLabel(note)}
+                  aria-label={pinLabel(note)}
+                  aria-pressed={note.favorite}
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleFavorite(note);
+                    togglePin(note);
                   }}
                 >
-                  <Star className={`h-4 w-4 ${note.favorite ? "fill-yellow-400 text-yellow-500" : "text-muted-foreground"}`} />
+                  <Pin className={`h-4 w-4 ${note.favorite ? "fill-current text-primary" : "text-muted-foreground"}`} />
                 </button>
               </div>
               {note.protected ? (
@@ -415,11 +419,17 @@ export function NotesView() {
 
       <Dialog open={popup !== null} onOpenChange={(open) => !open && requestClose()}>
         <DialogContent
-          className={`max-h-[90vh] overflow-y-auto ${popup?.mode === "edit" ? "sm:max-w-5xl" : "sm:max-w-3xl"}`}
+          className={
+            popup?.mode === "edit"
+              ? "max-h-[90vh] overflow-y-auto sm:max-w-5xl"
+              : // Vista: el popup no scrollea; solo lo hace el contenido (cabecera fija).
+                "flex max-h-[90vh] flex-col gap-4 overflow-hidden sm:max-w-3xl"
+          }
         >
           {popup && popup.mode === "view" && (
             <>
-              <DialogHeader>
+              {/* Cabecera fija: la línea inferior marca el borde con el contenido que scrollea. */}
+              <DialogHeader className="shrink-0 border-b pb-3">
                 <div className="flex items-start justify-between gap-3 pr-8">
                   <DialogTitle className="min-w-0 break-words">{popup.note.title}</DialogTitle>
                   <div className="flex shrink-0 items-center gap-0.5">
@@ -427,10 +437,12 @@ export function NotesView() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => toggleFavorite(popup.note)}
-                      title={favoriteLabel(popup.note)}
+                      onClick={() => togglePin(popup.note)}
+                      title={pinLabel(popup.note)}
+                      aria-label={pinLabel(popup.note)}
+                      aria-pressed={popup.note.favorite}
                     >
-                      <Star className={`h-4 w-4 ${popup.note.favorite ? "fill-yellow-400 text-yellow-500" : ""}`} />
+                      <Pin className={`h-4 w-4 ${popup.note.favorite ? "fill-current text-primary" : ""}`} />
                     </Button>
                     <Button
                       variant="ghost"
@@ -455,25 +467,27 @@ export function NotesView() {
                 </div>
                 <DialogDescription>{t("notesUpdatedOn", { date: formatDate(popup.note.updated_at) })}</DialogDescription>
               </DialogHeader>
-              {contentOf(popup.note) === null ? (
-                <div className="relative overflow-hidden rounded-md border p-4">
-                  <p className="select-none text-sm leading-relaxed blur-sm" aria-hidden>
-                    {BLUR_TEXT} {BLUR_TEXT}
-                  </p>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/40">
-                    <p className="flex items-center gap-1.5 text-sm font-medium">
-                      <Lock className="h-4 w-4" /> {t("notesProtectedHint")}
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                {contentOf(popup.note) === null ? (
+                  <div className="relative overflow-hidden rounded-md border p-4">
+                    <p className="select-none text-sm leading-relaxed blur-sm" aria-hidden>
+                      {BLUR_TEXT} {BLUR_TEXT}
                     </p>
-                    <Button size="sm" onClick={() => setUnlockRequest("reveal")}>
-                      {t("notesRevealButton")}
-                    </Button>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/40">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        <Lock className="h-4 w-4" /> {t("notesProtectedHint")}
+                      </p>
+                      <Button size="sm" onClick={() => setUnlockRequest("reveal")}>
+                        {t("notesRevealButton")}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ) : contentOf(popup.note)!.trim() ? (
-                <MarkdownView source={contentOf(popup.note)!} />
-              ) : (
-                <p className="text-sm text-muted-foreground">{t("notesEmptyContent")}</p>
-              )}
+                ) : contentOf(popup.note)!.trim() ? (
+                  <MarkdownView source={contentOf(popup.note)!} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("notesEmptyContent")}</p>
+                )}
+              </div>
             </>
           )}
 
