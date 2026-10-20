@@ -12,6 +12,8 @@ const BLOCKED_IN_MODAL = new Set<ShortcutAction>([
   "goVault",
   "goGenerator",
   "goActivity",
+  "goTotp",
+  "goNotes",
   "goSettings",
   "search",
   "newEntry",

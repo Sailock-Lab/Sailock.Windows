@@ -14,7 +14,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Search, Copy, Pencil, Trash2, Eye, EyeOff, KeyRound, ShieldCheck } from "lucide-react";
+import { Plus, Search, Copy, Pencil, Trash2, Eye, EyeOff, KeyRound, ShieldCheck, Lock, LockOpen } from "lucide-react";
+import { MasterPasswordDialog } from "@/components/MasterPasswordDialog";
 
 interface VaultEntry {
   id: string;
@@ -53,8 +54,10 @@ function TotpCard({
   item,
   onEdit,
   onDelete,
+  hidden,
 }: {
   item: TotpItem;
+  hidden: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -81,13 +84,20 @@ function TotpCard({
   };
 
   // Pide un código al montar o si cambia el secreto, y otro cada vez que el actual caduca.
+  // Con la vista bloqueada no se genera ningún código y se descarta el que hubiera en memoria.
   useEffect(() => {
+    if (hidden) {
+      setCode("");
+      setSecondsLeft(0);
+      setFailed(false);
+      return;
+    }
     fetchCode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.secret]);
+  }, [item.secret, hidden]);
 
   useEffect(() => {
-    if (failed) return;
+    if (failed || hidden) return;
     const timer = setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
@@ -99,10 +109,10 @@ function TotpCard({
     }, 1000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [failed, item.secret]);
+  }, [failed, hidden, item.secret]);
 
   const handleCopy = () => {
-    if (!code) return;
+    if (!code || hidden) return;
     navigator.clipboard
       .writeText(code)
       .then(() => toast.success(t("totpCopiedToast")))
@@ -125,7 +135,11 @@ function TotpCard({
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        {failed ? (
+        {hidden ? (
+          <p className="select-none font-mono text-2xl font-semibold tracking-wider blur-sm" aria-hidden>
+            000 000
+          </p>
+        ) : failed ? (
           <p className="text-sm text-destructive">{t("totpCodeError")}</p>
         ) : (
           <p
@@ -136,18 +150,18 @@ function TotpCard({
           </p>
         )}
         <div className="flex shrink-0 items-center gap-1">
-          {!failed && (
+          {!failed && !hidden && (
             <span className={`w-8 text-right text-xs tabular-nums ${low ? "text-destructive" : "text-muted-foreground"}`}>
               {t("totpExpiresIn", { seconds: secondsLeft })}
             </span>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopy} disabled={!code} title={t("totpCopyTooltip")}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopy} disabled={!code || hidden} title={t("totpCopyTooltip")}>
             <Copy className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {!failed && (
+      {!failed && !hidden && (
         <div className="h-1 overflow-hidden rounded-full bg-muted">
           <div
             className={`h-full rounded-full transition-all duration-1000 ease-linear ${low ? "bg-destructive" : "bg-primary"}`}
@@ -274,8 +288,60 @@ function TotpDialog({
   );
 }
 
+const LOCK_KEY = "sailock.totpProtected";
+const REVEAL_MS = 120_000; // los códigos vuelven a ocultarse solos pasado este tiempo
+
+function readLock(): boolean {
+  try {
+    return localStorage.getItem(LOCK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function TotpView() {
   const { t } = useTranslation("vault");
+  const [locked, setLocked] = useState(readLock);
+  const [revealed, setRevealed] = useState(false);
+  const [unlockDialog, setUnlockDialog] = useState<"reveal" | "disable" | null>(null);
+  const hidden = locked && !revealed;
+
+  const persistLock = (value: boolean) => {
+    try {
+      if (value) localStorage.setItem(LOCK_KEY, "1");
+      else localStorage.removeItem(LOCK_KEY);
+    } catch {
+      /* sin almacenamiento: el ajuste solo dura esta sesión */
+    }
+    setLocked(value);
+  };
+
+  // Al salir de la vista se vuelve a ocultar; y también tras un rato visible.
+  useEffect(() => {
+    if (!revealed) return;
+    const timer = setTimeout(() => setRevealed(false), REVEAL_MS);
+    return () => clearTimeout(timer);
+  }, [revealed]);
+
+  const handleLockButton = () => {
+    if (!locked) {
+      persistLock(true);
+      setRevealed(false);
+      toast.success(t("totpLockEnabledToast"));
+    } else {
+      setUnlockDialog("disable");
+    }
+  };
+
+  const handleVerified = () => {
+    if (unlockDialog === "disable") {
+      persistLock(false);
+      setRevealed(false);
+      toast.success(t("totpLockDisabledToast"));
+    } else {
+      setRevealed(true);
+    }
+  };
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [accounts, setAccounts] = useState<TotpAccount[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -347,10 +413,38 @@ export function TotpView() {
           <h2 className="text-2xl font-bold">{t("totpViewTitle")}</h2>
           <p className="text-sm text-muted-foreground">{t("totpViewDescription")}</p>
         </div>
-        <Button onClick={() => setDialog({ account: null })} className="shrink-0">
-          <Plus className="mr-1 h-4 w-4" /> {t("totpAddButton")}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleLockButton}
+            title={locked ? t("totpUnlockButton") : t("totpLockButton")}
+            aria-label={locked ? t("totpUnlockButton") : t("totpLockButton")}
+          >
+            {locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+          </Button>
+          <Button onClick={() => setDialog({ account: null })}>
+            <Plus className="mr-1 h-4 w-4" /> {t("totpAddButton")}
+          </Button>
+        </div>
       </div>
+
+      {locked && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3 text-sm">
+          <span className="flex items-center gap-2">
+            <Lock className="h-4 w-4 shrink-0" /> {t("totpHiddenBanner")}
+          </span>
+          {hidden ? (
+            <Button size="sm" onClick={() => setUnlockDialog("reveal")}>
+              {t("totpShowCodesButton")}
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setRevealed(false)}>
+              {t("totpHideCodesButton")}
+            </Button>
+          )}
+        </div>
+      )}
 
       {items.length > 0 && (
         <div className="relative">
@@ -376,11 +470,18 @@ export function TotpView() {
           <TotpCard
             key={item.key}
             item={item}
+            hidden={hidden}
             onEdit={() => setDialog({ account: item.account ?? null })}
             onDelete={() => item.account && setToDelete(item.account)}
           />
         ))}
       </div>
+
+      <MasterPasswordDialog
+        open={unlockDialog !== null}
+        onOpenChange={(open) => !open && setUnlockDialog(null)}
+        onVerified={handleVerified}
+      />
 
       <TotpDialog
         open={dialog !== null}
@@ -407,4 +508,4 @@ export function TotpView() {
       </Dialog>
     </div>
   );
-}
+} 

@@ -17,8 +17,10 @@ import {
 import { MarkdownView } from "@/components/MarkdownView";
 import {
   Plus, Search, Star, Pencil, Trash2, Copy, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter,
-  AlignRight, AlignJustify, List, ListOrdered, ListChecks, Quote, Code, SquareCode, Link2, Minus, Table2,
+  AlignRight, AlignJustify, List, ListOrdered, ListChecks, Quote, Code, SquareCode, Link2, Minus, Table2, Lock, LockOpen,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { MasterPasswordDialog } from "@/components/MasterPasswordDialog";
 import {
   Align, EditResult, ListKind, codeBlock, insertDivider, insertLink, insertTable, setAlign, setHeading,
   toggleList, wrapSelection,
@@ -29,11 +31,12 @@ interface Note {
   title: string;
   content: string;
   favorite: boolean;
+  protected: boolean; // protegida: el contenido no llega a la interfaz sin la contraseña maestra
   created_at: number;
   updated_at: number;
 }
 
-const EMPTY_NOTE: Note = { id: "", title: "", content: "", favorite: false, created_at: 0, updated_at: 0 };
+const EMPTY_NOTE: Note = { id: "", title: "", content: "", favorite: false, protected: false, created_at: 0, updated_at: 0 };
 
 // Texto plano corto para la tarjeta: quita los símbolos de markdown más comunes.
 function previewText(markdown: string): string {
@@ -73,6 +76,11 @@ function ToolSeparator() {
 
 type EditorView = "write" | "split" | "preview";
 
+// Texto falso para difuminar: el contenido real de una nota protegida nunca llega aquí.
+const BLUR_TEXT = "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore";
+
+type UnlockRequest = "reveal" | "edit" | "copy" | "unprotect";
+
 type Popup = { note: Note; mode: "view" | "edit"; isNew: boolean };
 
 export function NotesView() {
@@ -86,6 +94,9 @@ export function NotesView() {
   const [saving, setSaving] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [revealed, setRevealed] = useState<{ id: string; content: string } | null>(null);
+  const [unlockRequest, setUnlockRequest] = useState<UnlockRequest | null>(null);
+  const [protectNew, setProtectNew] = useState(false);
   const [editorView, setEditorView] = useState<EditorView>("split");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -115,22 +126,36 @@ export function NotesView() {
   const formatDate = (ms: number) =>
     new Date(ms).toLocaleDateString(i18n.language, { year: "numeric", month: "short", day: "numeric" });
 
+  // Contenido visible de una nota, o null si está protegida y aún no se ha desbloqueado.
+  const contentOf = (note: Note): string | null =>
+    note.protected ? (revealed?.id === note.id ? revealed.content : null) : note.content;
+
   const openNew = () => {
     setTitle("");
     setContent("");
+    setProtectNew(false);
     setPopup({ note: EMPTY_NOTE, mode: "edit", isNew: true });
   };
   const openView = (note: Note) => setPopup({ note, mode: "view", isNew: false });
-  const startEdit = () => {
+  const beginEdit = (visibleContent: string) => {
     if (!popup) return;
     setTitle(popup.note.title);
-    setContent(popup.note.content);
+    setContent(visibleContent);
     setPopup({ ...popup, mode: "edit" });
   };
+  const startEdit = () => {
+    if (!popup) return;
+    const visible = contentOf(popup.note);
+    if (visible === null) setUnlockRequest("edit");
+    else beginEdit(visible);
+  };
 
-  const dirty = popup?.mode === "edit" && (title !== popup.note.title || content !== popup.note.content);
+  const dirty =
+    popup?.mode === "edit" && (title !== popup.note.title || content !== (contentOf(popup.note) ?? ""));
 
   const closePopup = () => {
+    setRevealed(null);
+    setUnlockRequest(null);
     setPopup(null);
     setDiscardOpen(false);
     setDeleteOpen(false);
@@ -217,8 +242,15 @@ export function NotesView() {
     if (!popup) return;
     setSaving(true);
     try {
-      const saved = await saveNote({ ...popup.note, title, content });
+      const saved = await saveNote({
+        ...popup.note,
+        title,
+        content,
+        protected: popup.isNew ? protectNew : popup.note.protected,
+      });
       toast.success(t("notesSavedToast"));
+      // Si es protegida, quien la acaba de escribir ya la tiene delante: sigue visible hasta cerrar el popup.
+      if (saved.protected) setRevealed({ id: saved.id, content });
       setPopup({ note: saved, mode: "view", isNew: false });
       load();
     } catch (e) {
@@ -230,8 +262,8 @@ export function NotesView() {
 
   const toggleFavorite = async (note: Note) => {
     try {
-      const saved = await saveNote({ ...note, favorite: !note.favorite });
-      setPopup((p) => (p && p.note.id === saved.id ? { ...p, note: saved } : p));
+      const saved = await invoke<Note>("set_note_favorite", { id: note.id, favorite: !note.favorite });
+      setPopup((p) => (p && p.note.id === saved.id ? { ...p, note: { ...p.note, favorite: saved.favorite } } : p));
       load();
     } catch (e) {
       toast.error(String(e));
@@ -250,12 +282,52 @@ export function NotesView() {
     }
   };
 
-  const handleCopy = () => {
-    if (!popup) return;
+  const copyText = (text: string) =>
     navigator.clipboard
-      .writeText(popup.note.content)
+      .writeText(text)
       .then(() => toast.success(t("notesCopiedToast")))
       .catch((e) => toast.error(String(e)));
+
+  const handleCopy = () => {
+    if (!popup) return;
+    const visible = contentOf(popup.note);
+    if (visible === null) setUnlockRequest("copy");
+    else copyText(visible);
+  };
+
+  const handleToggleProtect = async () => {
+    if (!popup) return;
+    if (popup.note.protected) {
+      setUnlockRequest("unprotect");
+      return;
+    }
+    try {
+      const updated = await invoke<Note>("set_note_protected", { id: popup.note.id, protected: true, masterPassword: null });
+      setRevealed(null);
+      setPopup({ ...popup, note: updated });
+      toast.success(t("notesProtectedToast"));
+      load();
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
+
+  // Se llama con la contraseña maestra ya comprobada.
+  const handleUnlocked = async (masterPassword: string) => {
+    if (!popup || !unlockRequest) return;
+    const id = popup.note.id;
+    if (unlockRequest === "unprotect") {
+      const updated = await invoke<Note>("set_note_protected", { id, protected: false, masterPassword });
+      setRevealed(null);
+      setPopup({ ...popup, note: updated });
+      toast.success(t("notesUnprotectedToast"));
+      load();
+      return;
+    }
+    const text = await invoke<string>("reveal_note", { id, masterPassword });
+    setRevealed({ id, content: text });
+    if (unlockRequest === "edit") beginEdit(text);
+    else if (unlockRequest === "copy") await copyText(text);
   };
 
   const favoriteLabel = (n: Note) => (n.favorite ? t("notesFavoriteRemove") : t("notesFavoriteAdd"));
@@ -323,7 +395,18 @@ export function NotesView() {
                   <Star className={`h-4 w-4 ${note.favorite ? "fill-yellow-400 text-yellow-500" : "text-muted-foreground"}`} />
                 </button>
               </div>
-              <p className="line-clamp-3 min-h-[3.75rem] text-xs text-muted-foreground">{preview || t("notesEmptyContent")}</p>
+              {note.protected ? (
+                <div className="relative min-h-[3.75rem]">
+                  <p className="line-clamp-3 select-none text-xs text-muted-foreground blur-sm" aria-hidden>
+                    {BLUR_TEXT}
+                  </p>
+                  <span className="absolute inset-0 flex items-center justify-center gap-1 text-xs font-medium">
+                    <Lock className="h-3.5 w-3.5" /> {t("notesProtectedBadge")}
+                  </span>
+                </div>
+              ) : (
+                <p className="line-clamp-3 min-h-[3.75rem] text-xs text-muted-foreground">{preview || t("notesEmptyContent")}</p>
+              )}
               <p className="text-[11px] text-muted-foreground">{t("notesUpdatedOn", { date: formatDate(note.updated_at) })}</p>
             </div>
           );
@@ -349,6 +432,16 @@ export function NotesView() {
                     >
                       <Star className={`h-4 w-4 ${popup.note.favorite ? "fill-yellow-400 text-yellow-500" : ""}`} />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={handleToggleProtect}
+                      title={popup.note.protected ? t("notesUnprotectButton") : t("notesProtectButton")}
+                      aria-label={popup.note.protected ? t("notesUnprotectButton") : t("notesProtectButton")}
+                    >
+                      {popup.note.protected ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleCopy} title={t("notesCopyButton")}>
                       <Copy className="h-4 w-4" />
                     </Button>
@@ -362,8 +455,22 @@ export function NotesView() {
                 </div>
                 <DialogDescription>{t("notesUpdatedOn", { date: formatDate(popup.note.updated_at) })}</DialogDescription>
               </DialogHeader>
-              {popup.note.content.trim() ? (
-                <MarkdownView source={popup.note.content} />
+              {contentOf(popup.note) === null ? (
+                <div className="relative overflow-hidden rounded-md border p-4">
+                  <p className="select-none text-sm leading-relaxed blur-sm" aria-hidden>
+                    {BLUR_TEXT} {BLUR_TEXT}
+                  </p>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/40">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <Lock className="h-4 w-4" /> {t("notesProtectedHint")}
+                    </p>
+                    <Button size="sm" onClick={() => setUnlockRequest("reveal")}>
+                      {t("notesRevealButton")}
+                    </Button>
+                  </div>
+                </div>
+              ) : contentOf(popup.note)!.trim() ? (
+                <MarkdownView source={contentOf(popup.note)!} />
               ) : (
                 <p className="text-sm text-muted-foreground">{t("notesEmptyContent")}</p>
               )}
@@ -387,6 +494,15 @@ export function NotesView() {
                     autoFocus
                   />
                 </div>
+                {popup.isNew && (
+                  <div className="flex items-center gap-3 rounded-md border p-3">
+                    <Switch checked={protectNew} onCheckedChange={setProtectNew} />
+                    <div>
+                      <p className="text-sm font-medium">{t("notesProtectSwitchLabel")}</p>
+                      <p className="text-xs text-muted-foreground">{t("notesProtectSwitchHelp")}</p>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                     <label className="text-sm font-medium">{t("notesContentLabel")}</label>
@@ -477,6 +593,12 @@ export function NotesView() {
           )}
 
           {/* Diálogos anidados: van dentro del popup para no cerrarlo al interactuar con ellos. */}
+          <MasterPasswordDialog
+            open={unlockRequest !== null}
+            onOpenChange={(open) => !open && setUnlockRequest(null)}
+            onVerified={handleUnlocked}
+          />
+
           <Dialog open={discardOpen} onOpenChange={setDiscardOpen}>
             <DialogContent className="sm:max-w-sm">
               <DialogHeader>

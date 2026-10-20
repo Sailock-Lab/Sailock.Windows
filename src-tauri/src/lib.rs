@@ -805,6 +805,16 @@ fn verify_master_password(
     Ok(decrypt_entries(&key, &file.nonce, &file.ciphertext).is_ok())
 }
 
+// Comprueba la contraseña maestra dentro del backend (para acciones que no se fían del frontend).
+fn require_master_password(app_handle: &tauri::AppHandle, master_password: &str) -> Result<(), String> {
+    let ok = verify_master_password(app_handle.clone(), master_password.to_string())?;
+    if ok {
+        Ok(())
+    } else {
+        Err("Contraseña maestra incorrecta".into())
+    }
+}
+
 // ---------- Control de la ventana (atajos de teclado) ----------
 
 fn main_window(app_handle: &tauri::AppHandle) -> Result<tauri::WebviewWindow, String> {
@@ -930,6 +940,7 @@ fn change_master_password(
         totp_settings_path(&app_handle),
         totp_accounts_path(&app_handle),
         notes_path(&app_handle),
+        notifications_path(&app_handle),
     ] {
         if !p.exists() {
             continue;
@@ -1022,6 +1033,10 @@ fn delete_vault(
     let notes_file = notes_path(&app_handle);
     if notes_file.exists() {
         let _ = fs::remove_file(&notes_file);
+    }
+    let notifications_file = notifications_path(&app_handle);
+    if notifications_file.exists() {
+        let _ = fs::remove_file(&notifications_file);
     }
 
     *state.key.lock().unwrap() = None;
@@ -2418,10 +2433,22 @@ struct Note {
     content: String,
     #[serde(default)]
     favorite: bool,
+    // Nota protegida: el contenido no sale del backend sin la contraseña maestra.
+    #[serde(default)]
+    protected: bool,
     #[serde(default)]
     created_at: u64,
     #[serde(default)]
     updated_at: u64,
+}
+
+// Versión que se envía a la interfaz: las notas protegidas van sin contenido.
+fn note_for_ui(note: &Note) -> Note {
+    let mut n = note.clone();
+    if n.protected {
+        n.content = String::new();
+    }
+    n
 }
 
 #[derive(Serialize, Deserialize)]
@@ -2495,7 +2522,7 @@ fn load_notes(
 ) -> Result<Vec<Note>, String> {
     let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
     let key = key_opt.ok_or("El vault está bloqueado")?;
-    Ok(read_notes(&app_handle, &key))
+    Ok(read_notes(&app_handle, &key).iter().map(note_for_ui).collect())
 }
 
 // Crea (id vacío) o actualiza (id existente) una nota. Devuelve la nota guardada.
@@ -2539,13 +2566,82 @@ fn save_note(
             Some(existing) => {
                 note.created_at = existing.created_at;
                 note.updated_at = now;
+                // La protección solo se cambia con set_note_protected, nunca desde aquí.
+                note.protected = existing.protected;
                 *existing = note.clone();
             }
             None => return Err("No se encontró la nota".into()),
         }
     }
     write_notes(&app_handle, &key, &notes)?;
-    Ok(note)
+    Ok(note_for_ui(&note))
+}
+
+// Marca o desmarca una nota como favorita sin tocar su contenido (sirve también para las protegidas).
+#[tauri::command]
+fn set_note_favorite(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+    favorite: bool,
+) -> Result<Note, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    let mut notes = read_notes(&app_handle, &key);
+    let result = match notes.iter_mut().find(|n| n.id == id) {
+        Some(n) => {
+            n.favorite = favorite;
+            note_for_ui(n)
+        }
+        None => return Err("No se encontró la nota".into()),
+    };
+    write_notes(&app_handle, &key, &notes)?;
+    Ok(result)
+}
+
+// Devuelve el contenido de una nota protegida si la contraseña maestra es correcta.
+#[tauri::command]
+fn reveal_note(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+    master_password: String,
+) -> Result<String, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    require_master_password(&app_handle, &master_password)?;
+    read_notes(&app_handle, &key)
+        .into_iter()
+        .find(|n| n.id == id)
+        .map(|n| n.content)
+        .ok_or_else(|| "No se encontró la nota".to_string())
+}
+
+// Activa la protección (sin contraseña) o la quita (con contraseña maestra). Devuelve la nota:
+// con contenido si ya no está protegida, sin él si lo sigue estando.
+#[tauri::command]
+fn set_note_protected(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+    protected: bool,
+    master_password: Option<String>,
+) -> Result<Note, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    if !protected {
+        require_master_password(&app_handle, master_password.as_deref().unwrap_or(""))?;
+    }
+    let mut notes = read_notes(&app_handle, &key);
+    let result = match notes.iter_mut().find(|n| n.id == id) {
+        Some(n) => {
+            n.protected = protected;
+            note_for_ui(n)
+        }
+        None => return Err("No se encontró la nota".into()),
+    };
+    write_notes(&app_handle, &key, &notes)?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -2564,6 +2660,255 @@ fn delete_note(
         return Err("No se encontró la nota".into());
     }
     write_notes(&app_handle, &key, &notes)
+}
+
+// ---------- Centro de notificaciones ----------
+// Se guardan cifradas en notifications.json. Cada aviso guarda solo su tipo y datos mínimos
+// (números, versiones), nunca texto ya traducido ni datos sensibles. `seen_keys` recuerda los
+// avisos que ya se generaron para no repetirlos, aunque el usuario los borre.
+
+const MAX_NOTIFICATIONS: usize = 200;
+const MAX_SEEN_KEYS: usize = 500;
+const NOTIFICATION_KINDS: [&str; 3] = ["update", "backup", "passwords"];
+
+#[derive(Serialize, Deserialize, Clone)]
+struct AppNotification {
+    #[serde(default)]
+    id: String,
+    kind: String,
+    #[serde(default)]
+    data: serde_json::Value,
+    #[serde(default)]
+    read: bool,
+    #[serde(default)]
+    created_at: u64,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct NotificationsData {
+    #[serde(default)]
+    items: Vec<AppNotification>,
+    #[serde(default)]
+    seen_keys: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct NotificationsFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn notifications_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("notifications.json")
+}
+
+fn read_notifications_data(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> NotificationsData {
+    let path = notifications_path(app_handle);
+    if !path.exists() {
+        return NotificationsData::default();
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return NotificationsData::default(),
+    };
+    let file: NotificationsFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return NotificationsData::default(),
+    };
+    let cipher = match Aes256Gcm::new_from_slice(key) {
+        Ok(c) => c,
+        Err(_) => return NotificationsData::default(),
+    };
+    let nonce_bytes = match B64.decode(&file.nonce) {
+        Ok(n) => n,
+        Err(_) => return NotificationsData::default(),
+    };
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = match B64.decode(&file.ciphertext) {
+        Ok(c) => c,
+        Err(_) => return NotificationsData::default(),
+    };
+    match cipher.decrypt(nonce, ciphertext.as_ref()) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => NotificationsData::default(),
+    }
+}
+
+fn write_notifications_data(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+    data: &NotificationsData,
+) -> Result<(), String> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let plaintext = serde_json::to_vec(data).map_err(|e| e.to_string())?;
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext.as_ref())
+        .map_err(|e| e.to_string())?;
+    let file = NotificationsFile {
+        nonce: B64.encode(nonce_bytes),
+        ciphertext: B64.encode(ciphertext),
+    };
+    let json = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;
+    fs::write(notifications_path(app_handle), json).map_err(|e| e.to_string())
+}
+
+// Lee, aplica el cambio, guarda y devuelve la lista de avisos más reciente primero.
+fn update_notifications<F>(
+    app_handle: &tauri::AppHandle,
+    state: &tauri::State<VaultState>,
+    change: F,
+) -> Result<Vec<AppNotification>, String>
+where
+    F: FnOnce(&mut NotificationsData) -> Result<(), String>,
+{
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    let mut data = read_notifications_data(app_handle, &key);
+    change(&mut data)?;
+
+    // Límite: se descartan primero los leídos más antiguos y, si hace falta, los más antiguos.
+    while data.items.len() > MAX_NOTIFICATIONS {
+        let idx = data
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| n.read)
+            .min_by_key(|(_, n)| n.created_at)
+            .map(|(i, _)| i)
+            .or_else(|| {
+                data.items
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, n)| n.created_at)
+                    .map(|(i, _)| i)
+            });
+        match idx {
+            Some(i) => {
+                data.items.remove(i);
+            }
+            None => break,
+        }
+    }
+    if data.seen_keys.len() > MAX_SEEN_KEYS {
+        let extra = data.seen_keys.len() - MAX_SEEN_KEYS;
+        data.seen_keys.drain(0..extra);
+    }
+
+    write_notifications_data(app_handle, &key, &data)?;
+    let mut items = data.items;
+    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    Ok(items)
+}
+
+#[tauri::command]
+fn load_notifications(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<AppNotification>, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    let mut items = read_notifications_data(&app_handle, &key).items;
+    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    Ok(items)
+}
+
+// Crea un aviso si su `key` no se había usado nunca. Devuelve la lista actualizada.
+#[tauri::command]
+fn add_notification(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    kind: String,
+    key: String,
+    data: serde_json::Value,
+) -> Result<Vec<AppNotification>, String> {
+    if !NOTIFICATION_KINDS.contains(&kind.as_str()) {
+        return Err("Tipo de aviso desconocido".into());
+    }
+    let key = key.trim().to_string();
+    if key.is_empty() || key.chars().count() > 100 {
+        return Err("Clave de aviso no válida".into());
+    }
+    update_notifications(&app_handle, &state, |d| {
+        if d.seen_keys.contains(&key) {
+            return Ok(());
+        }
+        let now = now_millis();
+        let mut n = now;
+        while d.items.iter().any(|x| x.id == format!("x{}", n)) {
+            n += 1;
+        }
+        d.seen_keys.push(key);
+        d.items.push(AppNotification {
+            id: format!("x{}", n),
+            kind,
+            data,
+            read: false,
+            created_at: now,
+        });
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn mark_notification_read(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+    read: bool,
+) -> Result<Vec<AppNotification>, String> {
+    update_notifications(&app_handle, &state, |d| {
+        match d.items.iter_mut().find(|n| n.id == id) {
+            Some(n) => {
+                n.read = read;
+                Ok(())
+            }
+            None => Err("No se encontró el aviso".into()),
+        }
+    })
+}
+
+#[tauri::command]
+fn mark_all_notifications_read(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<AppNotification>, String> {
+    update_notifications(&app_handle, &state, |d| {
+        for n in d.items.iter_mut() {
+            n.read = true;
+        }
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn delete_notification(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    id: String,
+) -> Result<Vec<AppNotification>, String> {
+    update_notifications(&app_handle, &state, |d| {
+        d.items.retain(|n| n.id != id);
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn clear_notifications(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<Vec<AppNotification>, String> {
+    update_notifications(&app_handle, &state, |d| {
+        d.items.clear();
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -2852,6 +3197,15 @@ pub fn run() {
             load_notes,
             save_note,
             delete_note,
+            set_note_favorite,
+            reveal_note,
+            set_note_protected,
+            load_notifications,
+            add_notification,
+            mark_notification_read,
+            mark_all_notifications_read,
+            delete_notification,
+            clear_notifications,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
