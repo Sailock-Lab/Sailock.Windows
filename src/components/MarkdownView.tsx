@@ -4,9 +4,22 @@
 import type { ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { normalizeUrl, useOpenUrl } from "@/components/EntryFields";
 
 type WithChildren = { children?: ReactNode };
+
+// El editor de notas usa dos etiquetas HTML que markdown no tiene: <u> (subrayado) y
+// <div align="..."> (alineación). Se permiten solo esas, con valores fijos; el resto del HTML se descarta.
+const SANITIZE_SCHEMA = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "u"],
+  attributes: {
+    ...defaultSchema.attributes,
+    div: [["align", "left", "center", "right", "justify"]],
+  },
+};
 
 export function MarkdownView({ source }: { source: string }) {
   const { requestOpen, dialog } = useOpenUrl();
@@ -15,6 +28,7 @@ export function MarkdownView({ source }: { source: string }) {
     <div className="break-words text-sm leading-relaxed">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, SANITIZE_SCHEMA]]}
         components={{
           h1: ({ children }: WithChildren) => <h1 className="mb-3 mt-5 text-2xl font-bold first:mt-0">{children}</h1>,
           h2: ({ children }: WithChildren) => <h2 className="mb-2 mt-5 text-xl font-bold first:mt-0">{children}</h2>,
@@ -24,6 +38,10 @@ export function MarkdownView({ source }: { source: string }) {
           h6: ({ children }: WithChildren) => <h6 className="mb-1 mt-3 text-sm font-semibold text-muted-foreground first:mt-0">{children}</h6>,
           p: ({ children }: WithChildren) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
           strong: ({ children }: WithChildren) => <strong className="font-bold">{children}</strong>,
+          u: ({ children }: WithChildren) => <u className="underline underline-offset-2">{children}</u>,
+          div: ({ children, align }: { children?: ReactNode; align?: string }) => (
+            <div style={{ textAlign: align as "left" | "center" | "right" | "justify" | undefined }}>{children}</div>
+          ),
           em: ({ children }: WithChildren) => <em className="italic">{children}</em>,
           del: ({ children }: WithChildren) => <del className="line-through opacity-80">{children}</del>,
           ul: ({ children }: WithChildren) => <ul className="my-2 list-disc space-y-1 pl-6">{children}</ul>,
