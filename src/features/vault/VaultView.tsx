@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -38,6 +38,11 @@ import {
   ArrowDown,
   Settings2,
   BookmarkPlus,
+  MoreHorizontal,
+  SlidersHorizontal,
+  ArrowUpDown,
+  CopyPlus,
+  Minus,
 } from "lucide-react";
 import { CopyButton } from "@/components/CopyButton";
 import {
@@ -134,6 +139,56 @@ type FormMode = "create" | "edit" | null;
 type Filter = "all" | "favorites" | "trash";
 type SearchCategory = "all" | "name" | "contact" | "website" | "custom";
 type ViewMode = "list" | "gallery";
+
+// Columnas de la tabla: casilla, nombre, usuario, carpeta (solo en ventanas anchas), etiquetas, fecha y menú.
+const TABLE_COLS =
+  "grid-cols-[1.25rem_minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_5.5rem_2rem] lg:grid-cols-[1.25rem_minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_5.5rem_2rem]";
+
+// Casilla de selección con los colores del tema: borde gris que se vuelve verde (color primario) al pasar el ratón,
+// y relleno primario al marcarla. `dim` la difumina hasta que se pasa el ratón por la fila (o hay algo seleccionado).
+function SelectCheckbox({
+  checked,
+  indeterminate = false,
+  onToggle,
+  label,
+  dim = false,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  onToggle: (e: React.MouseEvent<HTMLInputElement>) => void;
+  label: string;
+  dim?: boolean;
+}) {
+  const on = checked || indeterminate;
+  return (
+    <span data-nodrag className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center">
+      <input
+        type="checkbox"
+        checked={checked}
+        ref={(el) => {
+          if (el) el.indeterminate = indeterminate;
+        }}
+        onChange={() => {}}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle(e);
+        }}
+        aria-label={label}
+        className={`h-4 w-4 cursor-pointer appearance-none rounded-[4px] border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          on
+            ? "border-primary bg-primary"
+            : `border-muted-foreground/40 bg-transparent hover:border-primary ${
+                dim ? "opacity-30 group-hover:opacity-100 focus-visible:opacity-100" : ""
+              }`
+        }`}
+      />
+      {checked && !indeterminate && (
+        <Check className="pointer-events-none absolute h-3 w-3 text-primary-foreground" strokeWidth={3} />
+      )}
+      {indeterminate && <Minus className="pointer-events-none absolute h-3 w-3 text-primary-foreground" strokeWidth={3} />}
+    </span>
+  );
+}
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "numeric" });
@@ -275,6 +330,126 @@ function folderSelectItems(folders: FolderData[], rootLabel: string) {
   ];
 }
 
+// ---------- Tabla: orden, menú de fila y filtros ----------
+
+type SortKey = "default" | "name" | "username" | "folder" | "modified";
+type SortDir = "asc" | "desc";
+interface SortState {
+  key: SortKey;
+  dir: SortDir;
+}
+type DateField = "updated" | "created";
+
+const SORT_STORAGE_KEY = "sailock.vaultSort";
+const SORT_KEYS: SortKey[] = ["default", "name", "username", "folder", "modified"];
+
+function readStoredSort(): SortState {
+  try {
+    const raw = localStorage.getItem(SORT_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SortState>;
+      if (parsed.key && SORT_KEYS.includes(parsed.key) && (parsed.dir === "asc" || parsed.dir === "desc")) {
+        return { key: parsed.key, dir: parsed.dir };
+      }
+    }
+  } catch {
+    /* sin almacenamiento o valor corrupto: orden por defecto */
+  }
+  return { key: "default", dir: "asc" };
+}
+
+// Rango de fechas "YYYY-MM-DD" (hora local) -> marcas de tiempo en milisegundos.
+function dayStart(value: string): number {
+  return new Date(`${value}T00:00:00`).getTime();
+}
+function dayEnd(value: string): number {
+  return new Date(`${value}T23:59:59.999`).getTime();
+}
+
+interface RowMenuItem {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  onSelect: () => void;
+  danger?: boolean;
+  separatorBefore?: boolean;
+}
+
+// Menú de los tres puntitos. Se coloca con `fixed` para que la lista con scroll no lo recorte.
+function RowMenu({ items, label }: { items: RowMenuItem[]; label: string }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!pos) return;
+    const close = () => setPos(null);
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest("[data-row-menu]")) close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        close();
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [pos]);
+
+  const open = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (pos) {
+      setPos(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const height = items.length * 34 + 12;
+    const top = rect.bottom + height > window.innerHeight ? Math.max(8, rect.top - height - 4) : rect.bottom + 4;
+    setPos({ top, left: Math.max(8, rect.right - 192) });
+  };
+
+  return (
+    <div data-nodrag data-row-menu className="relative flex justify-end" onClick={(e) => e.stopPropagation()}>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={open} title={label} aria-label={label}>
+        <MoreHorizontal className="h-4 w-4" />
+      </Button>
+      {pos && (
+        <div
+          role="menu"
+          style={{ top: pos.top, left: pos.left }}
+          className="fixed z-50 w-48 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+        >
+          {items.map((item) => (
+            <div key={item.key}>
+              {item.separatorBefore && <div className="-mx-1 my-1 h-px bg-border" />}
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setPos(null);
+                  item.onSelect();
+                }}
+                className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-muted ${
+                  item.danger ? "text-destructive" : ""
+                }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Acciones que le pide a la bóveda un atajo de teclado global.
 export type VaultAction = "search" | "new" | "copyUsername" | "copyPassword" | "copyTotp";
 
@@ -307,7 +482,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [search, setSearch] = useState("");
-  const [searchCategory, setSearchCategory] = useState<SearchCategory>("all");
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [renamingFolder, setRenamingFolder] = useState<FolderData | null>(null);
@@ -319,7 +493,31 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   const [taxonomy, setTaxonomy] = useState<Taxonomy>(EMPTY_TAXONOMY);
   const [taxonomyOpen, setTaxonomyOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [tagFilter, setTagFilter] = useState<string>("all");
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [dateField, setDateField] = useState<DateField>("updated");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sort, setSort] = useState<SortState>(readStoredSort);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draft, setDraft] = useState<{
+    type: string;
+    category: string;
+    tags: string[];
+    dateField: DateField;
+    from: string;
+    to: string;
+    sort: SortState;
+  } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const lastClickedIndex = useRef<number | null>(null);
+  const [renameEntryTarget, setRenameEntryTarget] = useState<Entry | null>(null);
+  const [renameEntryValue, setRenameEntryValue] = useState("");
+  const [bulkMoveOpen, setBulkMoveOpen] = useState(false);
+  const [bulkMoveTarget, setBulkMoveTarget] = useState<string>("root");
+  const [menuMoveIds, setMenuMoveIds] = useState<string[] | null>(null);
+  const [bulkDeleteTargets, setBulkDeleteTargets] = useState<Entry[] | null>(null);
+  const [drag, setDrag] = useState<{ ids: string[]; x: number; y: number; over: string | null } | null>(null);
+  const suppressClick = useRef(false);
   const [copyRequest, setCopyRequest] = useState<CopyRequest | null>(null);
   const { saveActivity } = useActivity();
 
@@ -379,7 +577,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   }, [prefillPassword]);
 
   // Con un filtro de categoría o etiqueta se busca en toda la bóveda, no solo en la carpeta actual.
-  const browsingMode = filter === "all" && !search && categoryFilter === "all" && tagFilter === "all";
+  const dateFilterActive = dateFrom !== "" || dateTo !== "";
+  const browsingMode =
+    filter === "all" && !search && categoryFilter === "all" && tagFilters.length === 0 && !dateFilterActive;
   const breadcrumbTrail = buildBreadcrumb(folders, currentFolderId);
   const currentSubfolders = browsingMode ? folders.filter((f) => f.parent_id === currentFolderId) : [];
 
@@ -392,10 +592,55 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
       if (entryTypeKey !== typeFilter) return false;
     }
     if (categoryFilter !== "all" && e.category_id !== categoryFilter) return false;
-    if (tagFilter !== "all" && !(e.tag_ids ?? []).includes(tagFilter)) return false;
+    if (tagFilters.length > 0 && !tagFilters.some((id) => (e.tag_ids ?? []).includes(id))) return false;
+    if (dateFilterActive) {
+      const ts = dateField === "created" ? e.created_at : e.updated_at;
+      if (dateFrom && ts < dayStart(dateFrom)) return false;
+      if (dateTo && ts > dayEnd(dateTo)) return false;
+    }
     if (browsingMode && (e.folder_id ?? null) !== currentFolderId) return false;
-    return matchesSearch(e, search, searchCategory);
+    return matchesSearch(e, search, "all");
   });
+
+  // Orden por columna. "default" deja el orden de creación; los valores vacíos van siempre al final.
+  const sortValue = (e: Entry): string | number => {
+    switch (sort.key) {
+      case "name":
+        return e.name;
+      case "username":
+        return e.username ?? "";
+      case "folder":
+        return e.folder_id ? folderPath(folders, e.folder_id) : "";
+      case "modified":
+        return e.updated_at;
+      default:
+        return 0;
+    }
+  };
+  const sortedVisible =
+    sort.key === "default"
+      ? visible
+      : [...visible].sort((a, b) => {
+          const va = sortValue(a);
+          const vb = sortValue(b);
+          const emptyA = va === "";
+          const emptyB = vb === "";
+          if (emptyA !== emptyB) return emptyA ? 1 : -1;
+          const cmp =
+            typeof va === "number" && typeof vb === "number"
+              ? va - vb
+              : String(va).localeCompare(String(vb), undefined, { sensitivity: "base", numeric: true });
+          return sort.dir === "asc" ? cmp : -cmp;
+        });
+
+  const selectedEntries = sortedVisible.filter((e) => selectedIds.has(e.id));
+  const allSelected = sortedVisible.length > 0 && selectedEntries.length === sortedVisible.length;
+  const someSelected = selectedEntries.length > 0 && !allSelected;
+  const activeFilterCount =
+    (typeFilter !== "all" ? 1 : 0) +
+    (categoryFilter !== "all" ? 1 : 0) +
+    (tagFilters.length > 0 ? 1 : 0) +
+    (dateFilterActive ? 1 : 0);
 
   const selected = entries.find((e) => e.id === selectedId) ?? null;
   // El popup de la entrada se abre al crear, editar o ver un registro.
@@ -562,7 +807,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
       await invoke("delete_taxonomy_item", { kind, id });
       await loadTaxonomy();
       await loadEntries(); // los registros que la usaban ya no la tienen
-      if (kind === "tag" && tagFilter === id) setTagFilter("all");
+      if (kind === "tag") setTagFilters((prev) => prev.filter((x) => x !== id));
       if (kind === "category" && categoryFilter === id) setCategoryFilter("all");
     } catch (e) {
       toast.error(String(e));
@@ -576,6 +821,308 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     onRenameTaxonomyItem: handleRenameTaxonomyItem,
     onDeleteTaxonomyItem: handleDeleteTaxonomyItem,
   };
+
+  // ---------- Orden, selección y acciones sobre varios registros ----------
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
+    } catch {
+      /* el orden solo dura esta sesión */
+    }
+  }, [sort]);
+
+  // Al cambiar de carpeta o de pestaña la selección empieza de cero.
+  useEffect(() => {
+    setSelectedIds(new Set());
+    lastClickedIndex.current = null;
+  }, [filter, currentFolderId]);
+
+  const handleSortHeader = (key: SortKey) => {
+    setSort((prev) => {
+      if (prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return { key: "default", dir: "asc" };
+    });
+  };
+
+  const toggleSelect = (entry: Entry, index: number, shift: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const last = lastClickedIndex.current;
+      if (shift && last !== null && last !== index) {
+        const [from, to] = last < index ? [last, index] : [index, last];
+        const adding = !prev.has(entry.id);
+        for (let i = from; i <= to; i++) {
+          if (adding) next.add(sortedVisible[i].id);
+          else next.delete(sortedVisible[i].id);
+        }
+      } else if (next.has(entry.id)) {
+        next.delete(entry.id);
+      } else {
+        next.add(entry.id);
+      }
+      return next;
+    });
+    lastClickedIndex.current = index;
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(sortedVisible.map((e) => e.id)));
+    lastClickedIndex.current = null;
+  };
+
+  const entryPayload = (e: Entry) => ({
+    name: e.name,
+    folder: e.folder ?? null,
+    username: e.username ?? null,
+    password: e.password ?? null,
+    website: e.website ?? null,
+    notes: e.notes ?? null,
+    customFields: e.custom_fields ?? [],
+    totpSecret: e.totp_secret ?? null,
+    entryType: e.entry_type ?? null,
+    logo: e.logo ?? null,
+    avatarMode: e.avatar_mode ?? null,
+    tagIds: e.tag_ids ?? [],
+    categoryId: e.category_id ?? null,
+  });
+
+  const handleRenameEntry = async () => {
+    const target = renameEntryTarget;
+    const name = renameEntryValue.trim();
+    if (!target || !name) return;
+    try {
+      if (name !== target.name) {
+        await invoke("update_entry", { id: target.id, ...entryPayload(target), name });
+        await saveActivity("edit", "entryEdited", "vault", { name });
+        toast.success(t("entryRenamedToast"));
+        loadEntries();
+      }
+      setRenameEntryTarget(null);
+    } catch (err) {
+      toast.error(String(err));
+    }
+  };
+
+  const handleDuplicateEntry = async (entry: Entry) => {
+    const name = `${entry.name} ${t("duplicateSuffix")}`;
+    try {
+      await invoke("save_entry", { ...entryPayload(entry), name, folderId: entry.folder_id ?? null });
+      await saveActivity("create", "entryCreated", "vault", { name });
+      toast.success(t("entryDuplicatedToast"));
+      loadEntries();
+    } catch (err) {
+      toast.error(String(err));
+    }
+  };
+
+  const moveEntries = async (ids: string[], folderId: string | null) => {
+    const todo = entries.filter((e) => ids.includes(e.id) && (e.folder_id ?? null) !== folderId);
+    if (todo.length === 0) return;
+    const folderLabel = folderId ? folderPath(folders, folderId) : t("vaultRootLabel");
+    try {
+      for (const e of todo) {
+        await invoke("move_entry_to_folder", { id: e.id, folderId });
+        await saveActivity("edit", "entryMoved", "vault", { name: e.name, folder: folderLabel });
+      }
+      toast.success(t("entriesMovedToast", { count: todo.length }));
+    } catch (err) {
+      toast.error(String(err));
+    }
+    setSelectedIds(new Set());
+    loadEntries();
+  };
+
+  const bulkFavorite = async (value: boolean) => {
+    const todo = selectedEntries.filter((e) => !e.trashed && e.favorite !== value);
+    try {
+      for (const e of todo) {
+        await invoke("toggle_favorite", { id: e.id });
+        await saveActivity("edit", value ? "favoriteAdded" : "favoriteRemoved", "vault", { name: e.name });
+      }
+      toast.success(t("entriesFavoriteToast", { count: todo.length }));
+    } catch (err) {
+      toast.error(String(err));
+    }
+    loadEntries();
+  };
+
+  const bulkTrash = async (list: Entry[]) => {
+    try {
+      for (const e of list) {
+        await invoke("trash_entry", { id: e.id });
+        await saveActivity("delete", "entryTrashed", "vault", { name: e.name });
+      }
+      toast.success(t("entriesTrashedToast", { count: list.length }));
+    } catch (err) {
+      toast.error(String(err));
+    }
+    setSelectedIds(new Set());
+    if (selectedId && list.some((e) => e.id === selectedId)) closePanel();
+    loadEntries();
+  };
+
+  const bulkRestore = async (list: Entry[]) => {
+    try {
+      for (const e of list) {
+        await invoke("restore_entry", { id: e.id });
+        await saveActivity("restore", "entryRestored", "vault", { name: e.name });
+      }
+      toast.success(t("entriesRestoredToast", { count: list.length }));
+    } catch (err) {
+      toast.error(String(err));
+    }
+    setSelectedIds(new Set());
+    loadEntries();
+  };
+
+  // Borrado definitivo de varios: una sola contraseña maestra, verificada por el backend en cada borrado.
+  const handleConfirmBulkDelete = async (masterPassword: string) => {
+    if (!bulkDeleteTargets) return;
+    const list = bulkDeleteTargets;
+    for (const e of list) {
+      await invoke("delete_entry", { id: e.id, masterPassword });
+      try {
+        await saveActivity("delete", "entryDeletedForever", "vault", { name: e.name });
+      } catch {
+        /* el registro de actividad es secundario */
+      }
+    }
+    setBulkDeleteTargets(null);
+    setSelectedIds(new Set());
+    if (selectedId && list.some((e) => e.id === selectedId)) closePanel();
+    toast.success(t("entriesDeletedToast", { count: list.length }));
+    loadEntries();
+  };
+
+  // Arrastrar con el ratón (sin HTML5 drag & drop, que en WebView2 choca con la recepción de archivos de Tauri).
+  const startRowDrag = (e: React.MouseEvent, entry: Entry) => {
+    if (e.button !== 0 || filter === "trash") return;
+    if ((e.target as HTMLElement).closest("[data-nodrag]")) return;
+    const ids = selectedIds.has(entry.id) ? selectedEntries.map((x) => x.id) : [entry.id];
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let active = false;
+    const folderAt = (x: number, y: number): string | null =>
+      (document.elementFromPoint(x, y) as HTMLElement | null)?.closest<HTMLElement>("[data-folder-drop]")?.dataset
+        .folderDrop ?? null;
+    const onMove = (ev: MouseEvent) => {
+      if (!active) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
+        active = true;
+        document.body.style.userSelect = "none";
+      }
+      setDrag({ ids, x: ev.clientX, y: ev.clientY, over: folderAt(ev.clientX, ev.clientY) });
+    };
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = "";
+      if (!active) return;
+      suppressClick.current = true;
+      setTimeout(() => {
+        suppressClick.current = false;
+      }, 0);
+      const target = folderAt(ev.clientX, ev.clientY);
+      setDrag(null);
+      if (target !== null) moveEntries(ids, target === "root" ? null : target);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const openEntry = (entry: Entry) => {
+    if (suppressClick.current) return;
+    setSelectedId(entry.id);
+    setFormMode(null);
+  };
+
+  const openFilters = () => {
+    setDraft({ type: typeFilter, category: categoryFilter, tags: tagFilters, dateField, from: dateFrom, to: dateTo, sort });
+    setFiltersOpen(true);
+  };
+
+  const applyFilters = () => {
+    if (!draft) return;
+    setTypeFilter(draft.type);
+    setCategoryFilter(draft.category);
+    setTagFilters(draft.tags);
+    setDateField(draft.dateField);
+    setDateFrom(draft.from);
+    setDateTo(draft.to);
+    setSort(draft.sort);
+    setFiltersOpen(false);
+  };
+
+  const clearFilters = () => {
+    setTypeFilter("all");
+    setCategoryFilter("all");
+    setTagFilters([]);
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  const rowMenuItems = (entry: Entry): RowMenuItem[] =>
+    entry.trashed
+      ? [
+          { key: "open", label: t("menuOpen"), icon: <Eye className="h-4 w-4" />, onSelect: () => openEntry(entry) },
+          { key: "restore", label: t("menuRestore"), icon: <RotateCcw className="h-4 w-4" />, onSelect: () => bulkRestore([entry]) },
+          {
+            key: "delete",
+            label: t("menuDeletePermanently"),
+            icon: <Trash2 className="h-4 w-4" />,
+            onSelect: () => setBulkDeleteTargets([entry]),
+            danger: true,
+            separatorBefore: true,
+          },
+        ]
+      : [
+          { key: "open", label: t("menuOpen"), icon: <Eye className="h-4 w-4" />, onSelect: () => openEntry(entry) },
+          {
+            key: "rename",
+            label: t("menuRename"),
+            icon: <Pencil className="h-4 w-4" />,
+            onSelect: () => {
+              setRenameEntryTarget(entry);
+              setRenameEntryValue(entry.name);
+            },
+          },
+          { key: "duplicate", label: t("menuDuplicate"), icon: <CopyPlus className="h-4 w-4" />, onSelect: () => handleDuplicateEntry(entry) },
+          {
+            key: "favorite",
+            label: entry.favorite ? t("menuFavoriteRemove") : t("menuFavoriteAdd"),
+            icon: <Star className="h-4 w-4" />,
+            onSelect: () => handleToggleFavorite(entry.id),
+          },
+          {
+            key: "move",
+            label: t("menuMove"),
+            icon: <Move className="h-4 w-4" />,
+            onSelect: () => {
+              setMenuMoveIds([entry.id]);
+              setBulkMoveTarget(entry.folder_id ?? "root");
+              setBulkMoveOpen(true);
+            },
+          },
+          {
+            key: "trash",
+            label: t("menuTrash"),
+            icon: <Trash2 className="h-4 w-4" />,
+            onSelect: () => bulkTrash([entry]),
+            danger: true,
+            separatorBefore: true,
+          },
+        ];
+
+  const renderSelectBox = (entry: Entry, index: number) => (
+    <SelectCheckbox
+      checked={selectedIds.has(entry.id)}
+      onToggle={(e) => toggleSelect(entry, index, e.shiftKey)}
+      label={t("selectRowLabel", { name: entry.name })}
+      dim={selectedIds.size === 0}
+    />
+  );
 
   const renderFavoriteStar = (entry: Entry) =>
     !entry.trashed && (
@@ -595,8 +1142,11 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
       {currentSubfolders.map((f) => (
         <div
           key={f.id}
+          data-folder-drop={f.id}
           onClick={() => setCurrentFolderId(f.id)}
-          className="group relative flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2 hover:bg-muted hover:border-primary/50 transition-colors cursor-pointer"
+          className={`group relative flex items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-2 hover:bg-muted hover:border-primary/50 transition-colors cursor-pointer ${
+            drag?.over === f.id ? "border-primary bg-primary/10 ring-2 ring-primary/40" : ""
+          }`}
         >
           <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
           <span className="text-sm font-medium truncate flex-1 min-w-0">{f.name}</span>
@@ -643,6 +1193,24 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     </div>
   );
 
+  const sortKeyLabel = (k: SortKey) =>
+    ({ default: t("sortDefault"), name: t("colName"), username: t("colUser"), folder: t("colFolder"), modified: t("colModified") })[k];
+
+  const renderSortHeader = (key: SortKey, label: string) => (
+    <button
+      type="button"
+      onClick={() => handleSortHeader(key)}
+      className="flex items-center gap-1 text-left hover:text-foreground"
+    >
+      {label}
+      {sort.key === key ? (
+        sort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+      ) : (
+        <ArrowUpDown className="h-3 w-3 opacity-40" />
+      )}
+    </button>
+  );
+
   const categoryName = (entry: Entry) => taxonomy.categories.find((c) => c.id === entry.category_id)?.name;
 
   const typeBadgeLabel = (entryType?: string | null) =>
@@ -670,33 +1238,40 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   ].filter((section) => section.templates.length > 0 || (section.id === "user" && !templateQuery));
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-1">{t("title")}</h2>
-      <p className="text-sm text-muted-foreground mb-6">{t("subtitle")}</p>
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Cabecera: título y descripción a la izquierda, acciones a la derecha */}
+      <div className="mb-3 flex shrink-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="mb-1 text-2xl font-bold">{t("title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {browsingMode && (
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={() => setNewFolderOpen(true)}
+              title={t("newFolderButton")}
+              aria-label={t("newFolderButton")}
+            >
+              <FolderPlus className="h-4 w-4" />
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => setTaxonomyOpen(true)}>
+            <Tags className="mr-1 h-4 w-4" /> {t("manageTaxonomyButton")}
+          </Button>
+          <Button onClick={() => setTemplatePickerOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" /> {t("newButton")}
+          </Button>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>
-            {filter === "trash" ? t("listTrash") : filter === "favorites" ? t("listFavorites") : t("listAll")}
-          </CardTitle>
-          <div className="flex gap-2">
-            {browsingMode && (
-              <Button size="sm" variant="outline" onClick={() => setNewFolderOpen(true)}>
-                <FolderPlus className="h-4 w-4 mr-1" /> {t("newFolderButton")}
-              </Button>
-            )}
-            <Button size="sm" variant="outline" onClick={() => setTaxonomyOpen(true)}>
-              <Tags className="h-4 w-4 mr-1" /> {t("manageTaxonomyButton")}
-            </Button>
-            <Button size="sm" onClick={() => setTemplatePickerOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" /> {t("newButton")}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2 mb-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <Card className="flex min-h-0 flex-1 flex-col">
+        <CardContent className="flex min-h-0 flex-1 flex-col">
+          {/* Una sola fila: buscador + favoritos + papelera + filtros + vista */}
+          <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
+            <div className="relative min-w-48 flex-1">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 id="vault-search"
                 placeholder={t("searchPlaceholder")}
@@ -705,113 +1280,37 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                 className="pl-8"
               />
             </div>
-            <Select
-              value={searchCategory}
-              onValueChange={(v) => v && setSearchCategory(v as SearchCategory)}
-              items={[
-                { value: "all", label: t("searchAll") },
-                { value: "name", label: t("searchName") },
-                { value: "contact", label: t("searchContact") },
-                { value: "website", label: t("searchWebsite") },
-                { value: "custom", label: t("searchCustom") },
-              ]}
-            >
-              <SelectTrigger className="w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("searchAll")}</SelectItem>
-                <SelectItem value="name">{t("searchName")}</SelectItem>
-                <SelectItem value="contact">{t("searchContact")}</SelectItem>
-                <SelectItem value="website">{t("searchWebsite")}</SelectItem>
-                <SelectItem value="custom">{t("searchCustom")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <div className="flex gap-1 flex-wrap">
-              <Button variant={filter === "all" ? "secondary" : "ghost"} size="sm" onClick={() => setFilter("all")}>
-                {t("filterAll")}
-              </Button>
-              <Button
-                variant={filter === "favorites" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setFilter("favorites")}
-              >
-                <Star className="h-3.5 w-3.5 mr-1" /> {t("filterFavorites")}
-              </Button>
-              <Button variant={filter === "trash" ? "secondary" : "ghost"} size="sm" onClick={handleOpenTrash}>
-                <Trash2 className="h-3.5 w-3.5 mr-1" /> {t("filterTrash")}
-              </Button>
-              <Select
-                value={typeFilter}
-                onValueChange={(v) => v && setTypeFilter(v)}
-                items={[
-                  { value: "all", label: t("typeFilterAll") },
-                  ...[...TEMPLATES, ...userTemplates].map((tpl) => ({ value: tpl.id, label: templateLabel(t, tpl) })),
-                  { value: "uncategorized", label: t("templateUncategorized") },
-                ]}
-              >
-                <SelectTrigger className="w-40 h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("typeFilterAll")}</SelectItem>
-                  {[...TEMPLATES, ...userTemplates].map((tpl) => (
-                    <SelectItem key={tpl.id} value={tpl.id}>
-                      {templateLabel(t, tpl)}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="uncategorized">{t("templateUncategorized")}</SelectItem>
-                </SelectContent>
-              </Select>
-              {taxonomy.categories.length > 0 && (
-                <Select
-                  value={categoryFilter}
-                  onValueChange={(v) => v && setCategoryFilter(v)}
-                  items={[
-                    { value: "all", label: t("filterAllCategories") },
-                    ...taxonomy.categories.map((c) => ({ value: c.id, label: c.name })),
-                  ]}
-                >
-                  <SelectTrigger className="w-44 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("filterAllCategories")}</SelectItem>
-                    {taxonomy.categories.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Favoritos y Papelera funcionan como interruptores: al desactivarlos se vuelve a "Todos" */}
+            <Button
+              variant={filter === "favorites" ? "secondary" : "outline"}
+              aria-pressed={filter === "favorites"}
+              onClick={() => setFilter(filter === "favorites" ? "all" : "favorites")}
+            >
+              <Star className="mr-1 h-4 w-4" /> {t("filterFavorites")}
+            </Button>
+            <Button
+              variant={filter === "trash" ? "secondary" : "outline"}
+              aria-pressed={filter === "trash"}
+              onClick={() => (filter === "trash" ? setFilter("all") : handleOpenTrash())}
+            >
+              <Trash2 className="mr-1 h-4 w-4" /> {t("filterTrash")}
+            </Button>
+            <Button variant="outline" onClick={openFilters}>
+              <SlidersHorizontal className="mr-1 h-4 w-4" /> {t("filtersButton")}
+              {activeFilterCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                  {activeFilterCount}
+                </span>
               )}
-              {taxonomy.tags.length > 0 && (
-                <Select
-                  value={tagFilter}
-                  onValueChange={(v) => v && setTagFilter(v)}
-                  items={[
-                    { value: "all", label: t("filterAllTags") },
-                    ...taxonomy.tags.map((tg) => ({ value: tg.id, label: tg.name })),
-                  ]}
-                >
-                  <SelectTrigger className="w-44 h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t("filterAllTags")}</SelectItem>
-                    {taxonomy.tags.map((tg) => (
-                      <SelectItem key={tg.id} value={tg.id}>
-                        {tg.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div className="flex gap-1 shrink-0">
+            </Button>
+            {activeFilterCount > 0 && (
+              <Button variant="ghost" onClick={clearFilters}>
+                <X className="mr-1 h-4 w-4" /> {t("filterClearAll")}
+              </Button>
+            )}
+
+            <div className="flex shrink-0 gap-1">
               <Button
                 variant={viewMode === "list" ? "secondary" : "ghost"}
                 size="icon"
@@ -831,11 +1330,54 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
             </div>
           </div>
 
+          {selectedEntries.length > 0 && (
+            <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2">
+              <span className="mr-1 text-sm font-medium">{t("selectedCount", { count: selectedEntries.length })}</span>
+              {filter === "trash" ? (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => bulkRestore(selectedEntries)}>
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" /> {t("bulkRestore")}
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => setBulkDeleteTargets(selectedEntries)}>
+                    <Trash2 className="mr-1 h-3.5 w-3.5" /> {t("bulkDeletePermanently")}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setMenuMoveIds(null);
+                      setBulkMoveTarget("root");
+                      setBulkMoveOpen(true);
+                    }}
+                  >
+                    <Move className="mr-1 h-3.5 w-3.5" /> {t("bulkMove")}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => bulkFavorite(!selectedEntries.every((e) => e.favorite))}>
+                    <Star className="mr-1 h-3.5 w-3.5" />
+                    {selectedEntries.every((e) => e.favorite) ? t("bulkUnfavorite") : t("bulkFavorite")}
+                  </Button>
+                  <Button size="sm" variant="outline" className="text-destructive" onClick={() => bulkTrash(selectedEntries)}>
+                    <Trash2 className="mr-1 h-3.5 w-3.5" /> {t("bulkTrash")}
+                  </Button>
+                </>
+              )}
+              <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelectedIds(new Set())}>
+                <X className="mr-1 h-3.5 w-3.5" /> {t("clearSelection")}
+              </Button>
+            </div>
+          )}
+
           {browsingMode && currentFolderId !== null && (
-            <div className="flex items-center gap-1.5 text-sm mb-3 flex-wrap">
+            <div className="mb-3 flex shrink-0 flex-wrap items-center gap-1.5 text-sm">
               <button
+                data-folder-drop="root"
                 onClick={() => setCurrentFolderId(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors"
+                className={`rounded px-1 text-muted-foreground transition-colors hover:text-foreground ${
+                  drag?.over === "root" ? "bg-primary/10 text-foreground ring-2 ring-primary/40" : ""
+                }`}
               >
                 {t("vaultRootLabel")}
               </button>
@@ -843,9 +1385,11 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                 <span key={f.id} className="flex items-center gap-1.5">
                   <span className="text-muted-foreground/50">/</span>
                   <button
+                    data-folder-drop={f.id}
                     onClick={() => setCurrentFolderId(f.id)}
-                    className={`hover:text-foreground transition-colors ${f.id === currentFolderId ? "font-semibold text-foreground" : "text-muted-foreground"
-                      }`}
+                    className={`rounded px-1 transition-colors hover:text-foreground ${
+                      f.id === currentFolderId ? "font-semibold text-foreground" : "text-muted-foreground"
+                    } ${drag?.over === f.id ? "bg-primary/10 ring-2 ring-primary/40" : ""}`}
                   >
                     {f.name}
                   </button>
@@ -854,97 +1398,451 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
             </div>
           )}
 
-          {visible.length === 0 && currentSubfolders.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4">{search ? t("emptySearch") : t("emptyList")}</p>
+          {sortedVisible.length === 0 && currentSubfolders.length === 0 ? (
+            <p className="py-4 text-sm text-muted-foreground">{search ? t("emptySearch") : t("emptyList")}</p>
           ) : viewMode === "list" ? (
-            <div className="flex max-h-[max(16rem,calc(100vh-19rem))] flex-col gap-1 overflow-y-auto rounded-lg border p-2">
-              {currentSubfolders.length > 0 &&
-                renderSubfolders("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
-              {currentSubfolders.length > 0 && visible.length > 0 && <div className="my-2 border-t" />}
-              {visible.map((entry) => (
-                <button
-                  key={entry.id}
-                  onClick={() => {
-                    setSelectedId(entry.id);
-                    setFormMode(null);
-                  }}
-                  className={`group flex items-center gap-3 rounded-md p-2 text-left hover:bg-muted ${selectedId === entry.id ? "bg-muted" : ""
-                    }`}
-                >
-                  <EntryAvatar
-                    name={entry.name}
-                    logo={entry.logo}
-                    mode={entry.avatar_mode}
-                    icon={entryIcon(entry.entry_type)}
-                    className="h-9 w-9"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium truncate">{entry.name}</p>
-                      <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
-                        {typeBadgeLabel(entry.entry_type)}
-                      </span>
-                      {categoryName(entry) && (
-                        <span className="max-w-28 truncate text-[10px] border text-muted-foreground px-1.5 py-0.5 rounded shrink-0">
-                          {categoryName(entry)}
-                        </span>
+            <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
+              <div
+                role="row"
+                className={`sticky top-0 z-10 grid ${TABLE_COLS} items-center gap-3 border-b bg-card px-3 py-2 text-xs font-medium text-muted-foreground`}
+              >
+                <SelectCheckbox
+                  checked={allSelected}
+                  indeterminate={someSelected}
+                  onToggle={toggleSelectAll}
+                  label={t("selectAllLabel")}
+                />
+                {renderSortHeader("name", t("colName"))}
+                {renderSortHeader("username", t("colUser"))}
+                <div className="hidden lg:block">{renderSortHeader("folder", t("colFolder"))}</div>
+                <span>{t("colTags")}</span>
+                {renderSortHeader("modified", t("colModified"))}
+                <span />
+              </div>
+              {currentSubfolders.length > 0 && (
+                <div className="border-b p-2">
+                  {renderSubfolders("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2")}
+                </div>
+              )}
+              {sortedVisible.map((entry, index) => {
+                const entryTags = (entry.tag_ids ?? [])
+                  .map((id) => taxonomy.tags.find((tg) => tg.id === id)?.name)
+                  .filter((n): n is string => !!n);
+                return (
+                  <div
+                    key={entry.id}
+                    role="row"
+                    tabIndex={0}
+                    onMouseDown={(e) => startRowDrag(e, entry)}
+                    onClick={() => openEntry(entry)}
+                    onKeyDown={(e) => e.key === "Enter" && openEntry(entry)}
+                    className={`group grid ${TABLE_COLS} cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 ${
+                      selectedIds.has(entry.id) ? "bg-primary/5" : selectedId === entry.id ? "bg-muted" : ""
+                    } ${drag?.ids.includes(entry.id) ? "opacity-50" : ""}`}
+                  >
+                    {renderSelectBox(entry, index)}
+                    <div className="flex min-w-0 items-center gap-3">
+                      <EntryAvatar
+                        name={entry.name}
+                        logo={entry.logo}
+                        mode={entry.avatar_mode}
+                        icon={entryIcon(entry.entry_type)}
+                        className="h-9 w-9 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-medium">{entry.name}</p>
+                          <span data-nodrag className="flex shrink-0">
+                            {renderFavoriteStar(entry)}
+                          </span>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {typeBadgeLabel(entry.entry_type)}
+                          {categoryName(entry) ? ` · ${categoryName(entry)}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="truncate text-sm text-muted-foreground">{entry.username || "—"}</p>
+                    <p className="hidden truncate text-sm text-muted-foreground lg:block">
+                      {entry.folder_id ? folderPath(folders, entry.folder_id) : "—"}
+                    </p>
+                    <div className="flex min-w-0 items-center gap-1">
+                      {entryTags.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      ) : (
+                        <>
+                          {entryTags.slice(0, 2).map((name) => (
+                            <span
+                              key={name}
+                              className="max-w-20 truncate rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                            >
+                              {name}
+                            </span>
+                          ))}
+                          {entryTags.length > 2 && (
+                            <span className="shrink-0 text-[10px] text-muted-foreground">+{entryTags.length - 2}</span>
+                          )}
+                        </>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {t("editedLabel")}: {formatDate(entry.updated_at)}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{formatDate(entry.updated_at)}</p>
+                    <RowMenu items={rowMenuItems(entry)} label={t("rowMenuLabel")} />
                   </div>
-                  {renderFavoriteStar(entry)}
-                </button>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="grid max-h-[max(16rem,calc(100vh-19rem))] grid-cols-3 content-start gap-2 overflow-y-auto rounded-lg border p-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+            <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto rounded-lg border p-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
               {currentSubfolders.length > 0 &&
                 renderSubfolders("col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
-              {currentSubfolders.length > 0 && visible.length > 0 && <div className="col-span-full my-1 border-t" />}
-              {visible.map((entry) => (
-                <button
+              {currentSubfolders.length > 0 && sortedVisible.length > 0 && <div className="col-span-full my-1 border-t" />}
+              {sortedVisible.map((entry, index) => (
+                <div
                   key={entry.id}
-                  onClick={() => {
-                    setSelectedId(entry.id);
-                    setFormMode(null);
-                  }}
-                  className={`group flex flex-col gap-1.5 rounded-lg border p-2.5 text-left hover:border-primary hover:bg-muted/50 transition-colors ${selectedId === entry.id ? "border-primary bg-muted/50" : ""
-                    }`}
+                  role="button"
+                  tabIndex={0}
+                  onMouseDown={(e) => startRowDrag(e, entry)}
+                  onClick={() => openEntry(entry)}
+                  onKeyDown={(e) => e.key === "Enter" && openEntry(entry)}
+                  className={`group flex cursor-pointer flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors hover:border-primary hover:bg-muted/50 ${
+                    selectedIds.has(entry.id) ? "border-primary bg-primary/5" : selectedId === entry.id ? "border-primary bg-muted/50" : ""
+                  } ${drag?.ids.includes(entry.id) ? "opacity-50" : ""}`}
                 >
                   <div className="flex items-start justify-between">
-                    <EntryAvatar
-                      name={entry.name}
-                      logo={entry.logo}
-                      mode={entry.avatar_mode}
-                      icon={entryIcon(entry.entry_type)}
-                      className="h-8 w-8"
-                      textClassName="text-xs"
-                    />
-                    {renderFavoriteStar(entry)}
+                    <div className="flex items-center gap-2">
+                      <span className={selectedIds.has(entry.id) || selectedEntries.length > 0 ? "" : "opacity-0 group-hover:opacity-100"}>
+                        {renderSelectBox(entry, index)}
+                      </span>
+                      <EntryAvatar
+                        name={entry.name}
+                        logo={entry.logo}
+                        mode={entry.avatar_mode}
+                        icon={entryIcon(entry.entry_type)}
+                        className="h-8 w-8"
+                        textClassName="text-xs"
+                      />
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      <span data-nodrag className="flex">
+                        {renderFavoriteStar(entry)}
+                      </span>
+                      <RowMenu items={rowMenuItems(entry)} label={t("rowMenuLabel")} />
+                    </div>
                   </div>
                   <div>
-                    <p className="text-sm font-medium truncate">{entry.name}</p>
-                    <span className="text-[10px] uppercase bg-muted text-muted-foreground px-1.5 py-0.5 rounded inline-block mt-1">
+                    <p className="truncate text-sm font-medium">{entry.name}</p>
+                    <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
                       {typeBadgeLabel(entry.entry_type)}
                     </span>
                     {categoryName(entry) && (
-                      <span className="ml-1 mt-1 inline-block max-w-24 truncate align-bottom text-[10px] border text-muted-foreground px-1.5 py-0.5 rounded">
+                      <span className="ml-1 mt-1 inline-block max-w-24 truncate rounded border px-1.5 py-0.5 align-bottom text-[10px] text-muted-foreground">
                         {categoryName(entry)}
                       </span>
                     )}
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-auto pt-2 border-t">
+                  <div className="mt-auto border-t pt-2 text-[11px] text-muted-foreground">
                     <p>{t("createdLabel")}: {formatDate(entry.created_at)}</p>
                     <p>{t("editedLabel")}: {formatDate(entry.updated_at)}</p>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Panel de filtros */}
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4" /> {t("filtersTitle")}
+            </DialogTitle>
+          </DialogHeader>
+          {draft && (
+            <div className="-mr-2 flex max-h-[65vh] flex-col overflow-y-auto pr-2">
+              {(
+                [
+                  {
+                    id: "type",
+                    title: t("filterSectionType"),
+                    onReset: () => setDraft({ ...draft, type: "all" }),
+                    body: (
+                      <Select
+                        value={draft.type}
+                        onValueChange={(v) => v && setDraft({ ...draft, type: v })}
+                        items={[
+                          { value: "all", label: t("typeFilterAll") },
+                          ...[...TEMPLATES, ...userTemplates].map((tpl) => ({ value: tpl.id, label: templateLabel(t, tpl) })),
+                          { value: "uncategorized", label: t("templateUncategorized") },
+                        ]}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t("typeFilterAll")}</SelectItem>
+                          {[...TEMPLATES, ...userTemplates].map((tpl) => (
+                            <SelectItem key={tpl.id} value={tpl.id}>
+                              {templateLabel(t, tpl)}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="uncategorized">{t("templateUncategorized")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ),
+                  },
+                  ...(taxonomy.categories.length > 0
+                    ? [
+                        {
+                          id: "category",
+                          title: t("filterSectionCategory"),
+                          onReset: () => setDraft({ ...draft, category: "all" }),
+                          body: (
+                            <Select
+                              value={draft.category}
+                              onValueChange={(v) => v && setDraft({ ...draft, category: v })}
+                              items={[
+                                { value: "all", label: t("filterAllCategories") },
+                                ...taxonomy.categories.map((c) => ({ value: c.id, label: c.name })),
+                              ]}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">{t("filterAllCategories")}</SelectItem>
+                                {taxonomy.categories.map((c) => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                    {c.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ),
+                        },
+                      ]
+                    : []),
+                  ...(taxonomy.tags.length > 0
+                    ? [
+                        {
+                          id: "tags",
+                          title: t("filterSectionTags"),
+                          onReset: () => setDraft({ ...draft, tags: [] }),
+                          body: (
+                            <div className="flex flex-wrap gap-1.5">
+                              {taxonomy.tags.map((tg) => {
+                                const on = draft.tags.includes(tg.id);
+                                return (
+                                  <button
+                                    key={tg.id}
+                                    type="button"
+                                    onClick={() =>
+                                      setDraft({
+                                        ...draft,
+                                        tags: on ? draft.tags.filter((x) => x !== tg.id) : [...draft.tags, tg.id],
+                                      })
+                                    }
+                                    className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                                      on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+                                    }`}
+                                  >
+                                    {tg.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ),
+                        },
+                      ]
+                    : []),
+                  {
+                    id: "date",
+                    title: t("filterSectionDate"),
+                    onReset: () => setDraft({ ...draft, from: "", to: "" }),
+                    body: (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-1">
+                          {(["updated", "created"] as DateField[]).map((f) => (
+                            <Button
+                              key={f}
+                              type="button"
+                              size="sm"
+                              variant={draft.dateField === f ? "secondary" : "ghost"}
+                              onClick={() => setDraft({ ...draft, dateField: f })}
+                            >
+                              {f === "updated" ? t("filterDateModified") : t("filterDateCreated")}
+                            </Button>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                            {t("filterFrom")}
+                            <Input type="date" value={draft.from} max={draft.to || undefined} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
+                          </label>
+                          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                            {t("filterTo")}
+                            <Input type="date" value={draft.to} min={draft.from || undefined} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
+                          </label>
+                        </div>
+                      </div>
+                    ),
+                  },
+                  {
+                    id: "sort",
+                    title: t("filterSectionSort"),
+                    onReset: () => setDraft({ ...draft, sort: { key: "default", dir: "asc" } }),
+                    body: (
+                      <div className="flex gap-2">
+                        <Select
+                          value={draft.sort.key}
+                          onValueChange={(v) => v && setDraft({ ...draft, sort: { ...draft.sort, key: v as SortKey } })}
+                          items={SORT_KEYS.map((k) => ({ value: k, label: sortKeyLabel(k) }))}
+                        >
+                          <SelectTrigger className="flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SORT_KEYS.map((k) => (
+                              <SelectItem key={k} value={k}>
+                                {sortKeyLabel(k)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={draft.sort.key === "default"}
+                          onClick={() =>
+                            setDraft({ ...draft, sort: { ...draft.sort, dir: draft.sort.dir === "asc" ? "desc" : "asc" } })
+                          }
+                        >
+                          {draft.sort.dir === "asc" ? (
+                            <ArrowUp className="mr-1 h-4 w-4" />
+                          ) : (
+                            <ArrowDown className="mr-1 h-4 w-4" />
+                          )}
+                          {draft.sort.dir === "asc" ? t("sortAsc") : t("sortDesc")}
+                        </Button>
+                      </div>
+                    ),
+                  },
+                ] as { id: string; title: string; onReset: () => void; body: ReactNode }[]
+              ).map((section) => (
+                <div key={section.id} className="flex flex-col gap-2 border-t py-3 first:border-t-0 first:pt-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">{section.title}</span>
+                    <button type="button" onClick={section.onReset} className="text-xs font-medium text-primary hover:underline">
+                      {t("filterReset")}
+                    </button>
+                  </div>
+                  {section.body}
+                </div>
+              ))}
+              <div className="flex justify-end gap-2 border-t pt-3">
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      type: "all",
+                      category: "all",
+                      tags: [],
+                      from: "",
+                      to: "",
+                      sort: { key: "default", dir: "asc" },
+                    })
+                  }
+                >
+                  {t("filterReset")}
+                </Button>
+                <Button onClick={applyFilters}>{t("filterApply")}</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Renombrar un registro */}
+      <Dialog open={renameEntryTarget !== null} onOpenChange={(open) => !open && setRenameEntryTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("renameEntryTitle")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Input
+              value={renameEntryValue}
+              onChange={(e) => setRenameEntryValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleRenameEntry()}
+              placeholder={t("renameEntryPlaceholder")}
+              autoFocus
+            />
+            <Button onClick={handleRenameEntry} disabled={!renameEntryValue.trim()}>
+              {t("renameEntryButton")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Mover uno o varios registros a una carpeta */}
+      <Dialog open={bulkMoveOpen} onOpenChange={setBulkMoveOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("bulkMoveTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("selectedCount", { count: menuMoveIds ? menuMoveIds.length : selectedEntries.length })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Select
+              value={bulkMoveTarget}
+              onValueChange={(v) => v && setBulkMoveTarget(v)}
+              items={folderSelectItems(folders, t("vaultRootLabel"))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="root">{t("vaultRootLabel")}</SelectItem>
+                {folders.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {folderPath(folders, f.id)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              onClick={async () => {
+                const ids = menuMoveIds ?? selectedEntries.map((e) => e.id);
+                setBulkMoveOpen(false);
+                await moveEntries(ids, bulkMoveTarget === "root" ? null : bulkMoveTarget);
+              }}
+            >
+              {t("moveButton")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <MasterPasswordDialog
+        open={bulkDeleteTargets !== null}
+        title={t("bulkDeleteTitle")}
+        description={`${t("selectedCount", { count: bulkDeleteTargets?.length ?? 0 })}. ${t("deleteConfirmDescription")} ${t("deleteAuthHint")}`}
+        confirmLabel={t("deleteConfirmAction")}
+        onCancel={() => setBulkDeleteTargets(null)}
+        onConfirm={handleConfirmBulkDelete}
+      />
+
+      {/* Indicador flotante al arrastrar registros */}
+      {drag && (
+        <div
+          style={{ left: drag.x + 14, top: drag.y + 14 }}
+          className="pointer-events-none fixed z-[100] flex items-center gap-1.5 rounded-md border bg-popover px-2 py-1 text-xs font-medium shadow-lg"
+        >
+          <Move className="h-3.5 w-3.5" /> {drag.ids.length}
+        </div>
+      )}
 
       <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
         <DialogContent className="max-w-sm">

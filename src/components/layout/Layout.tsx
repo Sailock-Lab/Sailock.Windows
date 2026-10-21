@@ -12,7 +12,11 @@ export function Layout({ active, onChange, onLock, children }: LayoutProps) {
   return (
     <div className="flex h-screen bg-background text-foreground">
       <Sidebar active={active} onChange={onChange} onLock={onLock} />
-      <main className="flex-1 overflow-y-auto p-8">{children}</main>
+      {/* El generador reparte la altura entre sus paneles (cada uno con su scroll): sin esto, el redondeo de píxeles
+          con zoom o escalado de Windows añade un scroll fantasma de 2-3 px a la ventana. */}
+      <main className={`flex-1 p-8 ${active === "generator" ? "overflow-y-auto md:overflow-hidden" : "overflow-y-auto"}`}>
+        {children}
+      </main>
     </div>
   );
 }
