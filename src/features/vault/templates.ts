@@ -35,6 +35,42 @@ import {
   StickyNote,
   Terminal,
   Wifi,
+  Banknote,
+  Bitcoin,
+  Wallet,
+  Gamepad2,
+  Music,
+  Tv,
+  Film,
+  Newspaper,
+  Palette,
+  Dumbbell,
+  Users,
+  Building2,
+  Wrench,
+  Bike,
+  Fuel,
+  MapPin,
+  Fingerprint,
+  Scan,
+  Code,
+  Cpu,
+  HardDrive,
+  Monitor,
+  Laptop,
+  Printer,
+  Plug,
+  Zap,
+  Receipt,
+  PiggyBank,
+  Bus,
+  Calendar,
+  Stethoscope,
+  Pill,
+  Bell,
+  Siren,
+  DoorClosed,
+  Router,
   type LucideIcon,
 } from "lucide-react";
 import type { FieldType } from "@/components/EntryFields";
@@ -117,18 +153,6 @@ export const TEMPLATES: EntryTemplate[] = [
       { labelKey: "presetBank", type: "text" },
       { labelKey: "presetCardType", type: "text" },
     ],
-  },
-  {
-    id: "note",
-    group: "main",
-    icon: StickyNote,
-    labelKey: "templateNote",
-    nameLabelKey: "presetTitle",
-    showUsername: false,
-    showPassword: false,
-    showWebsite: false,
-    showTotp: false,
-    presetFields: [],
   },
   {
     id: "wifi",
@@ -307,26 +331,16 @@ export const TEMPLATES: EntryTemplate[] = [
       { labelKey: "presetAssistancePhone", type: "phone" },
     ],
   },
-  {
-    id: "securenote",
-    group: "more",
-    icon: Lock,
-    labelKey: "templateSecureNote",
-    nameLabelKey: "presetTitle",
-    showUsername: false,
-    showPassword: false,
-    showWebsite: false,
-    showTotp: false,
-    presetFields: [{ labelKey: "presetContent", type: "longtext", sensitive: true }],
-  },
 ];
 
-export const MAIN_TEMPLATES = TEMPLATES.filter((tpl) => tpl.group === "main");
-export const MORE_TEMPLATES = TEMPLATES.filter((tpl) => tpl.group === "more");
+// "Personalizada" ya no se ofrece al crear un registro (para eso están las plantillas propias),
+// pero sigue definida en TEMPLATES porque el resto del código la usa (findTemplate("custom")).
+// "Nota" está eliminada: no se ofrece ni existe como plantilla.
+const RETIRED_TEMPLATE_IDS = ["custom"];
+export const MAIN_TEMPLATES = TEMPLATES.filter((tpl) => tpl.group === "main" && !RETIRED_TEMPLATE_IDS.includes(tpl.id));
+export const MORE_TEMPLATES = TEMPLATES.filter((tpl) => tpl.group === "more" && !RETIRED_TEMPLATE_IDS.includes(tpl.id));
 
 // ---------- Plantillas del usuario ----------
-// Se guardan cifradas en el backend (templates.json) y se mantienen aquí en memoria para que
-// findTemplate / entryIcon las vean igual que a las plantillas incluidas.
 
 export interface UserTemplateField {
   label: string;
@@ -349,6 +363,8 @@ export interface UserTemplateData {
 }
 
 // Iconos que se pueden elegir para una plantilla propia.
+// Todos son iconos de lucide-react incluidos en la app: sin peticiones externas
+// (importante en un gestor de contraseñas, que funciona offline y no debe filtrar datos).
 export const ICON_CHOICES: Record<string, LucideIcon> = {
   sparkles: Sparkles,
   key: KeyRound,
@@ -381,6 +397,50 @@ export const ICON_CHOICES: Record<string, LucideIcon> = {
   camera: Camera,
   lifebuoy: LifeBuoy,
   "file-key": FileKey,
+  // ---- Iconos añadidos, orientados a lo que de verdad se guarda en un gestor de contraseñas ----
+  // Dinero y facturas
+  banknote: Banknote,
+  bitcoin: Bitcoin,
+  wallet: Wallet,
+  receipt: Receipt,
+  "piggy-bank": PiggyBank,
+  // Cuentas personales (suscripciones, streaming, gaming, gimnasio, prensa, diseño)
+  gamepad: Gamepad2,
+  music: Music,
+  tv: Tv,
+  film: Film,
+  newspaper: Newspaper,
+  palette: Palette,
+  dumbbell: Dumbbell,
+  // Familia, trabajo y oficio
+  users: Users,
+  building: Building2,
+  wrench: Wrench,
+  // Vehículos y dirección
+  bike: Bike,
+  fuel: Fuel,
+  "map-pin": MapPin,
+  bus: Bus,
+  calendar: Calendar,
+  // Tecnología: equipos, servidores, red doméstica y trabajos
+  fingerprint: Fingerprint,
+  scan: Scan,
+  code: Code,
+  cpu: Cpu,
+  "hard-drive": HardDrive,
+  monitor: Monitor,
+  laptop: Laptop,
+  printer: Printer,
+  plug: Plug,
+  router: Router,
+  zap: Zap,
+  // Seguridad física y códigos del día a día
+  bell: Bell,
+  siren: Siren,
+  "door-closed": DoorClosed,
+  // Salud
+  stethoscope: Stethoscope,
+  pill: Pill,
 };
 export const ICON_KEYS = Object.keys(ICON_CHOICES);
 
@@ -464,8 +524,6 @@ export function entryIcon(entryType?: string | null): LucideIcon {
 // ---------- Textos ----------
 // Solo se necesita la función t del namespace "vault".
 type Translate = (key: string) => string;
-
-// Las plantillas incluidas guardan claves de traducción; las del usuario, texto literal.
 
 export function templateLabel(t: Translate, tpl: EntryTemplate): string {
   return tpl.user ? tpl.labelKey : t(tpl.labelKey);

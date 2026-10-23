@@ -407,7 +407,7 @@ export function TotpView() {
   };
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">{t("totpViewTitle")}</h2>
@@ -465,7 +465,7 @@ export function TotpView() {
         <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">{t("totpNoResults")}</div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {visible.map((item) => (
           <TotpCard
             key={item.key}
@@ -508,4 +508,4 @@ export function TotpView() {
       </Dialog>
     </div>
   );
-} 
+}

@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -41,6 +40,7 @@ import {
   MoreHorizontal,
   SlidersHorizontal,
   ArrowUpDown,
+  AlignJustify,
   CopyPlus,
   Minus,
 } from "lucide-react";
@@ -140,9 +140,11 @@ type Filter = "all" | "favorites" | "trash";
 type SearchCategory = "all" | "name" | "contact" | "website" | "custom";
 type ViewMode = "list" | "gallery";
 
-// Columnas de la tabla: casilla, nombre, usuario, carpeta (solo en ventanas anchas), etiquetas, fecha y menú.
+// Columnas de la tabla: casilla, nombre, usuario, etiquetas, fecha, margen flexible y menú.
+// Cada columna tiene mínimo y máximo: el sobrante lo absorbe el margen flexible justo antes
+// de los tres puntitos, de modo que nunca hay columnas "estiradas" con espacio muerto.
 const TABLE_COLS =
-  "grid-cols-[1.25rem_minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_5.5rem_2rem] lg:grid-cols-[1.25rem_minmax(0,2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_5.5rem_2rem]";
+  "grid-cols-[1.25rem_minmax(8rem,14rem)_minmax(6rem,10rem)_minmax(0,7rem)_6rem_minmax(0,1fr)_2rem] lg:grid-cols-[1.25rem_minmax(10rem,22rem)_minmax(8rem,12rem)_minmax(6rem,9rem)_6rem_minmax(0,1fr)_2rem]";
 
 // Casilla de selección con los colores del tema: borde gris que se vuelve verde (color primario) al pasar el ratón,
 // y relleno primario al marcarla. `dim` la difumina hasta que se pasa el ratón por la fila (o hay algo seleccionado).
@@ -192,6 +194,10 @@ function SelectCheckbox({
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDateTime(timestamp: number): string {
@@ -339,6 +345,7 @@ interface SortState {
   dir: SortDir;
 }
 type DateField = "updated" | "created";
+type InlineRenameState = { id: string; value: string };
 
 const SORT_STORAGE_KEY = "sailock.vaultSort";
 const SORT_KEYS: SortKey[] = ["default", "name", "username", "folder", "modified"];
@@ -481,6 +488,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   const [filter, setFilter] = useState<Filter>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  // Filas compactas (menos alto y menos relleno). Se recuerda entre sesiones.
+  const [compact, setCompact] = useState(() => {
+    try {
+      return localStorage.getItem("sailock.vaultCompact") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [search, setSearch] = useState("");
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -518,6 +533,10 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   const [bulkDeleteTargets, setBulkDeleteTargets] = useState<Entry[] | null>(null);
   const [drag, setDrag] = useState<{ ids: string[]; x: number; y: number; over: string | null } | null>(null);
   const suppressClick = useRef(false);
+  // Renombrado en la propia fila (doble clic sobre el nombre). El ref evita guardar dos veces (Enter + blur).
+  const [inlineRename, setInlineRename] = useState<{ id: string; value: string } | null>(null);
+  const inlineRenameRef = useRef<{ id: string; value: string } | null>(null);
+  const nameClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [copyRequest, setCopyRequest] = useState<CopyRequest | null>(null);
   const { saveActivity } = useActivity();
 
@@ -832,6 +851,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     }
   }, [sort]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("sailock.vaultCompact", compact ? "1" : "0");
+    } catch {
+      /* la preferencia solo dura esta sesión */
+    }
+  }, [compact]);
+
   // Al cambiar de carpeta o de pestaña la selección empieza de cero.
   useEffect(() => {
     setSelectedIds(new Set());
@@ -903,6 +930,45 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     } catch (err) {
       toast.error(String(err));
     }
+  };
+
+  const updateInlineRename = (value: InlineRenameState | null) => {
+    inlineRenameRef.current = value;
+    setInlineRename(value);
+  };
+
+  const commitInlineRename = async () => {
+    const current = inlineRenameRef.current;
+    updateInlineRename(null);
+    if (!current) return;
+    const entry = entries.find((e) => e.id === current.id);
+    const name = current.value.trim();
+    if (!entry || !name || name === entry.name) return;
+    try {
+      await invoke("update_entry", { id: entry.id, ...entryPayload(entry), name });
+      await saveActivity("edit", "entryEdited", "vault", { name });
+      toast.success(t("entryRenamedToast"));
+      loadEntries();
+    } catch (err) {
+      toast.error(String(err));
+    }
+  };
+
+  // Un clic sobre el nombre abre el registro con un pequeño retardo; si llega un segundo clic, se renombra en la fila.
+  const handleNameClick = (e: React.MouseEvent, entry: Entry) => {
+    if (entry.trashed) return; // en la papelera no se renombra: el clic abre el registro como siempre
+    e.stopPropagation();
+    if (suppressClick.current) return;
+    if (nameClickTimer.current) {
+      clearTimeout(nameClickTimer.current);
+      nameClickTimer.current = null;
+      updateInlineRename({ id: entry.id, value: entry.name });
+      return;
+    }
+    nameClickTimer.current = setTimeout(() => {
+      nameClickTimer.current = null;
+      openEntry(entry);
+    }, 220);
   };
 
   const handleDuplicateEntry = async (entry: Entry) => {
@@ -1257,6 +1323,16 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
               <FolderPlus className="h-4 w-4" />
             </Button>
           )}
+          <Button
+            size="icon"
+            variant={filter === "trash" ? "secondary" : "outline"}
+            onClick={() => (filter === "trash" ? setFilter("all") : handleOpenTrash())}
+            title={t("filterTrash")}
+            aria-label={t("filterTrash")}
+            aria-pressed={filter === "trash"}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
           <Button variant="outline" onClick={() => setTaxonomyOpen(true)}>
             <Tags className="mr-1 h-4 w-4" /> {t("manageTaxonomyButton")}
           </Button>
@@ -1266,8 +1342,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
         </div>
       </div>
 
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <CardContent className="flex min-h-0 flex-1 flex-col">
+      {/* Sin recuadro: la parte de arriba queda fija y solo se desplaza la lista, con el scroll pegado al borde de la ventana. */}
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {/* Una sola fila: buscador + favoritos + papelera + filtros + vista */}
           <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
             <div className="relative min-w-48 flex-1">
@@ -1288,13 +1365,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
               onClick={() => setFilter(filter === "favorites" ? "all" : "favorites")}
             >
               <Star className="mr-1 h-4 w-4" /> {t("filterFavorites")}
-            </Button>
-            <Button
-              variant={filter === "trash" ? "secondary" : "outline"}
-              aria-pressed={filter === "trash"}
-              onClick={() => (filter === "trash" ? setFilter("all") : handleOpenTrash())}
-            >
-              <Trash2 className="mr-1 h-4 w-4" /> {t("filterTrash")}
             </Button>
             <Button variant="outline" onClick={openFilters}>
               <SlidersHorizontal className="mr-1 h-4 w-4" /> {t("filtersButton")}
@@ -1326,6 +1396,15 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                 title={t("viewGallery")}
               >
                 <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={compact ? "secondary" : "ghost"}
+                size="icon"
+                onClick={() => setCompact(!compact)}
+                title={compact ? t("viewComfortable") : t("viewCompact")}
+                aria-pressed={compact}
+              >
+                <AlignJustify className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -1401,10 +1480,10 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
           {sortedVisible.length === 0 && currentSubfolders.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">{search ? t("emptySearch") : t("emptyList")}</p>
           ) : viewMode === "list" ? (
-            <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
+            <div className="-mb-8 -mr-8 min-h-0 flex-1 overflow-y-auto pb-8 pr-8">
               <div
                 role="row"
-                className={`sticky top-0 z-10 grid ${TABLE_COLS} items-center gap-3 border-b bg-card px-3 py-2 text-xs font-medium text-muted-foreground`}
+                className={`sticky top-0 z-10 grid ${TABLE_COLS} items-center gap-3 border-b bg-background px-3 py-2 text-xs font-medium text-muted-foreground`}
               >
                 <SelectCheckbox
                   checked={allSelected}
@@ -1414,9 +1493,9 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                 />
                 {renderSortHeader("name", t("colName"))}
                 {renderSortHeader("username", t("colUser"))}
-                <div className="hidden lg:block">{renderSortHeader("folder", t("colFolder"))}</div>
                 <span>{t("colTags")}</span>
                 {renderSortHeader("modified", t("colModified"))}
+                <div />
                 <span />
               </div>
               {currentSubfolders.length > 0 && (
@@ -1436,7 +1515,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                     onMouseDown={(e) => startRowDrag(e, entry)}
                     onClick={() => openEntry(entry)}
                     onKeyDown={(e) => e.key === "Enter" && openEntry(entry)}
-                    className={`group grid ${TABLE_COLS} cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 ${
+                    className={`group grid ${TABLE_COLS} cursor-pointer items-center gap-3 border-b px-3 ${compact ? "py-1" : "py-2"} last:border-b-0 hover:bg-muted/50 ${
                       selectedIds.has(entry.id) ? "bg-primary/5" : selectedId === entry.id ? "bg-muted" : ""
                     } ${drag?.ids.includes(entry.id) ? "opacity-50" : ""}`}
                   >
@@ -1447,11 +1526,35 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                         logo={entry.logo}
                         mode={entry.avatar_mode}
                         icon={entryIcon(entry.entry_type)}
-                        className="h-9 w-9 shrink-0"
+                        className={`${compact ? "h-7 w-7" : "h-9 w-9"} shrink-0`}
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p className="truncate text-sm font-medium">{entry.name}</p>
+                          {inlineRename?.id === entry.id ? (
+                            <div data-nodrag className="min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+                              <Input
+                                autoFocus
+                                value={inlineRename.value}
+                                onFocus={(e) => e.currentTarget.select()}
+                                onChange={(e) => updateInlineRename({ id: entry.id, value: e.target.value })}
+                                onKeyDown={(e) => {
+                                  e.stopPropagation();
+                                  if (e.key === "Enter") commitInlineRename();
+                                  else if (e.key === "Escape") updateInlineRename(null);
+                                }}
+                                onBlur={commitInlineRename}
+                                className="h-7 px-2 text-sm"
+                              />
+                            </div>
+                          ) : (
+                            <p
+                              className="truncate text-sm font-medium"
+                              title={entry.trashed ? undefined : t("doubleClickRenameHint")}
+                              onClick={(e) => handleNameClick(e, entry)}
+                            >
+                              {entry.name}
+                            </p>
+                          )}
                           <span data-nodrag className="flex shrink-0">
                             {renderFavoriteStar(entry)}
                           </span>
@@ -1463,9 +1566,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                       </div>
                     </div>
                     <p className="truncate text-sm text-muted-foreground">{entry.username || "—"}</p>
-                    <p className="hidden truncate text-sm text-muted-foreground lg:block">
-                      {entry.folder_id ? folderPath(folders, entry.folder_id) : "—"}
-                    </p>
                     <div className="flex min-w-0 items-center gap-1">
                       {entryTags.length === 0 ? (
                         <span className="text-sm text-muted-foreground">—</span>
@@ -1485,14 +1585,18 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                         </>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">{formatDate(entry.updated_at)}</p>
+                    <p className="text-sm leading-tight text-muted-foreground" title={formatDateTime(entry.updated_at)}>
+                      {formatDate(entry.updated_at)}
+                      {!compact && <span className="block text-xs">{formatTime(entry.updated_at)}</span>}
+                    </p>
+                    <div className="min-w-0" />
                     <RowMenu items={rowMenuItems(entry)} label={t("rowMenuLabel")} />
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto rounded-lg border p-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+            <div className="-mb-8 -mr-8 grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto pb-8 pr-8 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
               {currentSubfolders.length > 0 &&
                 renderSubfolders("col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
               {currentSubfolders.length > 0 && sortedVisible.length > 0 && <div className="col-span-full my-1 border-t" />}
@@ -1504,7 +1608,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                   onMouseDown={(e) => startRowDrag(e, entry)}
                   onClick={() => openEntry(entry)}
                   onKeyDown={(e) => e.key === "Enter" && openEntry(entry)}
-                  className={`group flex cursor-pointer flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors hover:border-primary hover:bg-muted/50 ${
+                  className={`group flex cursor-pointer flex-col ${compact ? "gap-1 p-2" : "gap-1.5 p-2.5"} rounded-lg border text-left transition-colors hover:border-primary hover:bg-muted/50 ${
                     selectedIds.has(entry.id) ? "border-primary bg-primary/5" : selectedId === entry.id ? "border-primary bg-muted/50" : ""
                   } ${drag?.ids.includes(entry.id) ? "opacity-50" : ""}`}
                 >
@@ -1548,8 +1652,8 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Panel de filtros */}
       <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>

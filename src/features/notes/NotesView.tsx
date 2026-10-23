@@ -336,7 +336,7 @@ export function NotesView() {
   const pinLabel = (n: Note) => (n.favorite ? t("notesPinRemove") : t("notesPinAdd"));
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-5">
+    <div className="flex flex-col gap-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">{t("notesViewTitle")}</h2>
@@ -366,7 +366,7 @@ export function NotesView() {
         <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">{t("notesNoResults")}</div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {visible.map((note) => {
           const preview = previewText(note.content);
           return (
