@@ -474,5 +474,11 @@
   "selectedCount": "Выбрано: {{count}}",
   "sortAsc": "По возрастанию",
   "sortDefault": "Порядок создания",
-  "sortDesc": "По убыванию"
+  "sortDesc": "По убыванию",
+  "viewModeLabel": "Вид",
+  "filterResultCount": "{{count}} результат",
+  "filterResultCount_one": "{{count}} результат",
+  "filterResultCount_few": "{{count}} результата",
+  "filterResultCount_many": "{{count}} результатов",
+  "filterResultCount_other": "{{count}} результата"
 }

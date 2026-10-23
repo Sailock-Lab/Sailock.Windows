@@ -474,5 +474,8 @@
   "selectedCount": "Selezionate: {{count}}",
   "sortAsc": "Crescente",
   "sortDefault": "Ordine di creazione",
-  "sortDesc": "Decrescente"
+  "sortDesc": "Decrescente",
+  "viewModeLabel": "Vista",
+  "filterResultCount": "{{count}} risultato",
+  "filterResultCount_other": "{{count}} risultati"
 }

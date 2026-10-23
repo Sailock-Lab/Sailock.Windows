@@ -474,5 +474,11 @@
   "selectedCount": "Zaznaczono: {{count}}",
   "sortAsc": "Rosnąco",
   "sortDefault": "Kolejność utworzenia",
-  "sortDesc": "Malejąco"
+  "sortDesc": "Malejąco",
+  "viewModeLabel": "Widok",
+  "filterResultCount": "{{count}} wynik",
+  "filterResultCount_one": "{{count}} wynik",
+  "filterResultCount_few": "{{count}} wyniki",
+  "filterResultCount_many": "{{count}} wyników",
+  "filterResultCount_other": "{{count}} wyniku"
 }

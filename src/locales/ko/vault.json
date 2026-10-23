@@ -474,5 +474,8 @@
   "selectedCount": "선택됨: {{count}}",
   "sortAsc": "오름차순",
   "sortDefault": "생성 순서",
-  "sortDesc": "내림차순"
+  "sortDesc": "내림차순",
+  "viewModeLabel": "보기",
+  "filterResultCount": "{{count}}개 결과",
+  "filterResultCount_other": "{{count}}개 결과"
 }

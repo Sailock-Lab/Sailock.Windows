@@ -474,5 +474,8 @@
   "selectedCount": "選択中: {{count}}",
   "sortAsc": "昇順",
   "sortDefault": "作成順",
-  "sortDesc": "降順"
+  "sortDesc": "降順",
+  "viewModeLabel": "表示",
+  "filterResultCount": "{{count}}件の結果",
+  "filterResultCount_other": "{{count}}件の結果"
 }

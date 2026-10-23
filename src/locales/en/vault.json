@@ -472,5 +472,8 @@
   "selectedCount": "Selected: {{count}}",
   "sortAsc": "Ascending",
   "sortDefault": "Creation order",
-  "sortDesc": "Descending"
+  "sortDesc": "Descending",
+  "viewModeLabel": "View",
+  "filterResultCount": "{{count}} result",
+  "filterResultCount_other": "{{count}} results"
 }

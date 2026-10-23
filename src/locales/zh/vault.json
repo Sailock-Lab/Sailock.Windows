@@ -474,5 +474,8 @@
   "selectedCount": "已选择：{{count}}",
   "sortAsc": "升序",
   "sortDefault": "创建顺序",
-  "sortDesc": "降序"
+  "sortDesc": "降序",
+  "viewModeLabel": "视图",
+  "filterResultCount": "{{count}} 个结果",
+  "filterResultCount_other": "{{count}} 个结果"
 }

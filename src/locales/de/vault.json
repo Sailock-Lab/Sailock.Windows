@@ -474,5 +474,8 @@
   "selectedCount": "Ausgewählt: {{count}}",
   "sortAsc": "Aufsteigend",
   "sortDefault": "Erstellungsreihenfolge",
-  "sortDesc": "Absteigend"
+  "sortDesc": "Absteigend",
+  "viewModeLabel": "Ansicht",
+  "filterResultCount": "{{count}} Ergebnis",
+  "filterResultCount_other": "{{count}} Ergebnisse"
 }

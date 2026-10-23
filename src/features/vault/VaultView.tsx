@@ -40,7 +40,6 @@ import {
   MoreHorizontal,
   SlidersHorizontal,
   ArrowUpDown,
-  AlignJustify,
   CopyPlus,
   Minus,
 } from "lucide-react";
@@ -488,14 +487,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
   const [filter, setFilter] = useState<Filter>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  // Filas compactas (menos alto y menos relleno). Se recuerda entre sesiones.
-  const [compact, setCompact] = useState(() => {
-    try {
-      return localStorage.getItem("sailock.vaultCompact") === "1";
-    } catch {
-      return false;
-    }
-  });
   const [search, setSearch] = useState("");
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -595,10 +586,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     }
   }, [prefillPassword]);
 
-  // Con un filtro de categoría o etiqueta se busca en toda la bóveda, no solo en la carpeta actual.
+  // "Favoritos" es una pestaña más de la navegación por carpetas: mientras esté activa se mantienen
+  // el breadcrumb, las tarjetas de subcarpetas y el botón de carpeta nueva, y los favoritos se
+  // muestran solo los de la carpeta actual (igual que la pestaña "Todos").
+  // En cambio, la búsqueda y los filtros de categoría / etiqueta / fecha sí consultan toda la bóveda
+  // y desactivan la navegación, porque mezclan registros de cualquier carpeta.
   const dateFilterActive = dateFrom !== "" || dateTo !== "";
   const browsingMode =
-    filter === "all" && !search && categoryFilter === "all" && tagFilters.length === 0 && !dateFilterActive;
+    filter !== "trash" && !search && categoryFilter === "all" && tagFilters.length === 0 && !dateFilterActive;
   const breadcrumbTrail = buildBreadcrumb(folders, currentFolderId);
   const currentSubfolders = browsingMode ? folders.filter((f) => f.parent_id === currentFolderId) : [];
 
@@ -620,6 +615,32 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     if (browsingMode && (e.folder_id ?? null) !== currentFolderId) return false;
     return matchesSearch(e, search, "all");
   });
+
+  // ---------- Borrador del diálogo de filtros: coincidencia, recuento y limpieza ----------
+
+  // ¿Coincide un registro con el borrador actual del diálogo? Respeta la pestaña activa (favoritos/papelera)
+  // y la búsqueda, de modo que el contador del pie coincida con lo que se verá al aplicar.
+  const entryMatchesDraft = (e: Entry, d: NonNullable<typeof draft>): boolean => {
+    if (filter === "trash" && !e.trashed) return false;
+    if (filter === "favorites" && !(e.favorite && !e.trashed)) return false;
+    if (filter === "all" && e.trashed) return false;
+    if (d.type !== "all" && (e.entry_type || "uncategorized") !== d.type) return false;
+    if (d.category !== "all" && e.category_id !== d.category) return false;
+    if (d.tags.length > 0 && !d.tags.some((id) => (e.tag_ids ?? []).includes(id))) return false;
+    if (d.from || d.to) {
+      const ts = d.dateField === "created" ? e.created_at : e.updated_at;
+      if (d.from && ts < dayStart(d.from)) return false;
+      if (d.to && ts > dayEnd(d.to)) return false;
+    }
+    return matchesSearch(e, search, "all");
+  };
+  const draftResultCount = draft ? entries.filter((e) => entryMatchesDraft(e, draft)).length : 0;
+  const draftActiveCount = draft
+    ? (draft.type !== "all" ? 1 : 0) +
+      (draft.category !== "all" ? 1 : 0) +
+      (draft.tags.length > 0 ? 1 : 0) +
+      (draft.from !== "" || draft.to !== "" ? 1 : 0)
+    : 0;
 
   // Orden por columna. "default" deja el orden de creación; los valores vacíos van siempre al final.
   const sortValue = (e: Entry): string | number => {
@@ -850,14 +871,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
       /* el orden solo dura esta sesión */
     }
   }, [sort]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("sailock.vaultCompact", compact ? "1" : "0");
-    } catch {
-      /* la preferencia solo dura esta sesión */
-    }
-  }, [compact]);
 
   // Al cambiar de carpeta o de pestaña la selección empieza de cero.
   useEffect(() => {
@@ -1129,6 +1142,23 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
     setDateTo("");
   };
 
+  // Limpia todo el borrador del diálogo: filtros y ordenación.
+  const resetDraftAll = () => {
+    setDraft((prev) =>
+      prev
+        ? {
+            ...prev,
+            type: "all",
+            category: "all",
+            tags: [],
+            from: "",
+            to: "",
+            sort: { key: "default", dir: "asc" },
+          }
+        : prev
+    );
+  };
+
   const rowMenuItems = (entry: Entry): RowMenuItem[] =>
     entry.trashed
       ? [
@@ -1354,25 +1384,42 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                 placeholder={t("searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8"
+                className="pl-8 pr-10"
               />
+              {/* Filtros: icono dentro del buscador; el contador de filtros activos va como badge */}
+              <button
+                type="button"
+                onClick={openFilters}
+                title={t("filtersButton")}
+                aria-label={t("filtersButton")}
+                aria-haspopup="dialog"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="relative flex">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  {activeFilterCount > 0 && (
+                    <span className="absolute -right-1.5 -top-1.5 rounded-full bg-primary px-1 text-[9px] font-semibold leading-3 text-primary-foreground">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </span>
+              </button>
             </div>
 
-            {/* Favoritos y Papelera funcionan como interruptores: al desactivarlos se vuelve a "Todos" */}
+            {/* Favoritos y Papelera funcionan como interruptores: al desactivarlos se vuelve a "Todos".
+                Favoritos no saca de la navegación: mantiene carpetas y breadcrumb, solo cambia qué se lista. */}
             <Button
               variant={filter === "favorites" ? "secondary" : "outline"}
               aria-pressed={filter === "favorites"}
               onClick={() => setFilter(filter === "favorites" ? "all" : "favorites")}
             >
-              <Star className="mr-1 h-4 w-4" /> {t("filterFavorites")}
-            </Button>
-            <Button variant="outline" onClick={openFilters}>
-              <SlidersHorizontal className="mr-1 h-4 w-4" /> {t("filtersButton")}
-              {activeFilterCount > 0 && (
-                <span className="ml-1.5 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-                  {activeFilterCount}
-                </span>
-              )}
+              {/* Estrella rellena de amarillo al activar favoritos: mismo lenguaje visual que las estrellas de las filas. */}
+              <Star
+                className={`mr-1 h-4 w-4 ${
+                  filter === "favorites" ? "fill-current text-yellow-500" : "text-muted-foreground"
+                }`}
+              />{" "}
+              {t("filterFavorites")}
             </Button>
             {activeFilterCount > 0 && (
               <Button variant="ghost" onClick={clearFilters}>
@@ -1380,31 +1427,31 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
               </Button>
             )}
 
-            <div className="flex shrink-0 gap-1">
+            {/* Vista lista / galería: un solo control segmentado, como un switch */}
+            <div
+              role="group"
+              aria-label={t("viewModeLabel")}
+              className="flex shrink-0 items-center gap-0.5 rounded-md border bg-muted/40 p-0.5"
+            >
               <Button
                 variant={viewMode === "list" ? "secondary" : "ghost"}
                 size="icon"
+                className="h-7 w-7 rounded-[5px]"
                 onClick={() => setViewMode("list")}
                 title={t("viewList")}
+                aria-pressed={viewMode === "list"}
               >
                 <List className="h-4 w-4" />
               </Button>
               <Button
                 variant={viewMode === "gallery" ? "secondary" : "ghost"}
                 size="icon"
+                className="h-7 w-7 rounded-[5px]"
                 onClick={() => setViewMode("gallery")}
                 title={t("viewGallery")}
+                aria-pressed={viewMode === "gallery"}
               >
                 <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={compact ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setCompact(!compact)}
-                title={compact ? t("viewComfortable") : t("viewCompact")}
-                aria-pressed={compact}
-              >
-                <AlignJustify className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -1477,6 +1524,14 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
             </div>
           )}
 
+          {/* Subcarpetas de la carpeta actual: bloque fijo encima de la tabla, fuera del scroll
+              (mismo sitio en vista de lista y de galería). Ahora también con Favoritos activo. */}
+          {browsingMode && currentSubfolders.length > 0 && (
+            <div className="mb-3 shrink-0">
+              {renderSubfolders("grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5")}
+            </div>
+          )}
+
           {sortedVisible.length === 0 && currentSubfolders.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">{search ? t("emptySearch") : t("emptyList")}</p>
           ) : viewMode === "list" ? (
@@ -1498,11 +1553,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                 <div />
                 <span />
               </div>
-              {currentSubfolders.length > 0 && (
-                <div className="border-b p-2">
-                  {renderSubfolders("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2")}
-                </div>
-              )}
               {sortedVisible.map((entry, index) => {
                 const entryTags = (entry.tag_ids ?? [])
                   .map((id) => taxonomy.tags.find((tg) => tg.id === id)?.name)
@@ -1515,7 +1565,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                     onMouseDown={(e) => startRowDrag(e, entry)}
                     onClick={() => openEntry(entry)}
                     onKeyDown={(e) => e.key === "Enter" && openEntry(entry)}
-                    className={`group grid ${TABLE_COLS} cursor-pointer items-center gap-3 border-b px-3 ${compact ? "py-1" : "py-2"} last:border-b-0 hover:bg-muted/50 ${
+                    className={`group grid ${TABLE_COLS} cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 ${
                       selectedIds.has(entry.id) ? "bg-primary/5" : selectedId === entry.id ? "bg-muted" : ""
                     } ${drag?.ids.includes(entry.id) ? "opacity-50" : ""}`}
                   >
@@ -1526,7 +1576,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                         logo={entry.logo}
                         mode={entry.avatar_mode}
                         icon={entryIcon(entry.entry_type)}
-                        className={`${compact ? "h-7 w-7" : "h-9 w-9"} shrink-0`}
+                        className="h-9 w-9 shrink-0"
                       />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -1587,7 +1637,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                     </div>
                     <p className="text-sm leading-tight text-muted-foreground" title={formatDateTime(entry.updated_at)}>
                       {formatDate(entry.updated_at)}
-                      {!compact && <span className="block text-xs">{formatTime(entry.updated_at)}</span>}
+                      <span className="block text-xs">{formatTime(entry.updated_at)}</span>
                     </p>
                     <div className="min-w-0" />
                     <RowMenu items={rowMenuItems(entry)} label={t("rowMenuLabel")} />
@@ -1597,9 +1647,6 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
             </div>
           ) : (
             <div className="-mb-8 -mr-8 grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto pb-8 pr-8 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-              {currentSubfolders.length > 0 &&
-                renderSubfolders("col-span-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-1")}
-              {currentSubfolders.length > 0 && sortedVisible.length > 0 && <div className="col-span-full my-1 border-t" />}
               {sortedVisible.map((entry, index) => (
                 <div
                   key={entry.id}
@@ -1608,7 +1655,7 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
                   onMouseDown={(e) => startRowDrag(e, entry)}
                   onClick={() => openEntry(entry)}
                   onKeyDown={(e) => e.key === "Enter" && openEntry(entry)}
-                  className={`group flex cursor-pointer flex-col ${compact ? "gap-1 p-2" : "gap-1.5 p-2.5"} rounded-lg border text-left transition-colors hover:border-primary hover:bg-muted/50 ${
+                  className={`group flex cursor-pointer flex-col gap-1.5 rounded-lg border p-2.5 text-left transition-colors hover:border-primary hover:bg-muted/50 ${
                     selectedIds.has(entry.id) ? "border-primary bg-primary/5" : selectedId === entry.id ? "border-primary bg-muted/50" : ""
                   } ${drag?.ids.includes(entry.id) ? "opacity-50" : ""}`}
                 >
@@ -1655,215 +1702,240 @@ export function VaultView({ prefillPassword, onPrefillConsumed, pendingAction, o
         </div>
       </div>
 
-      {/* Panel de filtros */}
+      {/*
+        Panel de filtros.
+        Estructura: cabecera fija (título) -> contenido con scroll (filtros + "Ordenar por",
+        que es una sección más) -> pie fijo con el número de resultados que devolverá
+        el borrador y los botones de acción.
+      */}
       <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[650px]">
+          <DialogHeader className="shrink-0 flex-row items-center justify-between border-b px-6 py-4">
             <DialogTitle className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4" /> {t("filtersTitle")}
             </DialogTitle>
+            {draftActiveCount > 0 && (
+              <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                {draftActiveCount}
+              </span>
+            )}
           </DialogHeader>
+
           {draft && (
-            <div className="-mr-2 flex max-h-[65vh] flex-col overflow-y-auto pr-2">
-              {(
-                [
-                  {
-                    id: "type",
-                    title: t("filterSectionType"),
-                    onReset: () => setDraft({ ...draft, type: "all" }),
-                    body: (
-                      <Select
-                        value={draft.type}
-                        onValueChange={(v) => v && setDraft({ ...draft, type: v })}
-                        items={[
-                          { value: "all", label: t("typeFilterAll") },
-                          ...[...TEMPLATES, ...userTemplates].map((tpl) => ({ value: tpl.id, label: templateLabel(t, tpl) })),
-                          { value: "uncategorized", label: t("templateUncategorized") },
-                        ]}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">{t("typeFilterAll")}</SelectItem>
-                          {[...TEMPLATES, ...userTemplates].map((tpl) => (
-                            <SelectItem key={tpl.id} value={tpl.id}>
-                              {templateLabel(t, tpl)}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="uncategorized">{t("templateUncategorized")}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ),
-                  },
-                  ...(taxonomy.categories.length > 0
-                    ? [
-                        {
-                          id: "category",
-                          title: t("filterSectionCategory"),
-                          onReset: () => setDraft({ ...draft, category: "all" }),
-                          body: (
-                            <Select
-                              value={draft.category}
-                              onValueChange={(v) => v && setDraft({ ...draft, category: v })}
-                              items={[
-                                { value: "all", label: t("filterAllCategories") },
-                                ...taxonomy.categories.map((c) => ({ value: c.id, label: c.name })),
-                              ]}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="all">{t("filterAllCategories")}</SelectItem>
-                                {taxonomy.categories.map((c) => (
-                                  <SelectItem key={c.id} value={c.id}>
-                                    {c.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ),
-                        },
-                      ]
-                    : []),
-                  ...(taxonomy.tags.length > 0
-                    ? [
-                        {
-                          id: "tags",
-                          title: t("filterSectionTags"),
-                          onReset: () => setDraft({ ...draft, tags: [] }),
-                          body: (
-                            <div className="flex flex-wrap gap-1.5">
-                              {taxonomy.tags.map((tg) => {
-                                const on = draft.tags.includes(tg.id);
-                                return (
-                                  <button
-                                    key={tg.id}
-                                    type="button"
-                                    onClick={() =>
-                                      setDraft({
-                                        ...draft,
-                                        tags: on ? draft.tags.filter((x) => x !== tg.id) : [...draft.tags, tg.id],
-                                      })
-                                    }
-                                    className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                                      on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
-                                    }`}
-                                  >
-                                    {tg.name}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          ),
-                        },
-                      ]
-                    : []),
-                  {
-                    id: "date",
-                    title: t("filterSectionDate"),
-                    onReset: () => setDraft({ ...draft, from: "", to: "" }),
-                    body: (
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-1">
-                          {(["updated", "created"] as DateField[]).map((f) => (
-                            <Button
-                              key={f}
-                              type="button"
-                              size="sm"
-                              variant={draft.dateField === f ? "secondary" : "ghost"}
-                              onClick={() => setDraft({ ...draft, dateField: f })}
-                            >
-                              {f === "updated" ? t("filterDateModified") : t("filterDateCreated")}
-                            </Button>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-                            {t("filterFrom")}
-                            <Input type="date" value={draft.from} max={draft.to || undefined} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
-                          </label>
-                          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-                            {t("filterTo")}
-                            <Input type="date" value={draft.to} min={draft.from || undefined} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
-                          </label>
-                        </div>
-                      </div>
-                    ),
-                  },
-                  {
-                    id: "sort",
-                    title: t("filterSectionSort"),
-                    onReset: () => setDraft({ ...draft, sort: { key: "default", dir: "asc" } }),
-                    body: (
-                      <div className="flex gap-2">
+            <>
+              {/* ---- Filtros: única zona con scroll ---- */}
+              <div className="-mr-2 flex-1 overflow-y-auto px-6 py-4 pr-4">
+                {(
+                  [
+                    {
+                      id: "type",
+                      title: t("filterSectionType"),
+                      onReset: () => setDraft({ ...draft, type: "all" }),
+                      body: (
                         <Select
-                          value={draft.sort.key}
-                          onValueChange={(v) => v && setDraft({ ...draft, sort: { ...draft.sort, key: v as SortKey } })}
-                          items={SORT_KEYS.map((k) => ({ value: k, label: sortKeyLabel(k) }))}
+                          value={draft.type}
+                          onValueChange={(v) => v && setDraft({ ...draft, type: v })}
+                          items={[
+                            { value: "all", label: t("typeFilterAll") },
+                            ...[...TEMPLATES, ...userTemplates].map((tpl) => ({ value: tpl.id, label: templateLabel(t, tpl) })),
+                            { value: "uncategorized", label: t("templateUncategorized") },
+                          ]}
                         >
-                          <SelectTrigger className="flex-1">
+                          <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {SORT_KEYS.map((k) => (
-                              <SelectItem key={k} value={k}>
-                                {sortKeyLabel(k)}
+                            <SelectItem value="all">{t("typeFilterAll")}</SelectItem>
+                            {[...TEMPLATES, ...userTemplates].map((tpl) => (
+                              <SelectItem key={tpl.id} value={tpl.id}>
+                                {templateLabel(t, tpl)}
                               </SelectItem>
                             ))}
+                            <SelectItem value="uncategorized">{t("templateUncategorized")}</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={draft.sort.key === "default"}
-                          onClick={() =>
-                            setDraft({ ...draft, sort: { ...draft.sort, dir: draft.sort.dir === "asc" ? "desc" : "asc" } })
-                          }
-                        >
-                          {draft.sort.dir === "asc" ? (
-                            <ArrowUp className="mr-1 h-4 w-4" />
-                          ) : (
-                            <ArrowDown className="mr-1 h-4 w-4" />
-                          )}
-                          {draft.sort.dir === "asc" ? t("sortAsc") : t("sortDesc")}
-                        </Button>
-                      </div>
-                    ),
-                  },
-                ] as { id: string; title: string; onReset: () => void; body: ReactNode }[]
-              ).map((section) => (
-                <div key={section.id} className="flex flex-col gap-2 border-t py-3 first:border-t-0 first:pt-0">
+                      ),
+                    },
+                    ...(taxonomy.categories.length > 0
+                      ? [
+                          {
+                            id: "category",
+                            title: t("filterSectionCategory"),
+                            onReset: () => setDraft({ ...draft, category: "all" }),
+                            body: (
+                              <Select
+                                value={draft.category}
+                                onValueChange={(v) => v && setDraft({ ...draft, category: v })}
+                                items={[
+                                  { value: "all", label: t("filterAllCategories") },
+                                  ...taxonomy.categories.map((c) => ({ value: c.id, label: c.name })),
+                                ]}
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all">{t("filterAllCategories")}</SelectItem>
+                                  {taxonomy.categories.map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                      {c.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ),
+                          },
+                        ]
+                      : []),
+                    ...(taxonomy.tags.length > 0
+                      ? [
+                          {
+                            id: "tags",
+                            title: t("filterSectionTags"),
+                            onReset: () => setDraft({ ...draft, tags: [] }),
+                            body: (
+                              <div className="flex flex-wrap gap-1.5">
+                                {taxonomy.tags.map((tg) => {
+                                  const on = draft.tags.includes(tg.id);
+                                  return (
+                                    <button
+                                      key={tg.id}
+                                      type="button"
+                                      onClick={() =>
+                                        setDraft({
+                                          ...draft,
+                                          tags: on ? draft.tags.filter((x) => x !== tg.id) : [...draft.tags, tg.id],
+                                        })
+                                      }
+                                      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                                        on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+                                      }`}
+                                    >
+                                      {tg.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ),
+                          },
+                        ]
+                      : []),
+                    {
+                      id: "date",
+                      title: t("filterSectionDate"),
+                      onReset: () => setDraft({ ...draft, from: "", to: "" }),
+                      body: (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-1">
+                            {(["updated", "created"] as DateField[]).map((f) => (
+                              <Button
+                                key={f}
+                                type="button"
+                                size="sm"
+                                variant={draft.dateField === f ? "secondary" : "ghost"}
+                                onClick={() => setDraft({ ...draft, dateField: f })}
+                              >
+                                {f === "updated" ? t("filterDateModified") : t("filterDateCreated")}
+                              </Button>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              {t("filterFrom")}
+                              <Input type="date" value={draft.from} max={draft.to || undefined} onChange={(e) => setDraft({ ...draft, from: e.target.value })} />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                              {t("filterTo")}
+                              <Input type="date" value={draft.to} min={draft.from || undefined} onChange={(e) => setDraft({ ...draft, to: e.target.value })} />
+                            </label>
+                          </div>
+                        </div>
+                      ),
+                    },
+                  ] as { id: string; title: string; onReset: () => void; body: ReactNode }[]
+                ).map((section) => (
+                  <div key={section.id} className="flex flex-col gap-2 border-t py-3 first:border-t-0 first:pt-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-muted-foreground">{section.title}</span>
+                      <button type="button" onClick={section.onReset} className="text-xs font-medium text-primary hover:underline">
+                        {t("filterReset")}
+                      </button>
+                    </div>
+                    {section.body}
+                  </div>
+                ))}
+
+                {/* ---- Ordenar por: última sección del contenido, scrollea con los filtros ---- */}
+                <div className="flex flex-col gap-2 border-t py-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground">{section.title}</span>
-                    <button type="button" onClick={section.onReset} className="text-xs font-medium text-primary hover:underline">
+                    <span className="text-sm font-medium text-muted-foreground">{t("filterSectionSort")}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDraft({ ...draft, sort: { key: "default", dir: "asc" } })}
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
                       {t("filterReset")}
                     </button>
                   </div>
-                  {section.body}
+                  <div className="flex items-center gap-2">
+                  <Select
+                    value={draft.sort.key}
+                    onValueChange={(v) => v && setDraft({ ...draft, sort: { ...draft.sort, key: v as SortKey } })}
+                    items={SORT_KEYS.map((k) => ({ value: k, label: sortKeyLabel(k) }))}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SORT_KEYS.map((k) => (
+                        <SelectItem key={k} value={k}>
+                          {sortKeyLabel(k)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {/* Dirección: dos botones segmentados; el activo se ve activo (secondary), no un toggle ciego. */}
+                  <div className="flex shrink-0 gap-1" role="group" aria-label={t("filterSectionSort")}>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant={draft.sort.dir === "asc" ? "secondary" : "ghost"}
+                      disabled={draft.sort.key === "default"}
+                      onClick={() => setDraft({ ...draft, sort: { ...draft.sort, dir: "asc" } })}
+                      title={t("sortAsc")}
+                      aria-pressed={draft.sort.dir === "asc"}
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant={draft.sort.dir === "desc" ? "secondary" : "ghost"}
+                      disabled={draft.sort.key === "default"}
+                      onClick={() => setDraft({ ...draft, sort: { ...draft.sort, dir: "desc" } })}
+                      title={t("sortDesc")}
+                      aria-pressed={draft.sort.dir === "desc"}
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              ))}
-              <div className="flex justify-end gap-2 border-t pt-3">
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    setDraft({
-                      ...draft,
-                      type: "all",
-                      category: "all",
-                      tags: [],
-                      from: "",
-                      to: "",
-                      sort: { key: "default", dir: "asc" },
-                    })
-                  }
-                >
-                  {t("filterReset")}
-                </Button>
-                <Button onClick={applyFilters}>{t("filterApply")}</Button>
               </div>
-            </div>
+              </div>
+
+              {/* ---- Pie fijo: resultados previstos + acciones ---- */}
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-6 py-4">
+                <span className="text-xs text-muted-foreground">
+                  {t("filterResultCount", { count: draftResultCount })}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={resetDraftAll}>
+                    {t("filterReset")}
+                  </Button>
+                  <Button onClick={applyFilters}>{t("filterApply")}</Button>
+                </div>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

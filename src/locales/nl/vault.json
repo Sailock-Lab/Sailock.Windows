@@ -474,5 +474,8 @@
   "selectedCount": "Geselecteerd: {{count}}",
   "sortAsc": "Oplopend",
   "sortDefault": "Volgorde van aanmaak",
-  "sortDesc": "Aflopend"
+  "sortDesc": "Aflopend",
+  "viewModeLabel": "Weergave",
+  "filterResultCount": "{{count}} resultaat",
+  "filterResultCount_other": "{{count}} resultaten"
 }
