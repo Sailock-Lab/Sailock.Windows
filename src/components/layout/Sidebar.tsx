@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -22,6 +21,7 @@ import {
   formatComboText,
   useShortcutBindings,
 } from "@/lib/shortcuts";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { THEMES, useTheme } from "@/hooks/useTheme";
 import type { Theme } from "@/lib/theme";
 
@@ -82,20 +82,20 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
 
   return (
     <aside
-      className={`border-r bg-muted/30 p-4 flex flex-col gap-2 transition-all duration-300 ${
-        collapsed ? "w-20" : "w-56"
+      className={`border-r bg-muted/30 p-3 flex flex-col gap-1.5 transition-all duration-300 ${
+        collapsed ? "w-16" : "w-52"
       }`}
     >
       <div
-        className={`flex items-center gap-2 mb-2 px-2 ${
-          collapsed ? "justify-center" : ""
+        className={`flex items-center gap-2 pt-0.5 ${
+          collapsed ? "justify-center" : "px-2"
         }`}
       >
-        <img src={logo} alt="Sailock" className="h-8 w-8 shrink-0" />
+        <img src={logo} alt="Sailock" className="h-8 w-8 shrink-0 object-contain" />
         {!collapsed && <h1 className="text-xl font-bold">Sailock</h1>}
       </div>
 
-      <div className="border-t my-2" />
+      <div className="border-t my-1" />
 
       {items.map(({ id, icon: Icon, shortcut }) => {
         const label = t(id);
@@ -120,10 +120,13 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
         );
       })}
 
-      <div className="border-t my-2" />
+      <div className="border-t my-1" />
 
-      {/* Tema: plegada, el botón alterna entre claro, oscuro y sistema. */}
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col gap-1.5">
+        {/* Centro de notificaciones */}
+        <NotificationsBell collapsed={collapsed} onNavigate={onChange} />
+
+        {/* Tema: plegada, el botón alterna entre claro, oscuro y sistema. */}
         {collapsed ? (
           <Button
             variant="ghost"
@@ -182,7 +185,7 @@ export function Sidebar({ active, onChange, onLock }: SidebarProps) {
         {!collapsed && t("lock")}
       </Button>
 
-      <div className="border-t my-2" />
+      <div className="border-t my-1" />
 
       <Button
         variant="ghost"

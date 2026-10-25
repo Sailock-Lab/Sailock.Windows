@@ -2669,13 +2669,33 @@ fn delete_note(
 
 const MAX_NOTIFICATIONS: usize = 200;
 const MAX_SEEN_KEYS: usize = 500;
-const NOTIFICATION_KINDS: [&str; 3] = ["update", "backup", "passwords"];
+const NOTIFICATION_SEVERITIES: [&str; 4] = ["info", "warning", "security", "success"];
+const MAX_NOTIFICATION_ACTIONS: usize = 3;
+// Los avisos leídos se borran solos pasado este tiempo.
+const READ_NOTIFICATION_TTL_MS: u64 = 30 * 24 * 60 * 60 * 1000;
+
+// Botón opcional de un aviso. `id` elige el texto del botón y `target` adónde lleva (una vista de la app).
+// Nunca se guarda texto traducido.
+#[derive(Serialize, Deserialize, Clone)]
+struct NotificationAction {
+    id: String,
+    #[serde(default)]
+    target: Option<String>,
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct AppNotification {
     #[serde(default)]
     id: String,
     kind: String,
+    // "info" | "warning" | "security" | "success". Si falta (avisos antiguos), la interfaz usa el valor del tipo.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    severity: Option<String>,
+    // false = no se puede descartar mientras no esté leído.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dismissible: Option<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    actions: Vec<NotificationAction>,
     #[serde(default)]
     data: serde_json::Value,
     #[serde(default)]
@@ -2774,6 +2794,11 @@ where
     let mut data = read_notifications_data(app_handle, &key);
     change(&mut data)?;
 
+    // Los avisos leídos caducan solos.
+    let now = now_millis();
+    data.items
+        .retain(|n| !(n.read && now.saturating_sub(n.created_at) > READ_NOTIFICATION_TTL_MS));
+
     // Límite: se descartan primero los leídos más antiguos y, si hace falta, los más antiguos.
     while data.items.len() > MAX_NOTIFICATIONS {
         let idx = data
@@ -2828,9 +2853,36 @@ fn add_notification(
     kind: String,
     key: String,
     data: serde_json::Value,
+    severity: Option<String>,
+    dismissible: Option<bool>,
+    actions: Option<Vec<NotificationAction>>,
 ) -> Result<Vec<AppNotification>, String> {
-    if !NOTIFICATION_KINDS.contains(&kind.as_str()) {
-        return Err("Tipo de aviso desconocido".into());
+    // El tipo decide qué texto se muestra, así que solo admite letras, números y guion bajo.
+    if kind.is_empty()
+        || kind.len() > 40
+        || !kind
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    {
+        return Err("Tipo de aviso no válido".into());
+    }
+    if let Some(s) = &severity {
+        if !NOTIFICATION_SEVERITIES.contains(&s.as_str()) {
+            return Err("Gravedad de aviso no válida".into());
+        }
+    }
+    let actions = actions.unwrap_or_default();
+    if actions.len() > MAX_NOTIFICATION_ACTIONS {
+        return Err("Demasiadas acciones en el aviso".into());
+    }
+    for a in &actions {
+        let id_ok = !a.id.is_empty()
+            && a.id.len() <= 40
+            && a.id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        let target_ok = a.target.as_ref().map_or(true, |t| t.len() <= 40);
+        if !id_ok || !target_ok {
+            return Err("Acción de aviso no válida".into());
+        }
     }
     let key = key.trim().to_string();
     if key.is_empty() || key.chars().count() > 100 {
@@ -2849,6 +2901,9 @@ fn add_notification(
         d.items.push(AppNotification {
             id: format!("x{}", n),
             kind,
+            severity,
+            dismissible,
+            actions,
             data,
             read: false,
             created_at: now,
@@ -2895,6 +2950,13 @@ fn delete_notification(
     id: String,
 ) -> Result<Vec<AppNotification>, String> {
     update_notifications(&app_handle, &state, |d| {
+        // Un aviso no descartable solo se puede borrar una vez leído.
+        if d.items
+            .iter()
+            .any(|n| n.id == id && n.dismissible == Some(false) && !n.read)
+        {
+            return Err("Este aviso no se puede descartar hasta que lo marques como leído".into());
+        }
         d.items.retain(|n| n.id != id);
         Ok(())
     })
@@ -2906,7 +2968,8 @@ fn clear_notifications(
     state: tauri::State<VaultState>,
 ) -> Result<Vec<AppNotification>, String> {
     update_notifications(&app_handle, &state, |d| {
-        d.items.clear();
+        // Los avisos no descartables siguen ahí hasta que se lean.
+        d.items.retain(|n| n.dismissible == Some(false) && !n.read);
         Ok(())
     })
 }
