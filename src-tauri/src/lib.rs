@@ -941,6 +941,7 @@ fn change_master_password(
         totp_accounts_path(&app_handle),
         notes_path(&app_handle),
         notifications_path(&app_handle),
+        backup_config_path(&app_handle),
     ] {
         if !p.exists() {
             continue;
@@ -1037,6 +1038,10 @@ fn delete_vault(
     let notifications_file = notifications_path(&app_handle);
     if notifications_file.exists() {
         let _ = fs::remove_file(&notifications_file);
+    }
+    let backup_config_file = backup_config_path(&app_handle);
+    if backup_config_file.exists() {
+        let _ = fs::remove_file(&backup_config_file);
     }
 
     *state.key.lock().unwrap() = None;
@@ -1146,6 +1151,649 @@ fn import_vault(
 
     Ok(imported_count)
 }
+// ---------- Copias de seguridad (formato 2) ----------
+// Un archivo .slock cifrado con una contraseña propia del archivo. Dentro lleva solo las secciones que el usuario
+// eligió. Los archivos antiguos (solo registros) siguen pudiéndose importar.
+
+const BACKUP_SECTIONS: [&str; 7] = [
+    "entries",
+    "folders",
+    "taxonomy",
+    "templates",
+    "notes",
+    "totp",
+    "settings",
+];
+const MAX_BACKUP_SETTINGS_LEN: usize = 100_000;
+const MAX_NOTES: usize = 1000;
+const MAX_TOTP_ACCOUNTS: usize = 200;
+
+#[derive(Serialize, Deserialize, Default)]
+struct BackupPayload {
+    #[serde(default)]
+    version: u32,
+    #[serde(default)]
+    created_at: u64,
+    #[serde(default)]
+    entries: Option<Vec<Entry>>,
+    #[serde(default)]
+    folders: Option<Vec<Folder>>,
+    #[serde(default)]
+    taxonomy: Option<Taxonomy>,
+    #[serde(default)]
+    templates: Option<Vec<UserTemplate>>,
+    #[serde(default)]
+    notes: Option<Vec<Note>>,
+    #[serde(default)]
+    totp_accounts: Option<Vec<TotpAccount>>,
+    // Preferencias de la interfaz (viven en el frontend): se devuelven tal cual al importar.
+    #[serde(default)]
+    settings: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct BackupFile {
+    format: u32,
+    salt: String,
+    nonce: String,
+    ciphertext: String,
+}
+
+#[derive(Serialize, Default)]
+struct BackupImportSummary {
+    entries: usize,
+    folders: usize,
+    tags: usize,
+    categories: usize,
+    templates: usize,
+    notes: usize,
+    totp_accounts: usize,
+    settings: Option<serde_json::Value>,
+}
+
+fn encrypt_bytes(key: &[u8; 32], plaintext: &[u8]) -> Result<(String, String), String> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let mut nonce_bytes = [0u8; 12];
+    AeadOsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = cipher.encrypt(nonce, plaintext).map_err(|e| e.to_string())?;
+    Ok((B64.encode(nonce_bytes), B64.encode(ciphertext)))
+}
+
+fn decrypt_bytes(key: &[u8; 32], nonce_b64: &str, ciphertext_b64: &str) -> Result<Vec<u8>, String> {
+    let cipher = Aes256Gcm::new_from_slice(key).map_err(|e| e.to_string())?;
+    let nonce_bytes = B64.decode(nonce_b64).map_err(|e| e.to_string())?;
+    let ciphertext = B64.decode(ciphertext_b64).map_err(|e| e.to_string())?;
+    if nonce_bytes.len() != 12 {
+        return Err("Archivo no válido".into());
+    }
+    cipher
+        .decrypt(Nonce::from_slice(&nonce_bytes), ciphertext.as_ref())
+        .map_err(|_| "Contraseña incorrecta para este archivo".to_string())
+}
+
+// `sections`: qué incluir ("entries", "folders", "taxonomy", "templates", "notes", "totp", "settings").
+// `settings`: JSON con las preferencias de la interfaz, que solo el frontend conoce.
+#[tauri::command]
+fn export_backup(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    export_password: String,
+    sections: Vec<String>,
+    settings: Option<String>,
+) -> Result<String, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let local_key = key_opt.ok_or("El vault está bloqueado")?;
+    build_backup_file(&app_handle, &local_key, &export_password, &sections, settings)
+}
+
+// Construye el contenido cifrado de una copia (formato 2). Lo usan la exportación manual y las copias automáticas.
+fn build_backup_file(
+    app_handle: &tauri::AppHandle,
+    local_key: &[u8; 32],
+    export_password: &str,
+    sections: &[String],
+    settings: Option<String>,
+) -> Result<String, String> {
+    if export_password.chars().count() < 8 {
+        return Err("La contraseña del archivo debe tener al menos 8 caracteres".into());
+    }
+    if sections.is_empty() || sections.iter().any(|s| !BACKUP_SECTIONS.contains(&s.as_str())) {
+        return Err("Selección de copia no válida".into());
+    }
+    let wants = |name: &str| sections.iter().any(|s| s == name);
+
+    let mut payload = BackupPayload {
+        version: 2,
+        created_at: now_millis(),
+        ..Default::default()
+    };
+    if wants("entries") {
+        let local_path = vault_path(&app_handle);
+        let local_content = fs::read_to_string(&local_path).map_err(|e| e.to_string())?;
+        let local_file: VaultFile = serde_json::from_str(&local_content).map_err(|e| e.to_string())?;
+        payload.entries = Some(decrypt_entries(&local_key, &local_file.nonce, &local_file.ciphertext)?);
+    }
+    if wants("folders") {
+        payload.folders = Some(read_folders(&app_handle, &local_key));
+    }
+    if wants("taxonomy") {
+        payload.taxonomy = Some(read_taxonomy(&app_handle, &local_key));
+    }
+    if wants("templates") {
+        payload.templates = Some(read_templates(&app_handle, &local_key));
+    }
+    if wants("notes") {
+        payload.notes = Some(read_notes(&app_handle, &local_key));
+    }
+    if wants("totp") {
+        payload.totp_accounts = Some(read_totp_accounts(&app_handle, &local_key));
+    }
+    if wants("settings") {
+        if let Some(raw) = settings {
+            if raw.len() > MAX_BACKUP_SETTINGS_LEN {
+                return Err("Las preferencias son demasiado grandes".into());
+            }
+            payload.settings = Some(serde_json::from_str(&raw).map_err(|e| e.to_string())?);
+        }
+    }
+
+    // Se cifra con una contraseña NUEVA, propia del archivo — nunca con la contraseña maestra real
+    let mut salt_bytes = [0u8; 16];
+    AeadOsRng.fill_bytes(&mut salt_bytes);
+    let export_key = derive_key(&export_password, &salt_bytes);
+    let plaintext = serde_json::to_vec(&payload).map_err(|e| e.to_string())?;
+    let (nonce, ciphertext) = encrypt_bytes(&export_key, &plaintext)?;
+    let file = BackupFile {
+        format: 2,
+        salt: B64.encode(salt_bytes),
+        nonce,
+        ciphertext,
+    };
+    serde_json::to_string_pretty(&file).map_err(|e| e.to_string())
+}
+
+// ---------- Copias automáticas ----------
+// La configuración se guarda cifrada con la clave del vault en backup_config.json (incluye la contraseña de las
+// copias, que por eso solo se puede usar con la app desbloqueada). No viaja dentro de las copias.
+
+const MAX_BACKUP_FILE_NAME: usize = 120;
+const MAX_BACKUP_PREFIX: usize = 40;
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
+struct BackupConfig {
+    enabled: bool,
+    folder: String,
+    password: String,
+    frequency_days: u32,
+    prefix: String,
+    date_format: String,
+    sections: Vec<String>,
+    keep: u32,
+    last_run: u64,
+}
+
+impl Default for BackupConfig {
+    fn default() -> Self {
+        BackupConfig {
+            enabled: false,
+            folder: String::new(),
+            password: String::new(),
+            frequency_days: 7,
+            prefix: "sailock-backup".to_string(),
+            date_format: "dateTime".to_string(),
+            sections: BACKUP_SECTIONS.iter().map(|s| s.to_string()).collect(),
+            keep: 10,
+            last_run: 0,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct BackupConfigView {
+    enabled: bool,
+    folder: String,
+    has_password: bool,
+    frequency_days: u32,
+    prefix: String,
+    date_format: String,
+    sections: Vec<String>,
+    keep: u32,
+    last_run: u64,
+}
+
+#[derive(Deserialize)]
+struct BackupConfigInput {
+    enabled: bool,
+    folder: String,
+    // None conserva la guardada
+    password: Option<String>,
+    frequency_days: u32,
+    prefix: String,
+    date_format: String,
+    sections: Vec<String>,
+    keep: u32,
+}
+
+#[derive(Serialize, Deserialize)]
+struct BackupConfigFile {
+    nonce: String,
+    ciphertext: String,
+}
+
+fn backup_config_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("backup_config.json")
+}
+
+fn read_backup_config(app_handle: &tauri::AppHandle, key: &[u8; 32]) -> BackupConfig {
+    let path = backup_config_path(app_handle);
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return BackupConfig::default(),
+    };
+    let file: BackupConfigFile = match serde_json::from_str(&content) {
+        Ok(f) => f,
+        Err(_) => return BackupConfig::default(),
+    };
+    match decrypt_bytes(key, &file.nonce, &file.ciphertext) {
+        Ok(plaintext) => serde_json::from_slice(&plaintext).unwrap_or_default(),
+        Err(_) => BackupConfig::default(),
+    }
+}
+
+fn write_backup_config(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+    config: &BackupConfig,
+) -> Result<(), String> {
+    let plaintext = serde_json::to_vec(config).map_err(|e| e.to_string())?;
+    let (nonce, ciphertext) = encrypt_bytes(key, &plaintext)?;
+    let json = serde_json::to_string_pretty(&BackupConfigFile { nonce, ciphertext })
+        .map_err(|e| e.to_string())?;
+    fs::write(backup_config_path(app_handle), json).map_err(|e| e.to_string())
+}
+
+fn backup_name_chars_ok(name: &str) -> bool {
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
+fn valid_backup_prefix(prefix: &str) -> bool {
+    !prefix.is_empty()
+        && prefix.len() <= MAX_BACKUP_PREFIX
+        && !prefix.starts_with('.')
+        && backup_name_chars_ok(prefix)
+}
+
+fn valid_backup_file_name(name: &str) -> bool {
+    name.len() <= MAX_BACKUP_FILE_NAME
+        && name.len() > ".slock".len()
+        && name.ends_with(".slock")
+        && !name.starts_with('.')
+        && backup_name_chars_ok(name)
+}
+
+fn backup_config_view(config: &BackupConfig) -> BackupConfigView {
+    BackupConfigView {
+        enabled: config.enabled,
+        folder: config.folder.clone(),
+        has_password: !config.password.is_empty(),
+        frequency_days: config.frequency_days,
+        prefix: config.prefix.clone(),
+        date_format: config.date_format.clone(),
+        sections: config.sections.clone(),
+        keep: config.keep,
+        last_run: config.last_run,
+    }
+}
+
+#[tauri::command]
+fn get_backup_config(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<BackupConfigView, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+    Ok(backup_config_view(&read_backup_config(&app_handle, &key)))
+}
+
+#[tauri::command]
+fn set_backup_config(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    config: BackupConfigInput,
+) -> Result<BackupConfigView, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    if config.frequency_days == 0 || config.frequency_days > 365 {
+        return Err("La frecuencia debe estar entre 1 y 365 días".into());
+    }
+    if config.keep > 200 {
+        return Err("Número de copias a conservar no válido".into());
+    }
+    if !valid_backup_prefix(&config.prefix) {
+        return Err("El prefijo del nombre no es válido".into());
+    }
+    if !["dateTime", "date", "compact", "eu", "none"].contains(&config.date_format.as_str()) {
+        return Err("Formato de fecha no válido".into());
+    }
+    if config.sections.is_empty()
+        || config
+            .sections
+            .iter()
+            .any(|s| !BACKUP_SECTIONS.contains(&s.as_str()))
+    {
+        return Err("Selección de copia no válida".into());
+    }
+    let folder = config.folder.trim().to_string();
+    if !folder.is_empty() && !std::path::Path::new(&folder).is_dir() {
+        return Err("La carpeta elegida no existe".into());
+    }
+
+    let mut stored = read_backup_config(&app_handle, &key);
+    if let Some(new_password) = config.password {
+        if !new_password.is_empty() {
+            if new_password.chars().count() < 8 {
+                return Err("La contraseña de las copias debe tener al menos 8 caracteres".into());
+            }
+            stored.password = new_password;
+        }
+    }
+    if config.enabled && (folder.is_empty() || stored.password.is_empty()) {
+        return Err("Para activar las copias automáticas elige una carpeta y una contraseña".into());
+    }
+
+    stored.enabled = config.enabled;
+    stored.folder = folder;
+    stored.frequency_days = config.frequency_days;
+    stored.prefix = config.prefix;
+    stored.date_format = config.date_format;
+    stored.sections = config.sections;
+    stored.keep = config.keep;
+    write_backup_config(&app_handle, &key, &stored)?;
+    Ok(backup_config_view(&stored))
+}
+
+#[tauri::command]
+async fn pick_backup_folder(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    match app_handle.dialog().file().blocking_pick_folder() {
+        Some(picked) => {
+            let path = picked.into_path().map_err(|e| e.to_string())?;
+            Ok(Some(path.to_string_lossy().to_string()))
+        }
+        None => Ok(None),
+    }
+}
+
+// Borra las copias más antiguas de esta configuración (mismo prefijo) y deja las `keep` más recientes.
+// Solo toca ficheros .slock cuyo nombre empieza por "<prefijo>_" o es exactamente "<prefijo>.slock".
+fn prune_backups(folder: &std::path::Path, prefix: &str, keep: u32) {
+    if keep == 0 {
+        return;
+    }
+    let exact = format!("{}.slock", prefix);
+    let start = format!("{}_", prefix);
+    let mut files: Vec<(SystemTime, PathBuf)> = fs::read_dir(folder)
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !name.ends_with(".slock") || !(name == exact || name.starts_with(&start)) {
+                return None;
+            }
+            let meta = entry.metadata().ok()?;
+            if !meta.is_file() {
+                return None;
+            }
+            Some((meta.modified().ok()?, entry.path()))
+        })
+        .collect();
+    files.sort_by(|a, b| b.0.cmp(&a.0));
+    for (_, path) in files.into_iter().skip(keep as usize) {
+        let _ = fs::remove_file(path);
+    }
+}
+
+// Crea ahora una copia en la carpeta configurada. `file_name` lo calcula el frontend con el prefijo y el formato
+// de fecha; aquí solo se valida. Devuelve la ruta del fichero creado.
+#[tauri::command]
+fn run_backup_now(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    file_name: String,
+    settings: Option<String>,
+) -> Result<String, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let key = key_opt.ok_or("El vault está bloqueado")?;
+
+    let mut config = read_backup_config(&app_handle, &key);
+    if config.folder.is_empty() || config.password.is_empty() {
+        return Err("Configura una carpeta y una contraseña para las copias".into());
+    }
+    if !valid_backup_file_name(&file_name) {
+        return Err("Nombre de fichero no válido".into());
+    }
+    let folder = PathBuf::from(&config.folder);
+    if !folder.is_dir() {
+        return Err("La carpeta de copias ya no existe".into());
+    }
+
+    let content = build_backup_file(&app_handle, &key, &config.password, &config.sections, settings)?;
+    let target = folder.join(&file_name);
+    let tmp = folder.join(format!("{}.tmp", file_name));
+    fs::write(&tmp, content).map_err(|e| e.to_string())?;
+    if let Err(e) = fs::rename(&tmp, &target) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.to_string());
+    }
+
+    config.last_run = now_millis();
+    write_backup_config(&app_handle, &key, &config)?;
+    prune_backups(&folder, &config.prefix, config.keep);
+    Ok(target.to_string_lossy().to_string())
+}
+
+// Importa todas las secciones que traiga el archivo.
+// `mode`: "add_duplicates" | "skip_duplicates" | "replace_all" (esta última sustituye solo las secciones presentes).
+#[tauri::command]
+fn import_backup(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+    file_content: String,
+    export_password: String,
+    mode: String,
+) -> Result<BackupImportSummary, String> {
+    let key_opt: Option<[u8; 32]> = *state.key.lock().unwrap();
+    let local_key = key_opt.ok_or("El vault está bloqueado")?;
+    if !["add_duplicates", "skip_duplicates", "replace_all"].contains(&mode.as_str()) {
+        return Err("Modo de importación no válido".into());
+    }
+    let replace = mode == "replace_all";
+
+    let imported_file: VaultFile = serde_json::from_str(&file_content)
+        .map_err(|_| "El archivo no tiene un formato válido de Sailock".to_string())?;
+    let imported_salt = B64.decode(&imported_file.salt).map_err(|e| e.to_string())?;
+    let imported_key = derive_key(&export_password, &imported_salt);
+    let plaintext = decrypt_bytes(&imported_key, &imported_file.nonce, &imported_file.ciphertext)?;
+
+    // Los archivos antiguos son una lista de registros; los nuevos, un objeto con secciones.
+    let is_legacy = plaintext
+        .iter()
+        .find(|b| !b.is_ascii_whitespace())
+        .map_or(false, |b| *b == b'[');
+    let payload: BackupPayload = if is_legacy {
+        BackupPayload {
+            version: 1,
+            entries: Some(
+                serde_json::from_slice(&plaintext)
+                    .map_err(|_| "El archivo no tiene un formato válido de Sailock".to_string())?,
+            ),
+            ..Default::default()
+        }
+    } else {
+        serde_json::from_slice(&plaintext)
+            .map_err(|_| "El archivo no tiene un formato válido de Sailock".to_string())?
+    };
+
+    let mut summary = BackupImportSummary::default();
+
+    // Carpetas: se unen por id (o sustituyen a las actuales).
+    let mut folders = if replace && payload.folders.is_some() {
+        Vec::new()
+    } else {
+        read_folders(&app_handle, &local_key)
+    };
+    if let Some(imported) = payload.folders {
+        for f in imported {
+            if !folders.iter().any(|x| x.id == f.id) {
+                folders.push(f);
+                summary.folders += 1;
+            }
+        }
+        write_folders(&app_handle, &local_key, &folders);
+    }
+
+    // Etiquetas y categorías: si ya existe una con el mismo nombre se reutiliza (y los registros apuntan a ella).
+    let mut taxonomy = if replace && payload.taxonomy.is_some() {
+        Taxonomy::default()
+    } else {
+        read_taxonomy(&app_handle, &local_key)
+    };
+    let mut tag_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut category_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    if let Some(imported) = payload.taxonomy {
+        for (list, source, map, counter) in [
+            (&mut taxonomy.tags, imported.tags, &mut tag_map, &mut summary.tags),
+            (
+                &mut taxonomy.categories,
+                imported.categories,
+                &mut category_map,
+                &mut summary.categories,
+            ),
+        ] {
+            for item in source {
+                if let Some(existing) = list
+                    .iter()
+                    .find(|x| x.id == item.id || x.name.to_lowercase() == item.name.to_lowercase())
+                {
+                    map.insert(item.id.clone(), existing.id.clone());
+                } else {
+                    map.insert(item.id.clone(), item.id.clone());
+                    list.push(item);
+                    *counter += 1;
+                }
+            }
+        }
+        write_taxonomy(&app_handle, &local_key, &taxonomy)?;
+    }
+
+    // Registros
+    if let Some(imported_entries) = payload.entries {
+        let local_path = vault_path(&app_handle);
+        let local_content = fs::read_to_string(&local_path).map_err(|e| e.to_string())?;
+        let local_file: VaultFile = serde_json::from_str(&local_content).map_err(|e| e.to_string())?;
+        let mut local_entries = decrypt_entries(&local_key, &local_file.nonce, &local_file.ciphertext)?;
+
+        let final_imported: Vec<Entry> = if mode == "skip_duplicates" {
+            let existing_names: std::collections::HashSet<String> =
+                local_entries.iter().map(|e| e.name.to_lowercase()).collect();
+            imported_entries
+                .into_iter()
+                .filter(|e| !existing_names.contains(&e.name.to_lowercase()))
+                .collect()
+        } else {
+            imported_entries
+        };
+        summary.entries = final_imported.len();
+        if replace {
+            local_entries = Vec::new();
+        }
+
+        let base_time = now_millis();
+        for (i, mut entry) in final_imported.into_iter().enumerate() {
+            entry.id = format!("{}-{}", base_time, i);
+            let mut tags: Vec<String> = Vec::new();
+            for t in entry.tag_ids.iter() {
+                let mapped = tag_map.get(t).unwrap_or(t).clone();
+                if taxonomy.tags.iter().any(|x| x.id == mapped) && !tags.contains(&mapped) {
+                    tags.push(mapped);
+                }
+            }
+            entry.tag_ids = tags;
+            entry.category_id = entry.category_id.as_ref().and_then(|c| {
+                let mapped = category_map.get(c).unwrap_or(c).clone();
+                taxonomy.categories.iter().any(|x| x.id == mapped).then_some(mapped)
+            });
+            if let Some(fid) = &entry.folder_id {
+                if !folders.iter().any(|f| &f.id == fid) {
+                    entry.folder_id = None;
+                }
+            }
+            local_entries.push(entry);
+        }
+
+        let (nonce, ciphertext) = encrypt_entries(&local_key, &local_entries);
+        let new_file = VaultFile {
+            salt: local_file.salt,
+            nonce,
+            ciphertext,
+        };
+        let json = serde_json::to_string_pretty(&new_file).map_err(|e| e.to_string())?;
+        fs::write(&local_path, json).map_err(|e| e.to_string())?;
+    }
+
+    // Plantillas, notas y códigos TOTP sueltos: se añaden los que no existan (por id).
+    if let Some(imported) = payload.templates {
+        let mut list = if replace { Vec::new() } else { read_templates(&app_handle, &local_key) };
+        for t in imported {
+            if !t.id.is_empty() && !list.iter().any(|x| x.id == t.id) {
+                list.push(t);
+                summary.templates += 1;
+            }
+        }
+        write_templates(&app_handle, &local_key, &list)?;
+    }
+    if let Some(imported) = payload.notes {
+        let mut list = if replace { Vec::new() } else { read_notes(&app_handle, &local_key) };
+        for n in imported {
+            if list.len() >= MAX_NOTES {
+                break;
+            }
+            if !n.id.is_empty() && !list.iter().any(|x| x.id == n.id) {
+                list.push(n);
+                summary.notes += 1;
+            }
+        }
+        write_notes(&app_handle, &local_key, &list)?;
+    }
+    if let Some(imported) = payload.totp_accounts {
+        let mut list = if replace { Vec::new() } else { read_totp_accounts(&app_handle, &local_key) };
+        for a in imported {
+            if list.len() >= MAX_TOTP_ACCOUNTS {
+                break;
+            }
+            if !a.id.is_empty() && !list.iter().any(|x| x.id == a.id) {
+                list.push(a);
+                summary.totp_accounts += 1;
+            }
+        }
+        write_totp_accounts(&app_handle, &local_key, &list)?;
+    }
+
+    summary.settings = payload.settings;
+    Ok(summary)
+}
+
 const MAX_GENERATOR_HISTORY_PER_TYPE: usize = 5;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -2258,7 +2906,6 @@ fn delete_template(
 // Se guardan cifrados en totp_accounts.json. Los TOTP de los registros no se copian aquí:
 // la ventana TOTP los lee directamente de cada registro.
 
-const MAX_TOTP_ACCOUNTS: usize = 200;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct TotpAccount {
@@ -2420,7 +3067,6 @@ fn delete_totp_account(
 // Se guardan cifradas en notes.json. El contenido es texto en markdown tal como lo escribe
 // el usuario; la app lo muestra con formato al verlo y en crudo al editarlo.
 
-const MAX_NOTES: usize = 1000;
 const MAX_NOTE_TITLE_CHARS: usize = 120;
 const MAX_NOTE_CONTENT_CHARS: usize = 100_000;
 
@@ -3193,6 +3839,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -3237,6 +3884,12 @@ pub fn run() {
             get_generator_history,
             clear_generator_history,
             export_vault,
+            export_backup,
+            import_backup,
+            get_backup_config,
+            set_backup_config,
+            pick_backup_folder,
+            run_backup_now,
             import_vault,
             totp_backup_codes_remaining,
             totp_generate_backup_codes,

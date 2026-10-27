@@ -194,6 +194,11 @@ function readNumber(key: string): number | null {
   }
 }
 
+// Fecha de la última copia creada en este equipo, o null si nunca se hizo ninguna.
+export function getLastBackup(): number | null {
+  return readNumber(LAST_BACKUP_KEY);
+}
+
 // Se llama al terminar una exportación correcta.
 export function recordBackup() {
   try {

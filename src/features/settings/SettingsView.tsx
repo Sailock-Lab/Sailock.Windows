@@ -18,6 +18,23 @@ import { Theme } from "@/lib/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { AutoLockDuration, TextSize } from "@/lib/appSettings";
 import i18n from "@/i18n";
+import { recordBackup } from "@/lib/notifications";
+import {
+  BACKUP_DATE_FORMATS,
+  BACKUP_SECTIONS,
+  BackupConfig,
+  BackupDateFormat,
+  BackupSection,
+  DEFAULT_BACKUP_PREFIX,
+  FREQUENCY_PRESETS,
+  KEEP_OPTIONS,
+  applySettings,
+  backupFileName,
+  collectSettings,
+  nextBackupAt,
+  sanitizePrefix,
+} from "@/lib/backupSettings";
+import { runBackupNow, BACKUP_DONE_EVENT } from "@/hooks/useScheduledBackup";
 import { LANGUAGE_LABELS } from "@/i18n/languages";
 import { isEnabled as isAutostartEnabled, enable as enableAutostart, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 import { getVersion } from "@tauri-apps/api/app";
@@ -342,16 +359,21 @@ function ExportDialog() {
     setError("");
     setBusy(true);
     try {
-      const content = await invoke<string>("export_vault", { exportPassword: password });
+      const content = await invoke<string>("export_backup", {
+        exportPassword: password,
+        sections: BACKUP_SECTIONS,
+        settings: collectSettings(),
+      });
       const blob = new Blob([content], { type: "application/json;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `sailock_backup_${new Date().toISOString().slice(0, 10)}.slock`;
+      a.download = backupFileName({ prefix: "sailock_backup", dateFormat: "date" });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      recordBackup();
       saveActivity("download", "vaultExported", "settings");
       toast.success(t("exportSuccessToast"));
       handleOpenChange(false);
@@ -523,12 +545,39 @@ function ImportDialog({ onImported }: { onImported: () => void }) {
     setError("");
     try {
       const content = await file.text();
-      const count = await invoke<number>("import_vault", {
+      const summary = await invoke<{
+        entries: number;
+        folders: number;
+        tags: number;
+        categories: number;
+        templates: number;
+        notes: number;
+        totp_accounts: number;
+        settings: string | null;
+      }>("import_backup", {
         fileContent: content,
         exportPassword,
         mode,
       });
-      toast.success(t("importSuccessToast", { count }));
+      const count = summary.entries;
+      let restored = 0;
+      if (summary.settings) {
+        try {
+          restored = applySettings(JSON.parse(summary.settings));
+        } catch {
+          restored = 0;
+        }
+      }
+      toast.success(
+        t("importSummaryToast", {
+          entries: summary.entries,
+          folders: summary.folders,
+          notes: summary.notes,
+          totp: summary.totp_accounts,
+          templates: summary.templates,
+        }),
+      );
+      if (restored > 0) toast.info(t("importSettingsRestored", { count: restored }));
       saveActivity("create", "vaultImported", "settings", { count: String(count), filename: file.name, mode });
       handleOpenChange(false);
       onImported();
@@ -1136,6 +1185,446 @@ interface SettingsViewProps {
   onFocusHandled?: () => void;
 }
 
+const SECTION_LABEL_KEYS: Record<BackupSection, string> = {
+  entries: "backupSectionEntries",
+  folders: "backupSectionFolders",
+  taxonomy: "backupSectionTaxonomy",
+  templates: "backupSectionTemplates",
+  notes: "backupSectionNotes",
+  totp: "backupSectionTotp",
+  settings: "backupSectionSettings",
+};
+
+function ExportImportCard() {
+  const { t } = useTranslation("settings");
+  return (
+    <Card className="p-5 rounded-xl">
+      <div>
+        <CardTitle className="text-base flex items-center gap-2 mb-1">
+          <Download className="h-4 w-4 text-muted-foreground" />
+          {t("importExportCardTitle")}
+        </CardTitle>
+        <CardDescription className="text-sm mb-4">{t("importExportCardDescription")}</CardDescription>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">{t("exportDataLabel")}</p>
+              <p className="text-xs text-muted-foreground">{t("exportDataDescription")}</p>
+            </div>
+            <ExportDialog />
+          </div>
+          <div className="flex items-center justify-between pt-2 border-t">
+            <div>
+              <p className="text-sm font-medium">{t("importDataLabel")}</p>
+              <p className="text-xs text-muted-foreground">{t("importDataDescription")}</p>
+            </div>
+            <ImportDialog onImported={() => { }} />
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// Copias automáticas: frecuencia, carpeta, contraseña, nombre y contenido. Se crean solas mientras la app está
+// abierta y desbloqueada (ver useScheduledBackup).
+function AutoBackupCard() {
+  const { t, i18n: i18nInstance } = useTranslation("settings");
+  const [cfg, setCfg] = useState<BackupConfig | null>(null);
+  const [prefixDraft, setPrefixDraft] = useState(DEFAULT_BACKUP_PREFIX);
+  const [customDays, setCustomDays] = useState("");
+  const [customMode, setCustomMode] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const apply = (view: BackupConfig) => {
+    setCfg(view);
+    setPrefixDraft(view.prefix);
+    setCustomMode(!FREQUENCY_PRESETS.includes(view.frequency_days));
+    setCustomDays(String(view.frequency_days));
+  };
+
+  const load = async () => {
+    try {
+      apply(await invoke<BackupConfig>("get_backup_config"));
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(String(e));
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const onDone = () => load();
+    window.addEventListener(BACKUP_DONE_EVENT, onDone);
+    return () => window.removeEventListener(BACKUP_DONE_EVENT, onDone);
+  }, []);
+
+  if (!cfg) {
+    return (
+      <Card id="backup-section" className="p-5 rounded-xl">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2 mb-1">
+            <RefreshCw className="h-4 w-4 text-muted-foreground" />
+            {t("backupCardTitle")}
+          </CardTitle>
+          <CardDescription className="text-sm mb-3">{t("autoBackupDescription")}</CardDescription>
+          {loadError && <p className="text-xs text-destructive break-words mb-3">{loadError}</p>}
+          <Button variant="outline" size="sm" onClick={load}>
+            <RefreshCw className="h-4 w-4 mr-2" /> {t("autoBackupRetry")}
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  const save = async (patch: Partial<BackupConfig> & { password?: string }) => {
+    const next = { ...cfg, ...patch };
+    try {
+      const view = await invoke<BackupConfig>("set_backup_config", {
+        config: {
+          enabled: next.enabled,
+          folder: next.folder,
+          password: patch.password ?? null,
+          frequency_days: next.frequency_days,
+          prefix: next.prefix,
+          date_format: next.date_format,
+          sections: next.sections,
+          keep: next.keep,
+        },
+      });
+      setCfg(view);
+      return true;
+    } catch (e) {
+      toast.error(String(e));
+      await load();
+      return false;
+    }
+  };
+
+  const chooseFolder = async () => {
+    try {
+      const picked = await invoke<string | null>("pick_backup_folder");
+      if (picked) await save({ folder: picked });
+    } catch (e) {
+      toast.error(String(e));
+    }
+  };
+
+  const savePassword = async () => {
+    if (password.length < 8) {
+      toast.error(t("exportMinLengthError"));
+      return;
+    }
+    if (await save({ password })) {
+      setPassword("");
+      toast.success(t("autoBackupPasswordSaved"));
+    }
+  };
+
+  const commitPrefix = async () => {
+    const clean = sanitizePrefix(prefixDraft);
+    setPrefixDraft(clean);
+    if (clean !== cfg.prefix) await save({ prefix: clean });
+  };
+
+  const commitCustomDays = async () => {
+    const n = Math.min(365, Math.max(1, Math.floor(Number(customDays)) || 1));
+    setCustomDays(String(n));
+    if (n !== cfg.frequency_days) await save({ frequency_days: n });
+  };
+
+  const toggleSection = async (section: BackupSection) => {
+    const has = cfg.sections.includes(section);
+    const next = has ? cfg.sections.filter((x) => x !== section) : [...cfg.sections, section];
+    if (next.length === 0) {
+      toast.error(t("backupSelectAtLeastOne"));
+      return;
+    }
+    await save({ sections: BACKUP_SECTIONS.filter((x) => next.includes(x)) });
+  };
+
+  const runNow = async () => {
+    setBusy(true);
+    try {
+      const path = await runBackupNow(cfg);
+      toast.success(t("autoBackupRunSuccess", { path }));
+    } catch (e) {
+      toast.error(t("autoBackupFailed", { error: String(e) }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const freqLabels: Record<number, string> = {
+    1: t("freqDaily"),
+    2: t("freqEvery2"),
+    3: t("freqEvery3"),
+    7: t("freqWeekly"),
+    14: t("freqBiweekly"),
+    30: t("freqMonthly"),
+  };
+  const freqItems = [
+    ...FREQUENCY_PRESETS.map((d) => ({ value: String(d), label: freqLabels[d] })),
+    { value: "custom", label: t("freqCustom") },
+  ];
+  const dateLabels: Record<BackupDateFormat, string> = {
+    dateTime: t("backupDateFormatDateTime"),
+    date: t("backupDateFormatDate"),
+    compact: t("backupDateFormatCompact"),
+    eu: t("backupDateFormatEu"),
+    none: t("backupDateFormatNone"),
+  };
+  const keepItems = KEEP_OPTIONS.map((n) => ({
+    value: String(n),
+    label: n === 0 ? t("keepAll") : t("keepLast", { count: n }),
+  }));
+  const ready = cfg.folder !== "" && cfg.has_password;
+  const allSelected = cfg.sections.length === BACKUP_SECTIONS.length;
+  const preview = backupFileName({ prefix: cfg.prefix, dateFormat: cfg.date_format });
+  const next = nextBackupAt(cfg);
+  const locale = i18nInstance.language;
+
+  return (
+    <Card id="backup-section" className="p-5 rounded-xl">
+      <div>
+        <CardTitle className="text-base flex items-center gap-2 mb-1">
+          <RefreshCw className="h-4 w-4 text-muted-foreground" />
+          {t("backupCardTitle")}
+        </CardTitle>
+        <CardDescription className="text-sm mb-4">{t("autoBackupDescription")}</CardDescription>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">{t("autoBackupEnabled")}</p>
+              <p className="text-xs text-muted-foreground">
+                {ready ? t("autoBackupEnabledHint") : t("autoBackupNeedsSetup")}
+              </p>
+            </div>
+            <Switch checked={cfg.enabled} disabled={!ready} onCheckedChange={(v) => save({ enabled: v })} />
+          </div>
+
+          <div className="flex items-center justify-between gap-4 pt-2 border-t">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t("autoBackupFolder")}</p>
+              <p className="text-xs text-muted-foreground truncate" title={cfg.folder}>
+                {cfg.folder || t("autoBackupNoFolder")}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={chooseFolder}>
+              {t("autoBackupChooseFolder")}
+            </Button>
+          </div>
+
+          <div className="pt-2 border-t">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="auto-backup-password">
+                {t("autoBackupPassword")}
+                {cfg.has_password && <span className="ml-2 text-xs text-muted-foreground">({t("autoBackupPasswordSet")})</span>}
+              </Label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    id="auto-backup-password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    autoComplete="new-password"
+                    placeholder={cfg.has_password ? t("autoBackupPasswordChange") : t("autoBackupPasswordPlaceholder")}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") savePassword();
+                    }}
+                    className="pr-9"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? t("changePasswordHide") : t("changePasswordShow")}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <Button variant="outline" size="sm" className="h-9" disabled={password.length === 0} onClick={savePassword}>
+                  {t("autoBackupPasswordSave")}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">{t("autoBackupPasswordHint")}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 pt-2 border-t">
+            <div className="flex flex-col gap-1.5">
+              <Label>{t("autoBackupFrequency")}</Label>
+              <Select
+                value={customMode ? "custom" : String(cfg.frequency_days)}
+                items={freqItems}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  if (v === "custom") {
+                    setCustomMode(true);
+                    return;
+                  }
+                  setCustomMode(false);
+                  save({ frequency_days: Number(v) });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {freqItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {customMode && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    className="w-24"
+                    value={customDays}
+                    onChange={(e) => setCustomDays(e.target.value)}
+                    onBlur={commitCustomDays}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitCustomDays();
+                    }}
+                  />
+                  <span className="text-xs text-muted-foreground">{t("freqCustomDays")}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>{t("autoBackupKeep")}</Label>
+              <Select
+                value={String(cfg.keep)}
+                items={keepItems}
+                onValueChange={(v) => v && save({ keep: Number(v) })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {keepItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="backup-prefix">{t("backupPrefixLabel")}</Label>
+              <Input
+                id="backup-prefix"
+                value={prefixDraft}
+                maxLength={40}
+                placeholder={DEFAULT_BACKUP_PREFIX}
+                onChange={(e) => setPrefixDraft(e.target.value)}
+                onBlur={commitPrefix}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitPrefix();
+                }}
+              />
+              <p className="text-xs text-muted-foreground">{t("backupPrefixHint")}</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>{t("backupDateFormatLabel")}</Label>
+              <Select
+                value={cfg.date_format}
+                onValueChange={(v) => v && save({ date_format: v as BackupDateFormat })}
+                items={BACKUP_DATE_FORMATS.map((key) => ({ value: key, label: dateLabels[key] }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BACKUP_DATE_FORMATS.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {dateLabels[key]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("backupPreviewLabel")}: <span className="font-mono text-foreground">{preview}</span>
+          </p>
+
+          <div className="pt-2 border-t">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-sm font-medium">{t("backupContentLabel")}</p>
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => save({ sections: [...BACKUP_SECTIONS] })}
+                disabled={allSelected}
+              >
+                {t("backupSelectAll")}
+              </button>
+            </div>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {BACKUP_SECTIONS.map((section) => (
+                <label key={section} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <span className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center">
+                    <input
+                      type="checkbox"
+                      className={`h-4 w-4 cursor-pointer appearance-none rounded-full border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                        cfg.sections.includes(section)
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground/40 bg-transparent hover:border-primary"
+                      }`}
+                      checked={cfg.sections.includes(section)}
+                      onChange={() => toggleSection(section)}
+                    />
+                    {cfg.sections.includes(section) && (
+                      <Check className="pointer-events-none absolute h-2.5 w-2.5 text-primary-foreground" strokeWidth={3.5} />
+                    )}
+                  </span>
+                  {t(SECTION_LABEL_KEYS[section])}
+                </label>
+              ))}
+            </div>
+            {cfg.sections.includes("notes") && (
+              <p className="text-xs text-muted-foreground mt-2">{t("backupNotesWarning")}</p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-4 pt-2 border-t">
+            <div>
+              <p className="text-sm font-medium">{t("backupLastLabel")}</p>
+              <p className="text-xs text-muted-foreground">
+                {cfg.last_run ? new Date(cfg.last_run).toLocaleString(locale) : t("backupNever")}
+                {cfg.enabled && ready && (
+                  <>
+                    {" · "}
+                    {t("autoBackupNext")}: {next === 0 ? t("autoBackupNextSoon") : new Date(next).toLocaleDateString(locale)}
+                  </>
+                )}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" disabled={!ready || busy} onClick={runNow}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} /> {t("autoBackupRunNow")}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">{t("autoBackupOnlyWhileOpen")}</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function SettingsView({
   onVaultDeleted,
   autoLockDuration,
@@ -1598,31 +2087,9 @@ export function SettingsView({
           </div>
         </Card>
 
-        <Card className="p-5 rounded-xl">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2 mb-1">
-              <Download className="h-4 w-4 text-muted-foreground" />
-              {t("importExportCardTitle")}
-            </CardTitle>
-            <CardDescription className="text-sm mb-4">{t("importExportCardDescription")}</CardDescription>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{t("exportDataLabel")}</p>
-                  <p className="text-xs text-muted-foreground">{t("exportDataDescription")}</p>
-                </div>
-                <ExportDialog />
-              </div>
-              <div className="flex items-center justify-between pt-2 border-t">
-                <div>
-                  <p className="text-sm font-medium">{t("importDataLabel")}</p>
-                  <p className="text-xs text-muted-foreground">{t("importDataDescription")}</p>
-                </div>
-                <ImportDialog onImported={() => { }} />
-              </div>
-            </div>
-          </div>
-        </Card>
+        <ExportImportCard />
+
+        <AutoBackupCard />
 
         <Card className="border-destructive/50 p-5 rounded-xl">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

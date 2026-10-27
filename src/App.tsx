@@ -17,6 +17,7 @@ import { useAutoLock } from "@/hooks/useAutoLock";
 import { useLockOnMinimize } from "@/hooks/useLockOnMinimize";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import { useNotificationChecks } from "@/hooks/useNotificationChecks";
+import { useScheduledBackup } from "@/hooks/useScheduledBackup";
 import { toast } from "sonner";
 import i18n from "i18next";
 import {
@@ -105,6 +106,7 @@ function App() {
   useAutoLock(autoLockDuration, unlocked, () => handleLock("logoutIdle"));
   // Carga los avisos al desbloquear y comprueba actualizaciones, copia de seguridad y contraseñas cada pocas horas.
   useNotificationChecks(unlocked, autoUpdate);
+  useScheduledBackup(unlocked);
   useLockOnMinimize(unlocked && lockOnMinimize, () => handleLock("logoutMinimize"));
 
   // Atajos de teclado (solo con la bóveda desbloqueada). Se configuran en Ajustes (src/lib/shortcuts.ts).
