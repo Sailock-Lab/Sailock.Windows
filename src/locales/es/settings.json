@@ -289,5 +289,15 @@
   "autoBackupNext": "Próxima",
   "autoBackupNextSoon": "en cuanto abras la app",
   "autoBackupOnlyWhileOpen": "Si la app está cerrada o bloqueada cuando toca, la copia se hace al abrirla y desbloquearla.",
-  "autoBackupRetry": "Reintentar"
+  "autoBackupRetry": "Reintentar",
+  "notificationsCardTitle": "Notificaciones",
+  "notificationsCardDescription": "Elige qué avisos quieres recibir.",
+  "notifPrefUpdates": "Actualizaciones",
+  "notifPrefUpdatesDescription": "Nuevas versiones con sus novedades y parches de seguridad.",
+  "notifPrefBackup": "Copias de seguridad",
+  "notifPrefBackupDescription": "Recordatorios y errores de las copias.",
+  "notifPrefPasswords": "Contraseñas",
+  "notifPrefPasswordsDescription": "Contraseñas antiguas, repetidas o débiles.",
+  "notifPrefSecurity": "Seguridad",
+  "notifPrefSecurityDescription": "Intentos fallidos, cambios de seguridad y recordatorio del 2FA."
 }

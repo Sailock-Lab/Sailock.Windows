@@ -289,5 +289,15 @@
   "autoBackupNext": "Nächstes",
   "autoBackupNextSoon": "sobald du die App öffnest",
   "autoBackupOnlyWhileOpen": "Ist die App bei Fälligkeit geschlossen oder gesperrt, wird das Backup beim Öffnen und Entsperren erstellt.",
-  "autoBackupRetry": "Erneut versuchen"
+  "autoBackupRetry": "Erneut versuchen",
+  "notificationsCardTitle": "Benachrichtigungen",
+  "notificationsCardDescription": "Wähle, welche Hinweise du erhalten möchtest.",
+  "notifPrefUpdates": "Updates",
+  "notifPrefUpdatesDescription": "Neue Versionen mit Release-Notes und Sicherheitspatches.",
+  "notifPrefBackup": "Backups",
+  "notifPrefBackupDescription": "Erinnerungen und Fehler bei Backups.",
+  "notifPrefPasswords": "Passwörter",
+  "notifPrefPasswordsDescription": "Alte, wiederverwendete oder schwache Passwörter.",
+  "notifPrefSecurity": "Sicherheit",
+  "notifPrefSecurityDescription": "Fehlversuche, Sicherheitsänderungen und 2FA-Erinnerung."
 }

@@ -289,5 +289,15 @@
   "autoBackupNext": "Next",
   "autoBackupNextSoon": "as soon as you open the app",
   "autoBackupOnlyWhileOpen": "If the app is closed or locked when one is due, the backup is made when you open and unlock it.",
-  "autoBackupRetry": "Retry"
+  "autoBackupRetry": "Retry",
+  "notificationsCardTitle": "Notifications",
+  "notificationsCardDescription": "Choose which notices you want to receive.",
+  "notifPrefUpdates": "Updates",
+  "notifPrefUpdatesDescription": "New versions with their release notes and security patches.",
+  "notifPrefBackup": "Backups",
+  "notifPrefBackupDescription": "Reminders and errors for backups.",
+  "notifPrefPasswords": "Passwords",
+  "notifPrefPasswordsDescription": "Old, reused or weak passwords.",
+  "notifPrefSecurity": "Security",
+  "notifPrefSecurityDescription": "Failed attempts, security changes and the 2FA reminder."
 }

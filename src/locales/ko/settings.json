@@ -289,5 +289,15 @@
   "autoBackupNext": "다음",
   "autoBackupNextSoon": "앱을 여는 즉시",
   "autoBackupOnlyWhileOpen": "예정 시각에 앱이 닫혀 있거나 잠겨 있으면, 열고 잠금 해제할 때 백업합니다.",
-  "autoBackupRetry": "다시 시도"
+  "autoBackupRetry": "다시 시도",
+  "notificationsCardTitle": "알림",
+  "notificationsCardDescription": "받고 싶은 알림을 선택하세요.",
+  "notifPrefUpdates": "업데이트",
+  "notifPrefUpdatesDescription": "새 버전의 릴리스 노트와 보안 패치.",
+  "notifPrefBackup": "백업",
+  "notifPrefBackupDescription": "백업 알림과 오류.",
+  "notifPrefPasswords": "비밀번호",
+  "notifPrefPasswordsDescription": "오래되었거나 재사용되었거나 약한 비밀번호.",
+  "notifPrefSecurity": "보안",
+  "notifPrefSecurityDescription": "실패한 시도, 보안 변경, 2FA 알림."
 }

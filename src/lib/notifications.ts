@@ -15,9 +15,26 @@ export interface NotificationAction {
 }
 
 // Tipos con aviso automático. Los textos salen de notifications:kind_<tipo>_title / _body.
-export type NotificationKind = "update" | "backup" | "passwords";
-
-export const NOTIFICATION_KINDS: NotificationKind[] = ["update", "backup", "passwords"];
+// "backup" y "passwords" son los tipos antiguos: ya no se crean, pero los avisos guardados se siguen mostrando.
+export type NotificationKind =
+  | "update"
+  | "security_update"
+  | "backup"
+  | "backup_reminder"
+  | "backup_failed"
+  | "passwords"
+  | "passwords_old"
+  | "passwords_weak"
+  | "twofa_disabled"
+  | "alert_failed_unlocks"
+  | "alert_totp_enabled"
+  | "alert_totp_disabled"
+  | "alert_password_changed"
+  | "alert_backup_codes"
+  | "alert_backup_code_used"
+  | "alert_export"
+  | "alert_import"
+  | "alert_backup_failed";
 
 export interface AppNotification {
   id: string;
@@ -30,11 +47,35 @@ export interface AppNotification {
   created_at: number;
 }
 
-// Valores por defecto de cada tipo conocido. También cubren los avisos guardados antes de existir estos campos.
+// Botones de cada aviso. "updateNow" y "viewRelease" los resuelve NotificationsBell; el resto son vistas de la app,
+// con un ancla opcional ("settings#backup-section") para llevar al usuario a la sección concreta.
+const RELEASE_ACTIONS: NotificationAction[] = [{ id: "updateNow" }, { id: "viewRelease" }];
+const BACKUP_ACTIONS: NotificationAction[] = [{ id: "openBackupSettings", target: "settings#backup-section" }];
+const AUDIT_ACTIONS: NotificationAction[] = [{ id: "openActivity", target: "activity" }];
+const SECURITY_ACTIONS: NotificationAction[] = [
+  { id: "openSecuritySettings", target: "settings#security-section" },
+  { id: "openActivity", target: "activity" },
+];
+
 const KIND_DEFAULTS: Record<NotificationKind, { severity: NotificationSeverity; actions: NotificationAction[] }> = {
-  update: { severity: "info", actions: [{ id: "openSettings", target: "settings" }] },
-  backup: { severity: "warning", actions: [{ id: "exportBackup", target: "settings" }] },
+  update: { severity: "info", actions: RELEASE_ACTIONS },
+  security_update: { severity: "security", actions: RELEASE_ACTIONS },
+  backup: { severity: "warning", actions: BACKUP_ACTIONS },
+  backup_reminder: { severity: "warning", actions: BACKUP_ACTIONS },
+  backup_failed: { severity: "warning", actions: BACKUP_ACTIONS },
   passwords: { severity: "security", actions: [{ id: "reviewPasswords", target: "vault" }] },
+  passwords_old: { severity: "warning", actions: [{ id: "reviewPasswords", target: "vault" }] },
+  passwords_weak: { severity: "security", actions: [{ id: "reviewPasswords", target: "vault" }] },
+  twofa_disabled: { severity: "security", actions: [{ id: "openSecuritySettings", target: "settings#security-section" }] },
+  alert_failed_unlocks: { severity: "security", actions: AUDIT_ACTIONS },
+  alert_totp_enabled: { severity: "success", actions: AUDIT_ACTIONS },
+  alert_totp_disabled: { severity: "security", actions: SECURITY_ACTIONS },
+  alert_password_changed: { severity: "security", actions: AUDIT_ACTIONS },
+  alert_backup_codes: { severity: "info", actions: AUDIT_ACTIONS },
+  alert_backup_code_used: { severity: "security", actions: SECURITY_ACTIONS },
+  alert_export: { severity: "info", actions: AUDIT_ACTIONS },
+  alert_import: { severity: "info", actions: AUDIT_ACTIONS },
+  alert_backup_failed: { severity: "warning", actions: BACKUP_ACTIONS },
 };
 
 function defaultsFor(kind: string) {
@@ -124,25 +165,31 @@ export async function deleteNotification(id: string) {
   setItems(await invoke<AppNotification[]>("delete_notification", { id }));
 }
 
-export async function clearNotifications() {
-  setItems(await invoke<AppNotification[]>("clear_notifications"));
+export async function clearNotifications(masterPassword: string) {
+  setItems(await invoke<AppNotification[]>("clear_notifications", { masterPassword }));
 }
 
 // ---------- Preferencias: qué avisos se generan (solo en este equipo) ----------
 
-export type NotificationPrefs = Record<NotificationKind, boolean>;
+export type NotificationGroup = "updates" | "backup" | "passwords" | "security";
+
+export const NOTIFICATION_GROUPS: NotificationGroup[] = ["updates", "backup", "passwords", "security"];
+
+export type NotificationPrefs = Record<NotificationGroup, boolean>;
 
 const PREFS_KEY = "sailock.notificationPrefs";
-const DEFAULT_PREFS: NotificationPrefs = { update: true, backup: true, passwords: true };
+const DEFAULT_PREFS: NotificationPrefs = { updates: true, backup: true, passwords: true, security: true };
 
 function loadPrefs(): NotificationPrefs {
   const prefs = { ...DEFAULT_PREFS };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     if (raw) {
-      const saved = JSON.parse(raw) as Partial<Record<NotificationKind, unknown>>;
-      for (const kind of NOTIFICATION_KINDS) {
-        if (typeof saved[kind] === "boolean") prefs[kind] = saved[kind] as boolean;
+      const saved = JSON.parse(raw) as Record<string, unknown>;
+      // "update" es el nombre que tenía este ajuste antes de existir los grupos.
+      if (typeof saved.update === "boolean") prefs.updates = saved.update;
+      for (const group of NOTIFICATION_GROUPS) {
+        if (typeof saved[group] === "boolean") prefs[group] = saved[group] as boolean;
       }
     }
   } catch {
@@ -170,8 +217,8 @@ export function useNotificationPrefs(): NotificationPrefs {
   );
 }
 
-export function setNotificationPref(kind: NotificationKind, value: boolean) {
-  prefs = { ...prefs, [kind]: value };
+export function setNotificationPref(group: NotificationGroup, value: boolean) {
+  prefs = { ...prefs, [group]: value };
   try {
     localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   } catch {

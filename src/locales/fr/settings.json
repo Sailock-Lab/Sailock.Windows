@@ -289,5 +289,15 @@
   "autoBackupNext": "Prochaine",
   "autoBackupNextSoon": "dès l'ouverture de l'app",
   "autoBackupOnlyWhileOpen": "Si l'app est fermée ou verrouillée à l'échéance, la sauvegarde est faite à son ouverture et déverrouillage.",
-  "autoBackupRetry": "Réessayer"
+  "autoBackupRetry": "Réessayer",
+  "notificationsCardTitle": "Notifications",
+  "notificationsCardDescription": "Choisissez les avis que vous souhaitez recevoir.",
+  "notifPrefUpdates": "Mises à jour",
+  "notifPrefUpdatesDescription": "Nouvelles versions avec leurs notes et correctifs de sécurité.",
+  "notifPrefBackup": "Sauvegardes",
+  "notifPrefBackupDescription": "Rappels et erreurs des sauvegardes.",
+  "notifPrefPasswords": "Mots de passe",
+  "notifPrefPasswordsDescription": "Mots de passe anciens, réutilisés ou faibles.",
+  "notifPrefSecurity": "Sécurité",
+  "notifPrefSecurityDescription": "Tentatives échouées, changements de sécurité et rappel du 2FA."
 }

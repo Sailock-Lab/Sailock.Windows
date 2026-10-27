@@ -92,7 +92,7 @@ export function backupFileName(prefs: { prefix: string; dateFormat: BackupDateFo
 // ---------- Preferencias de la interfaz dentro de la copia ----------
 
 // Claves que no viajan: describen ESTE equipo, no las preferencias del usuario.
-const EXCLUDED_KEYS = new Set(["sailock.lastBackup", "sailock.backupBaseline"]);
+const EXCLUDED_KEYS = new Set(["sailock.lastBackup", "sailock.backupBaseline", "sailock.twofaBaseline"]);
 const MAX_SETTING_KEYS = 100;
 const MAX_SETTING_VALUE_LENGTH = 10_000;
 

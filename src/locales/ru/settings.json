@@ -291,5 +291,15 @@
   "autoBackupNext": "Следующая",
   "autoBackupNextSoon": "как только вы откроете приложение",
   "autoBackupOnlyWhileOpen": "Если в срок приложение закрыто или заблокировано, копия создаётся при открытии и разблокировке.",
-  "autoBackupRetry": "Повторить"
+  "autoBackupRetry": "Повторить",
+  "notificationsCardTitle": "Уведомления",
+  "notificationsCardDescription": "Выберите, какие уведомления вы хотите получать.",
+  "notifPrefUpdates": "Обновления",
+  "notifPrefUpdatesDescription": "Новые версии с описанием изменений и исправлениями безопасности.",
+  "notifPrefBackup": "Резервные копии",
+  "notifPrefBackupDescription": "Напоминания и ошибки резервных копий.",
+  "notifPrefPasswords": "Пароли",
+  "notifPrefPasswordsDescription": "Старые, повторяющиеся или слабые пароли.",
+  "notifPrefSecurity": "Безопасность",
+  "notifPrefSecurityDescription": "Неудачные попытки, изменения безопасности и напоминание о 2FA."
 }

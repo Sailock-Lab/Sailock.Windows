@@ -288,5 +288,15 @@
   "autoBackupNext": "次回",
   "autoBackupNextSoon": "アプリを開き次第",
   "autoBackupOnlyWhileOpen": "予定時刻にアプリが閉じているかロック中の場合は、開いてロック解除したときに作成されます。",
-  "autoBackupRetry": "再試行"
+  "autoBackupRetry": "再試行",
+  "notificationsCardTitle": "通知",
+  "notificationsCardDescription": "受け取りたい通知を選択します。",
+  "notifPrefUpdates": "アップデート",
+  "notifPrefUpdatesDescription": "新バージョンのリリースノートとセキュリティパッチ。",
+  "notifPrefBackup": "バックアップ",
+  "notifPrefBackupDescription": "バックアップのリマインダーとエラー。",
+  "notifPrefPasswords": "パスワード",
+  "notifPrefPasswordsDescription": "古い、再利用、または弱いパスワード。",
+  "notifPrefSecurity": "セキュリティ",
+  "notifPrefSecurityDescription": "失敗した試行、セキュリティの変更、2FAのリマインダー。"
 }

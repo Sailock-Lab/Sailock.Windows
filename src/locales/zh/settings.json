@@ -288,5 +288,15 @@
   "autoBackupNext": "下次",
   "autoBackupNextSoon": "打开应用后立即",
   "autoBackupOnlyWhileOpen": "如果到期时应用已关闭或已锁定，将在打开并解锁后创建备份。",
-  "autoBackupRetry": "重试"
+  "autoBackupRetry": "重试",
+  "notificationsCardTitle": "通知",
+  "notificationsCardDescription": "选择您想接收的提醒。",
+  "notifPrefUpdates": "更新",
+  "notifPrefUpdatesDescription": "新版本及其更新说明和安全补丁。",
+  "notifPrefBackup": "备份",
+  "notifPrefBackupDescription": "备份提醒和错误。",
+  "notifPrefPasswords": "密码",
+  "notifPrefPasswordsDescription": "旧的、重复的或弱密码。",
+  "notifPrefSecurity": "安全",
+  "notifPrefSecurityDescription": "失败的尝试、安全更改和 2FA 提醒。"
 }

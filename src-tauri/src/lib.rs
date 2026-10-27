@@ -397,10 +397,67 @@ fn unlock_vault(
     let key = derive_key(&master_password, &salt_bytes);
 
     // Si la contraseña es incorrecta, esto falla aquí mismo
-    decrypt_entries(&key, &file.nonce, &file.ciphertext)?;
+    if let Err(e) = decrypt_entries(&key, &file.nonce, &file.ciphertext) {
+        record_failed_unlock(&app_handle);
+        return Err(e);
+    }
 
     *state.key.lock().unwrap() = Some(key);
     Ok(())
+}
+
+// ---------- Intentos fallidos de desbloqueo ----------
+// Con el vault bloqueado no hay clave para cifrar nada, así que solo se guarda un contador (sin contraseñas ni
+// datos) en un fichero normal. Al desbloquear, la app lo lee, avisa al usuario y lo pone a cero.
+
+#[derive(Serialize, Deserialize, Default)]
+struct FailedUnlocks {
+    #[serde(default)]
+    count: u32,
+    #[serde(default)]
+    last_at: u64,
+}
+
+fn failed_unlocks_path(app_handle: &tauri::AppHandle) -> PathBuf {
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("no se pudo obtener la carpeta de datos de la app");
+    fs::create_dir_all(&dir).ok();
+    dir.join("failed_unlocks.json")
+}
+
+fn read_failed_unlocks(app_handle: &tauri::AppHandle) -> FailedUnlocks {
+    fs::read_to_string(failed_unlocks_path(app_handle))
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default()
+}
+
+fn record_failed_unlock(app_handle: &tauri::AppHandle) {
+    let mut data = read_failed_unlocks(app_handle);
+    data.count = data.count.saturating_add(1).min(9999);
+    data.last_at = now_millis();
+    if let Ok(json) = serde_json::to_string(&data) {
+        let _ = fs::write(failed_unlocks_path(app_handle), json);
+    }
+}
+
+// Devuelve los intentos fallidos desde el último desbloqueo correcto y los pone a cero.
+#[tauri::command]
+fn take_failed_unlocks(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<VaultState>,
+) -> Result<FailedUnlocks, String> {
+    if state.key.lock().unwrap().is_none() {
+        return Err("El vault está bloqueado".into());
+    }
+    let data = read_failed_unlocks(&app_handle);
+    let path = failed_unlocks_path(&app_handle);
+    if path.exists() {
+        let _ = fs::remove_file(path);
+    }
+    Ok(data)
 }
 
 #[tauri::command]
@@ -1042,6 +1099,10 @@ fn delete_vault(
     let backup_config_file = backup_config_path(&app_handle);
     if backup_config_file.exists() {
         let _ = fs::remove_file(&backup_config_file);
+    }
+    let failed_unlocks_file = failed_unlocks_path(&app_handle);
+    if failed_unlocks_file.exists() {
+        let _ = fs::remove_file(&failed_unlocks_file);
     }
 
     *state.key.lock().unwrap() = None;
@@ -2303,6 +2364,15 @@ fn totp_verify_backup_code(
     {
         settings.backup_code_hashes.remove(pos);
         write_totp_settings(&app_handle, &key, &settings);
+        // Gastar un código de respaldo se avisa siempre, sea quien sea: o eras tú o alguien tiene uno.
+        let remaining = settings.backup_code_hashes.len();
+        push_notification_direct(
+            &app_handle,
+            &key,
+            "alert_backup_code_used",
+            serde_json::json!({ "remaining": remaining }),
+            "security",
+        );
         Ok(true)
     } else {
         Ok(false)
@@ -3315,6 +3385,7 @@ fn delete_note(
 
 const MAX_NOTIFICATIONS: usize = 200;
 const MAX_SEEN_KEYS: usize = 500;
+const MAX_NOTIFICATION_DATA_LEN: usize = 12_000;
 const NOTIFICATION_SEVERITIES: [&str; 4] = ["info", "warning", "security", "success"];
 const MAX_NOTIFICATION_ACTIONS: usize = 3;
 // Los avisos leídos se borran solos pasado este tiempo.
@@ -3534,6 +3605,10 @@ fn add_notification(
     if key.is_empty() || key.chars().count() > 100 {
         return Err("Clave de aviso no válida".into());
     }
+    // Los datos son números, versiones y, en las actualizaciones, las notas de la versión (texto corto).
+    if serde_json::to_string(&data).map_or(true, |d| d.len() > MAX_NOTIFICATION_DATA_LEN) {
+        return Err("Los datos del aviso son demasiado grandes".into());
+    }
     update_notifications(&app_handle, &state, |d| {
         if d.seen_keys.contains(&key) {
             return Ok(());
@@ -3556,6 +3631,46 @@ fn add_notification(
         });
         Ok(())
     })
+}
+
+// Crea un aviso desde el backend, para hechos que ocurren aquí y que el frontend no ve (como gastar un código de
+// respaldo). Cada llamada crea uno nuevo. No es descartable hasta que se lea. Un fallo al guardarlo nunca
+// interrumpe la acción que lo origina.
+fn push_notification_direct(
+    app_handle: &tauri::AppHandle,
+    key: &[u8; 32],
+    kind: &str,
+    data: serde_json::Value,
+    severity: &str,
+) {
+    let mut d = read_notifications_data(app_handle, key);
+    let now = now_millis();
+    let mut n = now;
+    while d.items.iter().any(|x| x.id == format!("x{}", n)) {
+        n += 1;
+    }
+    d.items.push(AppNotification {
+        id: format!("x{}", n),
+        kind: kind.to_string(),
+        severity: Some(severity.to_string()),
+        dismissible: Some(false),
+        actions: Vec::new(),
+        data,
+        read: false,
+        created_at: now,
+    });
+    while d.items.len() > MAX_NOTIFICATIONS {
+        let oldest = d
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| x.read)
+            .min_by_key(|(_, x)| x.created_at)
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        d.items.remove(oldest);
+    }
+    let _ = write_notifications_data(app_handle, key, &d);
 }
 
 #[tauri::command]
@@ -3612,7 +3727,10 @@ fn delete_notification(
 fn clear_notifications(
     app_handle: tauri::AppHandle,
     state: tauri::State<VaultState>,
+    master_password: String,
 ) -> Result<Vec<AppNotification>, String> {
+    // Borrar todo el historial (que incluye las alertas de seguridad) exige la contraseña maestra.
+    require_master_password(&app_handle, &master_password)?;
     update_notifications(&app_handle, &state, |d| {
         // Los avisos no descartables siguen ahí hasta que se lean.
         d.items.retain(|n| n.dismissible == Some(false) && !n.read);
@@ -3887,6 +4005,7 @@ pub fn run() {
             export_backup,
             import_backup,
             get_backup_config,
+            take_failed_unlocks,
             set_backup_config,
             pick_backup_folder,
             run_backup_now,

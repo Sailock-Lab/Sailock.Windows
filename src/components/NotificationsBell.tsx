@@ -21,7 +21,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -39,6 +38,13 @@ import {
   useNotifications,
 } from "@/lib/notifications";
 import type { View } from "@/components/layout/Sidebar";
+import { MarkdownView } from "@/components/MarkdownView";
+import { MasterPasswordDialog } from "@/components/MasterPasswordDialog";
+import { useOpenUrl } from "@/components/EntryFields";
+import { checkForUpdates } from "@/hooks/useUpdater";
+
+// Página de las versiones. Es fija: ningún aviso puede llevar a otra dirección.
+const RELEASES_URL = "https://github.com/Sailock-Lab/Sailock.Windows/releases/latest";
 
 const VIEWS: View[] = ["vault", "totp", "notes", "generator", "settings", "activity"];
 
@@ -80,6 +86,7 @@ export function NotificationsBell({
   const [clearOpen, setClearOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { requestOpen, dialog: openUrlDialog } = useOpenUrl();
 
   const unread = notifications.filter((n) => !n.read).length;
   const visible = useMemo(
@@ -131,10 +138,32 @@ export function NotificationsBell({
 
   const handleAction = (n: AppNotification, action: NotificationAction) => {
     if (!n.read) run(markNotificationRead(n.id, true));
-    const target = VIEWS.find((v) => v === action.target);
+
+    if (action.id === "viewRelease") {
+      requestOpen(RELEASES_URL);
+      return;
+    }
+    if (action.id === "updateNow") {
+      // Abre el diálogo de actualización de la app, el mismo que "Buscar actualizaciones".
+      setOpen(false);
+      run(
+        checkForUpdates({ manual: true }).then((result) => {
+          if (result === "upToDate") toast.success(t("updateAlreadyDone"));
+          else if (result === "error") toast.error(t("updateCheckFailed"));
+        })
+      );
+      return;
+    }
+
+    // "vista" o "vista#ancla": lleva a la vista y desplaza hasta la sección indicada.
+    const [view, anchor] = (action.target ?? "").split("#");
+    const target = VIEWS.find((v) => v === view);
     if (target) {
       setOpen(false);
       onNavigate(target);
+      if (anchor && /^[a-z0-9-]+$/.test(anchor)) {
+        setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+      }
     }
   };
 
@@ -309,6 +338,14 @@ export function NotificationsBell({
                           <h3 className="mt-2 text-xl font-semibold">{textOf(selected, "title")}</h3>
                           <p className="mt-1 text-xs text-muted-foreground">{fullDate(selected.created_at)}</p>
                           <p className="mt-5 whitespace-pre-line text-sm leading-relaxed">{textOf(selected, "body")}</p>
+                          {typeof selected.data?.notes === "string" && selected.data.notes.trim() !== "" && (
+                            <div className="mt-5 rounded-lg border bg-muted/30 p-4">
+                              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                {t("releaseNotesTitle")}
+                              </p>
+                              <MarkdownView source={selected.data.notes} />
+                            </div>
+                          )}
                           {actionsOf(selected).length > 0 && (
                             <div className="mt-6 flex flex-wrap gap-2">
                               {actionsOf(selected).map((action, i) => (
@@ -339,30 +376,19 @@ export function NotificationsBell({
             </div>
           </div>
 
+          {openUrlDialog}
+
           {/* Diálogo anidado: va dentro de la ventana para no cerrarla al interactuar con él. */}
-          <Dialog open={clearOpen} onOpenChange={setClearOpen}>
-            <DialogContent className="sm:max-w-sm">
-              <DialogHeader>
-                <DialogTitle>{t("clearTitle")}</DialogTitle>
-                <DialogDescription>{t("clearDescription")}</DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setClearOpen(false)}>
-                  {t("cancel")}
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    setClearOpen(false);
-                    setSelectedId(null);
-                    run(clearNotifications());
-                  }}
-                >
-                  {t("clearAll")}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <MasterPasswordDialog
+            open={clearOpen}
+            onOpenChange={setClearOpen}
+            title={t("clearTitle")}
+            description={t("clearConfirmDescription")}
+            onVerified={async (password) => {
+              setSelectedId(null);
+              await clearNotifications(password);
+            }}
+          />
         </DialogContent>
       </Dialog>
     </>

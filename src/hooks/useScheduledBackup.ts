@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import i18n from "@/i18n";
 import { BackupConfig, backupFileName, collectSettings, isBackupDue } from "@/lib/backupSettings";
 import { recordBackup } from "@/lib/notifications";
+import { alertEvent } from "@/lib/securityAlerts";
 
 const RECHECK_MS = 15 * 60 * 1000;
 export const BACKUP_DONE_EVENT = "sailock:backup-done";
@@ -42,6 +43,7 @@ export function useScheduledBackup(unlocked: boolean) {
         // Se avisa una sola vez por sesión para no molestar si la carpeta no está disponible.
         if (!failedOnce.current) {
           failedOnce.current = true;
+          alertEvent("alert_backup_failed");
           toast.error(i18n.t("settings:autoBackupFailed", { error: String(e) }));
         }
       } finally {

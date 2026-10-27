@@ -288,5 +288,15 @@
   "autoBackupNext": "Volgende",
   "autoBackupNextSoon": "zodra je de app opent",
   "autoBackupOnlyWhileOpen": "Is de app gesloten of vergrendeld wanneer het tijd is, dan wordt de back-up gemaakt bij openen en ontgrendelen.",
-  "autoBackupRetry": "Opnieuw proberen"
+  "autoBackupRetry": "Opnieuw proberen",
+  "notificationsCardTitle": "Meldingen",
+  "notificationsCardDescription": "Kies welke meldingen je wilt ontvangen.",
+  "notifPrefUpdates": "Updates",
+  "notifPrefUpdatesDescription": "Nieuwe versies met releasenotities en beveiligingspatches.",
+  "notifPrefBackup": "Back-ups",
+  "notifPrefBackupDescription": "Herinneringen en fouten van back-ups.",
+  "notifPrefPasswords": "Wachtwoorden",
+  "notifPrefPasswordsDescription": "Oude, hergebruikte of zwakke wachtwoorden.",
+  "notifPrefSecurity": "Beveiliging",
+  "notifPrefSecurityDescription": "Mislukte pogingen, beveiligingswijzigingen en 2FA-herinnering."
 }
